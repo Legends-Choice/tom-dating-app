@@ -1,4 +1,10 @@
 import React, { useState, useRef, useCallback } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+// ================= Supabase =================
+const SUPABASE_URL = "https://adanpwwxovponnluoztd.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_fxfFnuDXlNm8dgEwPbNLog_1hkZlsbL";
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ================= Brand =================
 const T = {
@@ -27,33 +33,199 @@ const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/h
 const isAllowedFile = (file) =>
   ALLOWED.includes(file.type) || /\.(heic|heif)$/i.test(file.name);
 
+// Maps a Supabase profiles row into the card shape Discover/Matches/Card expect
+const CARD_GRADIENTS = [
+  ["#7C3AED", "#B197F0"], ["#5B21B6", "#8B5CF6"], ["#9333EA", "#F0ABFC"],
+  ["#6D28D9", "#67E8F9"], ["#7E22CE", "#FDA4AF"], ["#6B21A8", "#FDBA74"],
+];
+function hashStr(s) {
+  let h = 0;
+  for (let i = 0; i < String(s).length; i++) h = (h * 31 + String(s).charCodeAt(i)) >>> 0;
+  return h;
+}
+function dbRowToCard(row) {
+  const h = hashStr(row.id);
+  const likes = [...(row.interests || []), ...(row.hobbies || []), ...(row.things_i_like_to_do || [])];
+  return {
+    id: row.id,
+    name: row.name,
+    verified: Boolean(row.verified),
+    likes,
+    age: row.age,
+    loc: { lat: row.latitude ?? FALLBACK_LOC.lat, lng: row.longitude ?? FALLBACK_LOC.lng },
+    grad: CARD_GRADIENTS[h % CARD_GRADIENTS.length],
+    vibe: likes[0] || "New here",
+    tags: (row.hobbies && row.hobbies.length ? row.hobbies : (row.interests || [])).slice(0, 2),
+    idea: DATE_IDEAS[h % DATE_IDEAS.length],
+    bio: row.bio || "Just joined TOM \u2014 say hi!",
+  };
+}
+
+// Maps a Supabase profiles row back into the shape the UI expects
+function rowToUser(row, email) {
+  return {
+    id: row.id,
+    name: row.name || "",
+    age: row.age ?? null,
+    email: email || row.email || "",
+    heightCm: row.height_cm ?? null,
+    gender: row.gender || null,
+    orientation: row.orientation || null,
+    interestedIn: row.interested_in || null,
+    chronotype: row.chronotype || null,
+    bio: row.bio || "",
+    city: row.location || "",
+    thingsILikeToDo: row.things_i_like_to_do || [],
+    interests: row.interests || [],
+    hobbies: row.hobbies || [],
+    profilePhoto: row.avatar_url || null,
+    photos: row.gallery_photos || [],
+    verified: Boolean(row.verified),
+    searchRadiusKm: row.search_radius_km ?? 50,
+    distanceUnit: row.distance_unit || "km",
+  };
+}
+
 const api = {
   user: null,
-  accounts: {},
-  signup({ name, email, password, age }) {
+  async signup({ name, email, password, age }) {
     if (!name.trim()) return { error: "Name required" };
     const mail = (email || "").trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) return { error: "Valid email required" };
     if (password.length < 8) return { error: "Password must be at least 8 characters" };
     const a = Number(age);
     if (!Number.isInteger(a) || a < 18 || a > 120) return { error: "You must be 18 or older to join TOM" };
-    if (this.accounts[mail]) return { error: "An account with this email already exists. Sign in instead." };
+
+    const { data, error } = await supabase.auth.signUp({ email: mail, password });
+    if (error) return { error: error.message };
+    const authUser = data.user;
+    if (!authUser) return { error: "Check your email to confirm your account, then sign in." };
+
     const user = {
+      id: authUser.id,
       name: name.trim(), age: a, email: mail,
       heightCm: null, gender: null, orientation: null, interestedIn: null,
       chronotype: null, bio: "", city: "",
       thingsILikeToDo: [], interests: [], hobbies: [],
       profilePhoto: null, photos: [],
+      searchRadiusKm: 50, distanceUnit: "km",
     };
-    this.accounts[mail] = { password, user };
+    const { error: insertErr } = await supabase.from("profiles").insert({
+      id: authUser.id, email: mail, name: user.name, age: user.age,
+    });
+    if (insertErr) return { error: insertErr.message };
     this.user = user;
     return { ok: true };
   },
-  login({ email, password }) {
-    const acc = this.accounts[(email || "").trim().toLowerCase()];
-    if (!acc || acc.password !== password) return { error: "Email or password is incorrect" };
-    this.user = acc.user;
-    return { ok: true, complete: Boolean(acc.user.bio && acc.user.profilePhoto) };
+  async login({ email, password }) {
+    const mail = (email || "").trim().toLowerCase();
+    const { data, error } = await supabase.auth.signInWithPassword({ email: mail, password });
+    if (error) return { error: "Email or password is incorrect" };
+    let { data: row, error: profErr } = await supabase.from("profiles").select("*").eq("id", data.user.id).single();
+    if (profErr || !row) {
+      // Account exists in auth but has no profile row yet (e.g. an earlier
+      // signup attempt got interrupted). Create the missing row instead of
+      // leaving the user stuck.
+      const { data: created, error: createErr } = await supabase.from("profiles")
+        .insert({ id: data.user.id, email: mail, name: "", age: null })
+        .select().single();
+      if (createErr || !created) return { error: "We couldn't set up your profile. Please try again." };
+      row = created;
+    }
+    this.user = rowToUser(row, mail);
+    return { ok: true, complete: Boolean(this.user.bio && this.user.profilePhoto) };
+  },
+  async restoreSession() {
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) return { ok: false };
+    const { data: row, error } = await supabase.from("profiles").select("*").eq("id", data.session.user.id).single();
+    if (error || !row) return { ok: false };
+    this.user = rowToUser(row, data.session.user.email);
+    return { ok: true, complete: Boolean(this.user.bio && this.user.profilePhoto) };
+  },
+  async saveProfile() {
+    if (!this.user || !this.user.id) return { error: "Not signed in" };
+    const u = this.user;
+    const { error } = await supabase.from("profiles").update({
+      name: u.name, age: u.age, bio: u.bio, location: u.city,
+      gender: u.gender, orientation: u.orientation, interested_in: u.interestedIn,
+      chronotype: u.chronotype, height_cm: u.heightCm,
+      interests: u.interests, hobbies: u.hobbies, things_i_like_to_do: u.thingsILikeToDo,
+      avatar_url: u.profilePhoto, gallery_photos: u.photos,
+      search_radius_km: u.searchRadiusKm, distance_unit: u.distanceUnit,
+      orientation_consent_at: new Date().toISOString(),
+    }).eq("id", u.id);
+    if (error) return { error: error.message };
+    return { ok: true };
+  },
+  async deleteAccount() {
+    if (this.user && this.user.id) {
+      await supabase.from("profiles").delete().eq("id", this.user.id);
+    }
+    await supabase.auth.signOut();
+    this.user = null;
+    return { ok: true };
+  },
+  async loadDeck() {
+    if (!this.user || !this.user.id) return [];
+    const myId = this.user.id;
+    const [{ data: allProfiles }, { data: myLikes }, { data: myBlocks }] = await Promise.all([
+      supabase.from("profiles").select("*").neq("id", myId).eq("is_deleted", false),
+      supabase.from("likes").select("liked_user_id").eq("user_id", myId),
+      supabase.from("blocks").select("blocked_user_id").eq("user_id", myId),
+    ]);
+    const seen = new Set([
+      ...(myLikes || []).map((l) => l.liked_user_id),
+      ...(myBlocks || []).map((b) => b.blocked_user_id),
+    ]);
+    return (allProfiles || []).filter((p) => !seen.has(p.id)).map(dbRowToCard);
+  },
+  async loadMatches() {
+    if (!this.user || !this.user.id) return [];
+    const myId = this.user.id;
+    const { data: rows } = await supabase.from("matches").select("*")
+      .or(`user_id_1.eq.${myId},user_id_2.eq.${myId}`).eq("is_active", true);
+    if (!rows || rows.length === 0) return [];
+    const otherIds = rows.map((r) => (r.user_id_1 === myId ? r.user_id_2 : r.user_id_1));
+    const { data: profs } = await supabase.from("profiles").select("*").in("id", otherIds);
+    return (profs || []).map(dbRowToCard);
+  },
+  async swipe(profileId, action) {
+    if (!this.user || !this.user.id) return { matched: false };
+    const myId = this.user.id;
+    await supabase.from("likes").insert({ user_id: myId, liked_user_id: profileId, action });
+    if (action !== "spend_time") return { matched: false };
+    const { data: mutual } = await supabase.from("likes").select("*")
+      .eq("user_id", profileId).eq("liked_user_id", myId).eq("action", "spend_time").maybeSingle();
+    if (!mutual) return { matched: false };
+    const u1 = myId < profileId ? myId : profileId;
+    const u2 = myId < profileId ? profileId : myId;
+    await supabase.from("matches").insert({ user_id_1: u1, user_id_2: u2 });
+    return { matched: true };
+  },
+  async sendGoldenHour(profileId) {
+    if (!this.user || !this.user.id) return { ok: false };
+    const myId = this.user.id;
+    await supabase.from("likes").insert({ user_id: myId, liked_user_id: profileId, action: "golden_hour" });
+    await supabase.from("golden_hours").insert({ user_id: myId, recipient_id: profileId });
+    return { ok: true };
+  },
+  async reportAndBlock(profileId, reason) {
+    const myId = this.user && this.user.id ? this.user.id : null;
+    await supabase.from("reports").insert({ reporter_id: myId, reported_user_id: profileId, reason: reason || "Something else" });
+    if (myId) await supabase.from("blocks").insert({ user_id: myId, blocked_user_id: profileId });
+    return { ok: true };
+  },
+  async countAdmirers() {
+    if (!this.user || !this.user.id) return 0;
+    const myId = this.user.id;
+    const [{ data: likes }, { data: matchRows }] = await Promise.all([
+      supabase.from("likes").select("user_id").eq("liked_user_id", myId).in("action", ["spend_time", "golden_hour"]),
+      supabase.from("matches").select("*").or(`user_id_1.eq.${myId},user_id_2.eq.${myId}`).eq("is_active", true),
+    ]);
+    const matchedIds = new Set((matchRows || []).map((r) => (r.user_id_1 === myId ? r.user_id_2 : r.user_id_1)));
+    const admirerIds = new Set((likes || []).map((l) => l.user_id).filter((id) => !matchedIds.has(id)));
+    return admirerIds.size;
   },
   validatePhoto(file) {
     if (!isAllowedFile(file)) return "Only JPEG, PNG, WebP, or HEIC photos are allowed";
@@ -87,6 +259,11 @@ function haversineKm(a, b) {
 }
 const distLabel = (from, p) => {
   const km = haversineKm(from, p.loc);
+  const useMiles = api.user?.distanceUnit === "mi";
+  if (useMiles) {
+    const mi = km * 0.621371;
+    return mi < 0.1 ? `${Math.max(Math.round(mi * 5280), 100)} ft` : `${mi.toFixed(1)} mi`;
+  }
   return km < 1 ? `${Math.max(Math.round(km * 10) * 100, 100)} m` : `${km.toFixed(1)} km`;
 };
 
@@ -495,14 +672,18 @@ function Welcome({ onDone, initialMode }) {
   const [mode, setMode] = useState(initialMode || "signup"); // signup | signin
   const [form, setForm] = useState({ name: "", email: "", password: "", age: "" });
   const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
-  const submit = () => {
+  const submit = async () => {
     setError(null);
+    setBusy(true);
     if (mode === "signup") {
-      const r = api.signup(form);
+      const r = await api.signup(form);
+      setBusy(false);
       if (r.error) setError(r.error); else onDone("builder");
     } else {
-      const r = api.login(form);
+      const r = await api.login(form);
+      setBusy(false);
       if (r.error) setError(r.error); else onDone(r.complete ? "main" : "builder");
     }
   };
@@ -522,7 +703,7 @@ function Welcome({ onDone, initialMode }) {
       <Field label="Password"><input style={inputStyle} type="password" value={form.password} onChange={set("password")} placeholder={mode === "signup" ? "8+ characters" : "Your password"} /></Field>
       {mode === "signup" && <Field label="Age"><input style={inputStyle} type="number" value={form.age} onChange={set("age")} placeholder="18+" /></Field>}
       {error && <p style={{ ...nu(700, 13, T.red), margin: "0 0 12px" }}>{error}</p>}
-      <PrimaryBtn onClick={submit}>{mode === "signup" ? "Create my account" : "Sign in"}</PrimaryBtn>
+      <PrimaryBtn disabled={busy} onClick={submit}>{busy ? "Please wait..." : (mode === "signup" ? "Create my account" : "Sign in")}</PrimaryBtn>
       <button onClick={() => { setMode(mode === "signup" ? "signin" : "signup"); setError(null); }}
         style={{ width: "100%", marginTop: 12, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13.5, T.royal) }}>
         {mode === "signup" ? "Already on TOM? Sign in" : "New here? Create an account"}
@@ -532,11 +713,12 @@ function Welcome({ onDone, initialMode }) {
   );
 }
 
-function Builder({ onDone }) {
+function Builder({ onDone, editMode }) {
   const [step, setStep] = useState(0);
   const [, force] = useState(0);
   const rerender = () => force((n) => n + 1);
   const [photoError, setPhotoError] = useState(null);
+  const [saving, setSaving] = useState(false);
   const [heightUnit, setHeightUnit] = useState("cm");
   const [ftIn, setFtIn] = useState({ ft: "", inch: "" });
   const u = api.user;
@@ -680,8 +862,15 @@ function Builder({ onDone }) {
           <button onClick={() => setStep(step - 1)} style={{ padding: "14px 18px", borderRadius: 16, border: `2px solid ${T.lilacDeep}`, background: T.white, ...fr(600, 15, T.royal), cursor: "pointer" }}>Back</button>
         )}
         <div style={{ flex: 1 }}>
-          <PrimaryBtn disabled={!canNext} onClick={() => (step < 3 ? setStep(step + 1) : onDone())}>
-            {step < 3 ? "Continue" : "Start spending time"}
+          <PrimaryBtn disabled={!canNext || saving} onClick={async () => {
+            if (step < 3) { setStep(step + 1); return; }
+            setSaving(true);
+            const r = await api.saveProfile();
+            setSaving(false);
+            if (r.error) { setPhotoError(r.error); return; }
+            onDone();
+          }}>
+            {saving ? "Saving..." : (step < 3 ? "Continue" : (editMode ? "Save changes" : "Start spending time"))}
           </PrimaryBtn>
         </div>
       </div>
@@ -778,7 +967,7 @@ function ReportModal({ profile, onCancel, onConfirm }) {
             <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}><Ic.ShieldCheck s={44} c={T.green} /></div>
             <h2 style={{ ...fr(700, 22, T.ink), margin: "0 0 8px" }}>Thanks for keeping TOM safe</h2>
             <p style={{ ...nu(600, 13.5, T.soft), margin: "0 0 16px", lineHeight: 1.5 }}>{profile.name} has been blocked and removed. Our safety team will review this report. They won't know it came from you.</p>
-            <PrimaryBtn onClick={onConfirm}>Done</PrimaryBtn>
+            <PrimaryBtn onClick={() => onConfirm(reason)}>Done</PrimaryBtn>
           </div>
         ) : (
           <>
@@ -830,9 +1019,10 @@ function VerifyModal({ onClose, onSubmit }) {
   );
 }
 
-function Matches({ matches, myLoc, onUpgrade, onReport }) {
+function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport }) {
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "6px 16px 16px" }}>
+      {admirerCount > 0 && (
       <button onClick={onUpgrade} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, background: `linear-gradient(135deg, ${T.royal}, ${T.violet})`, border: "none", borderRadius: 18, padding: 14, marginBottom: 12, cursor: "pointer", textAlign: "left" }}>
         <div style={{ display: "flex" }}>
           {["#B197F0", "#F0ABFC", "#67E8F9"].map((c, i) => (
@@ -840,10 +1030,11 @@ function Matches({ matches, myLoc, onUpgrade, onReport }) {
           ))}
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ ...nu(800, 14, T.white) }}>3 people think you're worth their time</div>
+          <div style={{ ...nu(800, 14, T.white) }}>{admirerCount} {admirerCount === 1 ? "person thinks" : "people think"} you're worth their time</div>
           <div style={{ ...nu(700, 12, "#D9CCF5") }}>See who likes you with TOM+ →</div>
         </div>
       </button>
+      )}
       {matches.length === 0 ? (
         <div style={{ textAlign: "center", paddingTop: 70 }}>
           <Ic.Hourglass s={48} c={T.royal} />
@@ -874,8 +1065,12 @@ function Matches({ matches, myLoc, onUpgrade, onReport }) {
   );
 }
 
-function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete }) {
+function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, onEditProfile }) {
   const u = api.user;
+  const [, force] = useState(0);
+  const rerender = () => force((n) => n + 1);
+  const [managingPhotos, setManagingPhotos] = useState(false);
+  const [managingSearch, setManagingSearch] = useState(false);
   const chronoLabel = CHRONO.find(([v]) => v === u.chronotype)?.[1] || "";
   const ftLabel = (cm) => { const t = Math.round(cm / 2.54); return `${Math.floor(t / 12)}'${t % 12}"`; };
   const heightLabel = u.heightCm ? `${u.heightCm} cm (${ftLabel(u.heightCm)})` : null;
@@ -903,6 +1098,9 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete })
         </div>
         <h2 style={{ ...fr(600, 24, T.ink), margin: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>{u.name}, {u.age}{verifyStatus === "verified" && <Ic.ShieldCheck s={21} c={T.green} />}</h2>
         <p style={{ ...nu(700, 13, T.soft), margin: "4px 0 0" }}>{[u.city, heightLabel, chronoLabel].filter(Boolean).join(" · ")}</p>
+        <button onClick={() => setManagingPhotos(true)} style={{ marginTop: 8, marginRight: 8, border: `2px solid ${T.lilacDeep}`, background: T.white, borderRadius: 999, padding: "7px 14px", cursor: "pointer", ...nu(800, 12.5, T.royal) }}>Manage photos</button>
+        <button onClick={onEditProfile} style={{ marginTop: 8, marginRight: 8, border: `2px solid ${T.lilacDeep}`, background: T.white, borderRadius: 999, padding: "7px 14px", cursor: "pointer", ...nu(800, 12.5, T.royal) }}>Edit profile</button>
+        <button onClick={() => setManagingSearch(true)} style={{ marginTop: 8, border: `2px solid ${T.lilacDeep}`, background: T.white, borderRadius: 999, padding: "7px 14px", cursor: "pointer", ...nu(800, 12.5, T.royal) }}>Search preferences</button>
       </div>
       {u.photos.length > 0 && (
         <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 12 }}>
@@ -921,9 +1119,9 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete })
         </div>
       ))}
       <div style={{ marginTop: 14, borderRadius: 18, padding: 16, background: `linear-gradient(135deg, ${T.royal}, ${T.violet})`, color: T.white, textAlign: "center" }}>
-        <div style={fr(700, 18, T.white)}>Money spent on TOM</div>
+        <div style={fr(700, 18, T.white)}>Every TOM date is designed to cost</div>
         <div style={{ ...fr(700, 40, T.sun), margin: "4px 0" }}>$0.00</div>
-        <div style={{ ...nu(700, 12.5, T.white), opacity: 0.9 }}>Don't spend money. Spend time.</div>
+        <div style={{ ...nu(700, 12.5, T.white), opacity: 0.9 }}>No bills. No paying. Just time together.</div>
       </div>
       {verifyStatus !== "verified" && (
         <button onClick={onVerify} disabled={verifyStatus === "review"} style={{ width: "100%", marginTop: 10, borderRadius: 18, padding: "14px 16px", border: `2px solid ${verifyStatus === "review" ? T.lilacDeep : T.green}`, background: verifyStatus === "review" ? "#F7F5FC" : "#F0FBF5", cursor: verifyStatus === "review" ? "default" : "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
@@ -959,6 +1157,140 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete })
           <Ic.Chevron s={14} c={T.red} />
         </button>
       </div>
+      {managingPhotos && (
+        <PhotoManagerModal
+          onClose={() => setManagingPhotos(false)}
+          onSaved={() => { rerender(); setManagingPhotos(false); }}
+        />
+      )}
+      {managingSearch && (
+        <SearchPrefsModal
+          onClose={() => setManagingSearch(false)}
+          onSaved={() => { rerender(); setManagingSearch(false); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function PhotoManagerModal({ onClose, onSaved }) {
+  const u = api.user;
+  const [order, setOrder] = useState([u.profilePhoto, ...u.photos].filter(Boolean));
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const MAX_TOTAL = MAX_PHOTOS + 1;
+
+  const makeMain = (i) => {
+    if (i === 0) return;
+    setOrder((o) => [o[i], ...o.slice(0, i), ...o.slice(i + 1)]);
+  };
+  const moveLeft = (i) => {
+    if (i === 0) return;
+    setOrder((o) => { const n = [...o]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; return n; });
+  };
+  const moveRight = (i) => {
+    if (i === order.length - 1) return;
+    setOrder((o) => { const n = [...o]; [n[i + 1], n[i]] = [n[i], n[i + 1]]; return n; });
+  };
+  const remove = (i) => setOrder((o) => o.filter((_, j) => j !== i));
+  const addFiles = (files) => {
+    setError(null);
+    for (const file of Array.from(files)) {
+      const err = api.validatePhoto(file);
+      if (err) { setError(err); continue; }
+      if (order.length >= MAX_TOTAL) { setError(`You can have up to ${MAX_TOTAL} photos total. Remove one first.`); break; }
+      const reader = new FileReader();
+      reader.onload = () => setOrder((o) => [...o, reader.result]);
+      reader.readAsDataURL(file);
+    }
+  };
+  const save = async () => {
+    if (order.length === 0) { setError("Add at least one photo"); return; }
+    setSaving(true);
+    u.profilePhoto = order[0];
+    u.photos = order.slice(1);
+    const r = await api.saveProfile();
+    setSaving(false);
+    if (r.error) { setError(r.error); return; }
+    onSaved();
+  };
+
+  return (
+    <div style={{ position: "absolute", inset: 0, zIndex: 30, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ background: T.white, borderRadius: 26, padding: "22px 20px", width: "100%", maxWidth: 340, maxHeight: "82vh", overflowY: "auto", animation: "popIn .3s ease", boxShadow: "0 20px 50px rgba(0,0,0,.3)" }}>
+        <h2 style={{ ...fr(700, 21, T.ink), margin: "0 0 4px" }}>Manage photos</h2>
+        <p style={{ ...nu(600, 12.5, T.soft), margin: "0 0 14px" }}>Your first photo is your main profile photo. Use the arrows to reorder, or tap Make main.</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+          {order.map((src, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, background: T.lilac, borderRadius: 14, padding: 8 }}>
+              <PhotoThumb src={src} size={56} round={i === 0} />
+              <div style={{ flex: 1 }}>
+                <div style={{ ...nu(800, 12, T.royal) }}>{i === 0 ? "Main photo" : `Photo ${i + 1}`}</div>
+                {i !== 0 && (
+                  <button onClick={() => makeMain(i)} style={{ border: "none", background: "none", cursor: "pointer", padding: 0, ...nu(700, 11.5, T.soft), textDecoration: "underline" }}>Make main</button>
+                )}
+              </div>
+              <button onClick={() => moveLeft(i)} disabled={i === 0} aria-label="Move earlier" style={{ border: "none", background: "none", cursor: i === 0 ? "default" : "pointer", opacity: i === 0 ? 0.3 : 1, padding: 4 }}><span style={{ display: "inline-flex", transform: "rotate(180deg)" }}><Ic.Chevron s={16} c={T.royal} /></span></button>
+              <button onClick={() => moveRight(i)} disabled={i === order.length - 1} aria-label="Move later" style={{ border: "none", background: "none", cursor: i === order.length - 1 ? "default" : "pointer", opacity: i === order.length - 1 ? 0.3 : 1, padding: 4 }}><Ic.Chevron s={16} c={T.royal} /></button>
+              <button onClick={() => remove(i)} aria-label="Remove photo" style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Cross s={15} c={T.red} /></button>
+            </div>
+          ))}
+          {order.length < MAX_TOTAL && (
+            <label style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, border: `2px dashed ${T.lilacDeep}`, borderRadius: 14, padding: 14, cursor: "pointer", ...fr(600, 15, T.royal) }}>
+              + Add photo
+              <input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" multiple style={{ display: "none" }} onChange={(e) => addFiles(e.target.files)} />
+            </label>
+          )}
+        </div>
+        {error && <p style={{ ...nu(700, 13, T.red), margin: "0 0 12px" }}>{error}</p>}
+        <PrimaryBtn disabled={saving} onClick={save}>{saving ? "Saving..." : "Save changes"}</PrimaryBtn>
+        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function SearchPrefsModal({ onClose, onSaved }) {
+  const u = api.user;
+  const [unit, setUnit] = useState(u.distanceUnit || "km");
+  const [radiusKm, setRadiusKm] = useState(u.searchRadiusKm ?? 50);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const KM_PRESETS = [5, 10, 25, 50, 100, 250];
+  const toMi = (km) => Math.round(km * 0.621371);
+  const presetLabel = (km) => (unit === "mi" ? `${toMi(km)} mi` : `${km} km`);
+
+  const save = async () => {
+    setSaving(true);
+    u.distanceUnit = unit;
+    u.searchRadiusKm = radiusKm;
+    const r = await api.saveProfile();
+    setSaving(false);
+    if (r.error) { setError(r.error); return; }
+    onSaved();
+  };
+
+  return (
+    <div style={{ position: "absolute", inset: 0, zIndex: 30, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ background: T.white, borderRadius: 26, padding: "22px 20px", width: "100%", maxWidth: 340, maxHeight: "82vh", overflowY: "auto", animation: "popIn .3s ease", boxShadow: "0 20px 50px rgba(0,0,0,.3)" }}>
+        <h2 style={{ ...fr(700, 21, T.ink), margin: "0 0 4px" }}>Search preferences</h2>
+        <p style={{ ...nu(600, 12.5, T.soft), margin: "0 0 14px" }}>Choose your units and how far you're willing to meet.</p>
+        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".6px", textTransform: "uppercase", marginBottom: 8 }}>Units</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+          {[["km", "Kilometers"], ["mi", "Miles"]].map(([v, label]) => (
+            <button key={v} onClick={() => setUnit(v)} style={{ flex: 1, padding: "10px 0", borderRadius: 14, cursor: "pointer", border: `2px solid ${unit === v ? T.royal : T.lilacDeep}`, background: unit === v ? T.lilac : T.white, ...nu(700, 13.5, unit === v ? T.royal : T.ink) }}>{label}</button>
+          ))}
+        </div>
+        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".6px", textTransform: "uppercase", marginBottom: 8 }}>Maximum distance</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
+          {KM_PRESETS.map((km) => (
+            <button key={km} onClick={() => setRadiusKm(km)} style={{ padding: "9px 14px", borderRadius: 999, cursor: "pointer", border: `2px solid ${radiusKm === km ? T.royal : T.lilacDeep}`, background: radiusKm === km ? T.lilac : T.white, ...nu(700, 13, radiusKm === km ? T.royal : T.ink) }}>{presetLabel(km)}</button>
+          ))}
+        </div>
+        {error && <p style={{ ...nu(700, 13, T.red), margin: "0 0 12px" }}>{error}</p>}
+        <PrimaryBtn disabled={saving} onClick={save}>{saving ? "Saving..." : "Save changes"}</PrimaryBtn>
+        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Cancel</button>
+      </div>
     </div>
   );
 }
@@ -966,9 +1298,20 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete })
 // ================= App =================
 export default function TomApp() {
   const [screen, setScreen] = useState("home"); // home -> welcome -> builder -> main
+  const [booting, setBooting] = useState(true);
+
+  React.useEffect(() => {
+    (async () => {
+      const r = await api.restoreSession();
+      if (r.ok) setScreen(r.complete ? "main" : "builder");
+      setBooting(false);
+    })();
+  }, []);
   const [authMode, setAuthMode] = useState("signup");
+  const [editingProfile, setEditingProfile] = useState(false);
   const [deck, setDeck] = useState(PROFILES);
   const [matches, setMatches] = useState([]);
+  const [admirerCount, setAdmirerCount] = useState(3);
   const [tab, setTab] = useState("discover");
   const [matched, setMatched] = useState(null);
   const [paywall, setPaywall] = useState(false);
@@ -983,9 +1326,8 @@ export default function TomApp() {
   const [legal, setLegal] = useState(null); // null | "privacy" | "terms"
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  const deleteAccount = () => {
-    if (api.user && api.user.email) delete api.accounts[api.user.email];
-    api.user = null;
+  const deleteAccount = async () => {
+    await api.deleteAccount();
     setDeck(PROFILES);
     setMatches([]);
     setMatched(null);
@@ -1000,14 +1342,23 @@ export default function TomApp() {
 
   React.useEffect(() => {
     if (verifyStatus !== "review") return;
-    const t = setTimeout(() => { setVerifyStatus("verified"); if (api.user) api.user.verified = true; }, 4000);
+    const t = setTimeout(() => {
+      setVerifyStatus("verified");
+      if (api.user) {
+        api.user.verified = true;
+        if (api.user.id) supabase.from("profiles").update({ verified: true }).eq("id", api.user.id);
+      }
+    }, 4000);
     return () => clearTimeout(t);
   }, [verifyStatus]);
 
-  const confirmReport = () => {
+  const confirmReport = (reason) => {
     if (!reporting) return;
     if (reporting.from === "deck") setDeck((d) => d.filter((p) => p.id !== reporting.profile.id));
     else setMatches((m) => m.filter((p) => p.id !== reporting.profile.id));
+    if (api.user && !api.user.isGuest) {
+      api.reportAndBlock(reporting.profile.id, reason);
+    }
     setReporting(null);
   };
 
@@ -1019,12 +1370,26 @@ export default function TomApp() {
     setDeck((d) => d.filter((p) => p.id !== top.id));
     setMatched(top);
     setMatches((m) => [...m, top]);
+    if (api.user && api.user.id && !api.user.isGuest) {
+      api.sendGoldenHour(top.id);
+    }
   };
   const onGolden = () => {
     if (sortedDeck.length === 0) return;
     if (!goldenSeen) { setGoldenIntro(true); return; }
     fireGolden();
   };
+
+  React.useEffect(() => {
+    if (screen !== "main") return;
+    if (!api.user || api.user.isGuest || !api.user.id) return; // guests keep the demo deck
+    (async () => {
+      const [d, m, c] = await Promise.all([api.loadDeck(), api.loadMatches(), api.countAdmirers()]);
+      setDeck(d);
+      setMatches(m);
+      setAdmirerCount(c);
+    })();
+  }, [screen]);
 
   React.useEffect(() => {
     if (screen !== "main" || !navigator.geolocation) return;
@@ -1036,15 +1401,25 @@ export default function TomApp() {
   }, [screen]);
 
   // Ranking: distance minus shared-interest boost (closest + most in common first)
-  const sortedDeck = React.useMemo(
-    () => [...deck].sort((a, b) => rankScore(myLoc, a) - rankScore(myLoc, b)),
-    [deck, myLoc]
-  );
+  const sortedDeck = React.useMemo(() => {
+    const radiusKm = (api.user && !api.user.isGuest) ? (api.user.searchRadiusKm ?? 50) : Infinity;
+    return deck
+      .filter((p) => haversineKm(myLoc, p.loc) <= radiusKm)
+      .sort((a, b) => rankScore(myLoc, a) - rankScore(myLoc, b));
+  }, [deck, myLoc]);
 
   const onSwipe = (dir) => {
     if (sortedDeck.length === 0) return;
     const top = sortedDeck[0];
     setDeck((d) => d.filter((p) => p.id !== top.id));
+    const isRealUser = Boolean(api.user && api.user.id && !api.user.isGuest);
+    if (isRealUser) {
+      api.swipe(top.id, dir === "right" ? "spend_time" : "pass").then((r) => {
+        if (r.matched) { setMatched(top); setMatches((m) => [...m, top]); }
+      });
+      return;
+    }
+    // Guest / demo mode: simulate matches against the sample deck
     if (dir === "right") {
       setMatches((m) => {
         if (top.id % 2 === 1 || m.length === 0) { setMatched(top); return [...m, top]; }
@@ -1058,6 +1433,15 @@ export default function TomApp() {
     { id: "matches", icon: Ic.Heart, label: "Dates" },
     { id: "profile", icon: Ic.Person, label: "You" },
   ];
+
+  if (booting) {
+    return (
+      <div style={{ minHeight: "100vh", background: `linear-gradient(180deg, ${T.lilac} 0%, #F7F4FD 100%)`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Nunito, sans-serif" }}>
+        {FONT}
+        <h1 style={{ ...fr(700, 32, T.royal), letterSpacing: "1px" }}>TOM<span style={{ color: T.sun }}>.</span></h1>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: `linear-gradient(180deg, ${T.lilac} 0%, #F7F4FD 100%)`, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, fontFamily: "Nunito, sans-serif" }}>
@@ -1077,7 +1461,7 @@ export default function TomApp() {
 
         {screen === "home" && <Home onLegal={setLegal} onPick={(mode) => {
           if (mode === "guest") {
-            api.user = { name: "Guest", age: null, isGuest: true, heightCm: null, gender: null, orientation: null, interestedIn: null, chronotype: null, bio: "", city: "", thingsILikeToDo: [], interests: [], hobbies: [], profilePhoto: null, photos: [] };
+            api.user = { name: "Guest", age: null, isGuest: true, heightCm: null, gender: null, orientation: null, interestedIn: null, chronotype: null, bio: "", city: "", thingsILikeToDo: [], interests: [], hobbies: [], profilePhoto: null, photos: [], searchRadiusKm: 50, distanceUnit: "km" };
             setScreen("main");
           } else {
             setAuthMode(mode);
@@ -1085,12 +1469,12 @@ export default function TomApp() {
           }
         }} />}
         {screen === "welcome" && <Welcome initialMode={authMode} onDone={(target) => setScreen(target)} />}
-        {screen === "builder" && <Builder onDone={() => setScreen("main")} />}
+        {screen === "builder" && <Builder editMode={editingProfile} onDone={() => { setEditingProfile(false); setScreen("main"); }} />}
         {screen === "main" && (
           <>
             {tab === "discover" && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={myLoc} onGolden={onGolden} goldenLeft={goldenLeft} onReport={(p) => setReporting({ profile: p, from: "deck" })} />}
-            {tab === "matches" && <Matches matches={matches} myLoc={myLoc} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "matches" })} />}
-            {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} />}
+            {tab === "matches" && <Matches matches={matches} myLoc={myLoc} admirerCount={admirerCount} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "matches" })} />}
+            {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} />}
             <nav style={{ display: "flex", justifyContent: "space-around", padding: "10px 8px 16px", background: T.white, borderTop: `1px solid ${T.lilac}` }}>
               {tabs.map((t) => (
                 <button key={t.id} onClick={() => setTab(t.id)} style={{ border: "none", background: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, opacity: tab === t.id ? 1 : 0.45, padding: "4px 14px" }}>
