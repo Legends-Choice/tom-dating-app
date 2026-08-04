@@ -83,8 +83,20 @@ function rowToUser(row, email) {
     verified: Boolean(row.verified),
     searchRadiusKm: row.search_radius_km ?? 50,
     distanceUnit: row.distance_unit || "km",
+    isPlus: Boolean(row.is_plus) && (!row.plus_until || new Date(row.plus_until) > new Date()),
+    plusUntil: row.plus_until || null,
   };
 }
+
+// Free-tier daily limits. TOM+ lifts these.
+const FREE_DAILY_LIKES = 50;
+const FREE_DAILY_GOLDEN = 1;
+const PLUS_DAILY_GOLDEN = 5;
+const startOfTodayISO = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+};
 
 const api = {
   user: null,
@@ -158,6 +170,11 @@ const api = {
     if (error) return { error: error.message };
     return { ok: true };
   },
+  async logout() {
+    await supabase.auth.signOut();
+    this.user = null;
+    return { ok: true };
+  },
   async deleteAccount() {
     if (this.user && this.user.id) {
       await supabase.from("profiles").delete().eq("id", this.user.id);
@@ -188,7 +205,9 @@ const api = {
     if (!rows || rows.length === 0) return [];
     const otherIds = rows.map((r) => (r.user_id_1 === myId ? r.user_id_2 : r.user_id_1));
     const { data: profs } = await supabase.from("profiles").select("*").in("id", otherIds);
-    return (profs || []).map(dbRowToCard);
+    const matchIdByUser = {};
+    rows.forEach((r) => { matchIdByUser[r.user_id_1 === myId ? r.user_id_2 : r.user_id_1] = r.id; });
+    return (profs || []).map((p) => ({ ...dbRowToCard(p), matchId: matchIdByUser[p.id] }));
   },
   async swipe(profileId, action) {
     if (!this.user || !this.user.id) return { matched: false };
@@ -200,8 +219,9 @@ const api = {
     if (!mutual) return { matched: false };
     const u1 = myId < profileId ? myId : profileId;
     const u2 = myId < profileId ? profileId : myId;
-    await supabase.from("matches").insert({ user_id_1: u1, user_id_2: u2 });
-    return { matched: true };
+    const { data: created } = await supabase.from("matches")
+      .insert({ user_id_1: u1, user_id_2: u2 }).select().single();
+    return { matched: true, matchId: created ? created.id : null };
   },
   async sendGoldenHour(profileId) {
     if (!this.user || !this.user.id) return { ok: false };
@@ -226,6 +246,38 @@ const api = {
     const matchedIds = new Set((matchRows || []).map((r) => (r.user_id_1 === myId ? r.user_id_2 : r.user_id_1)));
     const admirerIds = new Set((likes || []).map((l) => l.user_id).filter((id) => !matchedIds.has(id)));
     return admirerIds.size;
+  },
+  async loadDailyUsage() {
+    if (!this.user || !this.user.id) return { likesUsed: 0, goldenUsed: 0 };
+    const since = startOfTodayISO();
+    const { data } = await supabase.from("likes")
+      .select("action").eq("user_id", this.user.id).gte("created_at", since);
+    const rows = data || [];
+    return {
+      likesUsed: rows.filter((r) => r.action === "spend_time" || r.action === "golden_hour").length,
+      goldenUsed: rows.filter((r) => r.action === "golden_hour").length,
+    };
+  },
+  likeLimit() {
+    return this.user && this.user.isPlus ? Infinity : FREE_DAILY_LIKES;
+  },
+  goldenLimit() {
+    return this.user && this.user.isPlus ? PLUS_DAILY_GOLDEN : FREE_DAILY_GOLDEN;
+  },
+  async loadMessages(matchId) {
+    const { data } = await supabase.from("messages").select("*")
+      .eq("match_id", matchId).order("created_at", { ascending: true });
+    return data || [];
+  },
+  async sendMessage(matchId, body) {
+    if (!this.user || !this.user.id) return { error: "Not signed in" };
+    const text = (body || "").trim();
+    if (!text) return { error: "Message is empty" };
+    const { data, error } = await supabase.from("messages")
+      .insert({ match_id: matchId, sender_id: this.user.id, body: text })
+      .select().single();
+    if (error) return { error: error.message };
+    return { ok: true, message: data };
   },
   validatePhoto(file) {
     if (!isAllowedFile(file)) return "Only JPEG, PNG, WebP, or HEIC photos are allowed";
@@ -878,7 +930,20 @@ function Builder({ onDone, editMode }) {
   );
 }
 
-function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, onReport }) {
+function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlus, onUpgrade, onReport }) {
+  const outOfLikes = !isPlus && likesLeft !== undefined && likesLeft <= 0;
+  if (outOfLikes) {
+    return (
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 32, textAlign: "center" }}>
+        <Ic.Hourglass s={54} c={T.royal} />
+        <h2 style={{ ...fr(600, 22, T.ink), margin: 0 }}>You're out of likes for today</h2>
+        <p style={{ ...nu(600, 14, T.soft), margin: 0 }}>Your likes reset tomorrow. Passing is always unlimited.</p>
+        <div style={{ width: "100%", maxWidth: 240, marginTop: 6 }}>
+          <PrimaryBtn onClick={onUpgrade}>Get unlimited with TOM+</PrimaryBtn>
+        </div>
+      </div>
+    );
+  }
   if (deck.length === 0) {
     return (
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: 32, textAlign: "center" }}>
@@ -915,8 +980,17 @@ function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, onReport }) {
   );
 }
 
-function MatchModal({ profile, onClose, myLoc }) {
+function MatchModal({ profile, onClose, myLoc, onMessage }) {
   const [idea, setIdea] = useState(null);
+  const [sending, setSending] = useState(false);
+  const go = async () => {
+    if (!idea || !profile.matchId) { onClose(); return; }
+    setSending(true);
+    await api.sendMessage(profile.matchId, `How about this for a free first date: ${idea}?`);
+    setSending(false);
+    onClose();
+    if (onMessage) onMessage(profile);
+  };
   return (
     <div style={{ position: "absolute", inset: 0, zIndex: 20, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: T.white, borderRadius: 26, padding: "26px 22px 22px", width: "100%", maxWidth: 320, textAlign: "center", animation: "popIn .35s ease", boxShadow: "0 20px 50px rgba(0,0,0,.3)" }}>
@@ -930,7 +1004,7 @@ function MatchModal({ profile, onClose, myLoc }) {
             <button key={s} onClick={() => setIdea(s)} style={{ ...nu(700, 13.5, idea === s ? T.royal : T.ink), padding: "11px 12px", borderRadius: 14, cursor: "pointer", border: `2px solid ${idea === s ? T.royal : T.lilacDeep}`, background: idea === s ? T.lilac : T.white, textAlign: "left" }}>{s}</button>
           ))}
         </div>
-        <PrimaryBtn onClick={onClose}>{idea ? "Send this idea" : "Keep swiping"}</PrimaryBtn>
+        <PrimaryBtn disabled={sending} onClick={go}>{sending ? "Sending..." : (idea ? "Send this idea" : "Keep swiping")}</PrimaryBtn>
       </div>
     </div>
   );
@@ -947,7 +1021,7 @@ function GoldenIntro({ profileName, goldenLeft, onSend, onClose }) {
         <p style={{ ...nu(700, 14.5, T.ink), margin: "0 0 6px", lineHeight: 1.5 }}>
           Instantly tell {profileName} they're worth your best hour. They see it before anyone else.
         </p>
-        <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 18px" }}>You get 1 free every day.</p>
+        <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 18px" }}>{goldenLeft > 0 ? `You have ${goldenLeft} left today.` : "You're out for today."}</p>
         <PrimaryBtn onClick={onSend} disabled={goldenLeft <= 0}>Send Golden Hour</PrimaryBtn>
         <button onClick={onClose} style={{ width: "100%", marginTop: 10, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Not now</button>
       </div>
@@ -1019,7 +1093,96 @@ function VerifyModal({ onClose, onSubmit }) {
   );
 }
 
-function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport }) {
+function Chat({ profile, onBack }) {
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState(null);
+  const endRef = useRef(null);
+  const myId = api.user && api.user.id;
+
+  const refresh = React.useCallback(async () => {
+    if (!profile.matchId) { setLoading(false); return; }
+    const rows = await api.loadMessages(profile.matchId);
+    setMessages(rows);
+    setLoading(false);
+  }, [profile.matchId]);
+
+  React.useEffect(() => { refresh(); }, [refresh]);
+
+  // Light polling so both sides see new messages without a refresh.
+  React.useEffect(() => {
+    const t = setInterval(refresh, 5000);
+    return () => clearInterval(t);
+  }, [refresh]);
+
+  React.useEffect(() => {
+    if (endRef.current) endRef.current.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length]);
+
+  const send = async () => {
+    const text = draft.trim();
+    if (!text || sending) return;
+    setSending(true);
+    setError(null);
+    const r = await api.sendMessage(profile.matchId, text);
+    setSending(false);
+    if (r.error) { setError(r.error); return; }
+    setDraft("");
+    setMessages((m) => [...m, r.message]);
+  };
+
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderBottom: `1px solid ${T.lilacDeep}` }}>
+        <button onClick={onBack} aria-label="Back" style={{ border: "none", background: "none", cursor: "pointer", padding: 4, display: "inline-flex" }}>
+          <span style={{ display: "inline-flex", transform: "rotate(180deg)" }}><Ic.Chevron s={18} c={T.royal} /></span>
+        </button>
+        {profile.photo ? <PhotoThumb src={profile.photo} size={34} round /> : (
+          <div style={{ width: 34, height: 34, borderRadius: "50%", background: `linear-gradient(135deg, ${profile.grad[0]}, ${profile.grad[1]})` }} />
+        )}
+        <div style={{ ...fr(600, 16, T.ink) }}>{profile.name}</div>
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+        {loading ? (
+          <p style={{ ...nu(600, 13, T.soft), textAlign: "center" }}>Loading...</p>
+        ) : messages.length === 0 ? (
+          <div style={{ textAlign: "center", paddingTop: 40 }}>
+            <Ic.Hourglass s={40} c={T.royal} />
+            <p style={{ ...fr(600, 16, T.ink), margin: "10px 0 4px" }}>You matched with {profile.name}</p>
+            <p style={{ ...nu(600, 13, T.soft), margin: 0 }}>Say hi and plan something free.</p>
+          </div>
+        ) : messages.map((m) => {
+          const mine = m.sender_id === myId;
+          return (
+            <div key={m.id} style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "78%", background: mine ? T.royal : T.lilac, color: mine ? T.white : T.ink, borderRadius: 16, padding: "9px 13px", ...nu(600, 14, mine ? T.white : T.ink) }}>
+              {m.body}
+            </div>
+          );
+        })}
+        <div ref={endRef} />
+      </div>
+
+      {error && <p style={{ ...nu(700, 12.5, T.red), margin: "0 16px 6px" }}>{error}</p>}
+      <div style={{ display: "flex", gap: 8, padding: "10px 16px 14px", borderTop: `1px solid ${T.lilacDeep}` }}>
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") send(); }}
+          placeholder="Message"
+          style={{ flex: 1, padding: "11px 14px", borderRadius: 999, border: `2px solid ${T.lilacDeep}`, outline: "none", ...nu(600, 14, T.ink) }}
+        />
+        <button onClick={send} disabled={sending || !draft.trim()} style={{ padding: "0 18px", borderRadius: 999, border: "none", cursor: draft.trim() ? "pointer" : "default", background: draft.trim() ? T.royal : T.lilacDeep, ...nu(800, 13.5, T.white) }}>
+          {sending ? "..." : "Send"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat }) {
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "6px 16px 16px" }}>
       {admirerCount > 0 && (
@@ -1045,11 +1208,13 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport }) {
         <>
           {matches.map((p) => (
             <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, background: T.white, borderRadius: 18, padding: 12, marginBottom: 10, boxShadow: "0 4px 14px rgba(42,27,74,.08)", animation: "floatUp .3s ease" }}>
-              <div style={{ width: 54, height: 54, borderRadius: "50%", background: `linear-gradient(135deg, ${p.grad[0]}, ${p.grad[1]})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, ...fr(700, 22, T.white) }}>{p.name[0]}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={fr(600, 17, T.ink)}>{p.name} <span style={{ ...nu(700, 12, T.soft), display: "inline-flex", alignItems: "center", gap: 3 }}>· <Ic.Pin s={11} c={T.soft} />{distLabel(myLoc, p)}</span></div>
-                <div style={{ ...nu(700, 12.5, T.soft), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "flex", alignItems: "center", gap: 5 }}><Ic.Bulb s={12} c={T.soft} />{p.idea}</div>
-              </div>
+              <button onClick={() => onOpenChat && onOpenChat(p)} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, border: "none", background: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
+                <div style={{ width: 54, height: 54, borderRadius: "50%", background: `linear-gradient(135deg, ${p.grad[0]}, ${p.grad[1]})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, ...fr(700, 22, T.white) }}>{p.name[0]}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={fr(600, 17, T.ink)}>{p.name} <span style={{ ...nu(700, 12, T.soft), display: "inline-flex", alignItems: "center", gap: 3 }}>· <Ic.Pin s={11} c={T.soft} />{distLabel(myLoc, p)}</span></div>
+                  <div style={{ ...nu(700, 12.5, T.royal), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Tap to message</div>
+                </div>
+              </button>
               <button onClick={() => onReport(p)} aria-label="Report or unmatch" style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Flag s={15} c={T.lilacDeep} /></button>
               <span style={{ ...fr(700, 13, T.green), background: "#E8F8EF", borderRadius: 999, padding: "5px 10px" }}>$0</span>
             </div>
@@ -1065,7 +1230,7 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport }) {
   );
 }
 
-function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, onEditProfile }) {
+function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, onEditProfile, onLogout }) {
   const u = api.user;
   const [, force] = useState(0);
   const rerender = () => force((n) => n + 1);
@@ -1152,6 +1317,10 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
             <Ic.Chevron s={14} c={T.soft} />
           </button>
         ))}
+        <button onClick={onLogout} style={{ width: "100%", background: T.white, border: "none", borderRadius: 16, padding: "13px 15px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 3px 10px rgba(42,27,74,.06)" }}>
+          <span style={{ ...nu(700, 14.5, T.royal) }}>Log out</span>
+          <Ic.Chevron s={14} c={T.royal} />
+        </button>
         <button onClick={onDelete} style={{ width: "100%", background: T.white, border: "none", borderRadius: 16, padding: "13px 15px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 3px 10px rgba(42,27,74,.06)" }}>
           <span style={{ ...nu(700, 14.5, T.red) }}>Delete my account</span>
           <Ic.Chevron s={14} c={T.red} />
@@ -1315,7 +1484,12 @@ export default function TomApp() {
   const [tab, setTab] = useState("discover");
   const [matched, setMatched] = useState(null);
   const [paywall, setPaywall] = useState(false);
-  const [goldenLeft, setGoldenLeft] = useState(1); // 1 free Golden Hour per day
+  const [goldenUsed, setGoldenUsed] = useState(0);
+  const [likesUsed, setLikesUsed] = useState(0);
+  const [chatWith, setChatWith] = useState(null);
+  const isPlus = Boolean(api.user && api.user.isPlus);
+  const goldenLeft = Math.max(0, api.goldenLimit() - goldenUsed);
+  const likesLeft = api.likeLimit() - likesUsed;
   const [myLoc, setMyLoc] = useState(FALLBACK_LOC);
 
   const [goldenIntro, setGoldenIntro] = useState(false);
@@ -1326,12 +1500,28 @@ export default function TomApp() {
   const [legal, setLegal] = useState(null); // null | "privacy" | "terms"
   const [deleteOpen, setDeleteOpen] = useState(false);
 
+  const logout = async () => {
+    await api.logout();
+    setDeck(PROFILES);
+    setMatches([]);
+    setMatched(null);
+    setGoldenUsed(0);
+    setLikesUsed(0);
+    setChatWith(null);
+    setVerifyStatus(null);
+    setPaywall(false);
+    setTab("discover");
+    setScreen("home");
+  };
+
   const deleteAccount = async () => {
     await api.deleteAccount();
     setDeck(PROFILES);
     setMatches([]);
     setMatched(null);
-    setGoldenLeft(1);
+    setGoldenUsed(0);
+    setLikesUsed(0);
+    setChatWith(null);
     setGoldenSeen(false);
     setVerifyStatus(null);
     setPaywall(false);
@@ -1365,8 +1555,9 @@ export default function TomApp() {
   const fireGolden = () => {
     if (sortedDeck.length === 0) return;
     if (goldenLeft <= 0) { setPaywall(true); return; }
-    setGoldenLeft(goldenLeft - 1);
     const top = sortedDeck[0];
+    setGoldenUsed((n) => n + 1);
+    setLikesUsed((n) => n + 1);
     setDeck((d) => d.filter((p) => p.id !== top.id));
     setMatched(top);
     setMatches((m) => [...m, top]);
@@ -1384,10 +1575,14 @@ export default function TomApp() {
     if (screen !== "main") return;
     if (!api.user || api.user.isGuest || !api.user.id) return; // guests keep the demo deck
     (async () => {
-      const [d, m, c] = await Promise.all([api.loadDeck(), api.loadMatches(), api.countAdmirers()]);
+      const [d, m, c, usage] = await Promise.all([
+        api.loadDeck(), api.loadMatches(), api.countAdmirers(), api.loadDailyUsage(),
+      ]);
       setDeck(d);
       setMatches(m);
       setAdmirerCount(c);
+      setLikesUsed(usage.likesUsed);
+      setGoldenUsed(usage.goldenUsed);
     })();
   }, [screen]);
 
@@ -1410,12 +1605,19 @@ export default function TomApp() {
 
   const onSwipe = (dir) => {
     if (sortedDeck.length === 0) return;
+    const isRealUser = Boolean(api.user && api.user.id && !api.user.isGuest);
+    // Passes are always free; only likes count against the daily limit.
+    if (dir === "right" && isRealUser && likesLeft <= 0) { setPaywall(true); return; }
     const top = sortedDeck[0];
     setDeck((d) => d.filter((p) => p.id !== top.id));
-    const isRealUser = Boolean(api.user && api.user.id && !api.user.isGuest);
     if (isRealUser) {
+      if (dir === "right") setLikesUsed((n) => n + 1);
       api.swipe(top.id, dir === "right" ? "spend_time" : "pass").then((r) => {
-        if (r.matched) { setMatched(top); setMatches((m) => [...m, top]); }
+        if (r.matched) {
+          const matchedProfile = { ...top, matchId: r.matchId };
+          setMatched(matchedProfile);
+          setMatches((m) => [...m, matchedProfile]);
+        }
       });
       return;
     }
@@ -1472,12 +1674,15 @@ export default function TomApp() {
         {screen === "builder" && <Builder editMode={editingProfile} onDone={() => { setEditingProfile(false); setScreen("main"); }} />}
         {screen === "main" && (
           <>
-            {tab === "discover" && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={myLoc} onGolden={onGolden} goldenLeft={goldenLeft} onReport={(p) => setReporting({ profile: p, from: "deck" })} />}
-            {tab === "matches" && <Matches matches={matches} myLoc={myLoc} admirerCount={admirerCount} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "matches" })} />}
-            {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} />}
+            {tab === "discover" && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={myLoc} onGolden={onGolden} goldenLeft={goldenLeft} likesLeft={likesLeft} isPlus={isPlus} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "deck" })} />}
+            {tab === "matches" && (chatWith
+              ? <Chat profile={chatWith} onBack={() => setChatWith(null)} />
+              : <Matches matches={matches} myLoc={myLoc} admirerCount={admirerCount} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "matches" })} onOpenChat={(p) => setChatWith(p)} />
+            )}
+            {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} onLogout={logout} />}
             <nav style={{ display: "flex", justifyContent: "space-around", padding: "10px 8px 16px", background: T.white, borderTop: `1px solid ${T.lilac}` }}>
               {tabs.map((t) => (
-                <button key={t.id} onClick={() => setTab(t.id)} style={{ border: "none", background: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, opacity: tab === t.id ? 1 : 0.45, padding: "4px 14px" }}>
+                <button key={t.id} onClick={() => { setTab(t.id); setChatWith(null); }} style={{ border: "none", background: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, opacity: tab === t.id ? 1 : 0.45, padding: "4px 14px" }}>
                   {React.createElement(t.icon, { s: 22, c: T.royal })}
                   <span style={nu(800, 11, T.royal)}>{t.label}</span>
                 </button>
@@ -1486,7 +1691,7 @@ export default function TomApp() {
           </>
         )}
 
-        {matched && <MatchModal profile={matched} onClose={() => setMatched(null)} myLoc={myLoc} />}
+        {matched && <MatchModal profile={matched} onClose={() => setMatched(null)} myLoc={myLoc} onMessage={(p) => { setTab("matches"); setChatWith(p); }} />}
         {goldenIntro && (
           <GoldenIntro
             profileName={sortedDeck[0]?.name || "someone"}
