@@ -204,9 +204,13 @@ const api = {
       ...(myLikes || []).map((l) => l.liked_user_id),
       ...(myBlocks || []).map((b) => b.blocked_user_id),
     ]);
-    return (allProfiles || [])
+    let cards = (allProfiles || [])
       .filter((p) => !seen.has(p.id) && !p.off_the_clock)
       .map(dbRowToCard);
+    // Batch 3: attach Time Reputation to each card (only 3+ reviews come back)
+    const reps = await this.loadReputations(cards.map((c) => c.id));
+    cards = cards.map((c) => ({ ...c, rep: reps[c.id] || null }));
+    return cards;
   },
   async loadMatches() {
     if (!this.user || !this.user.id) return [];
@@ -283,6 +287,46 @@ const api = {
     }).eq("id", this.user.id);
     if (error) return { error: error.message };
     return { ok: true, expiresAt: expiry.toISOString() };
+  },
+  // ===== Batch 3: planned dates, reviews, reputation (all via RPCs) =====
+  async getPlannedDate(matchId) {
+    if (!matchId) return null;
+    const { data, error } = await supabase.rpc("get_planned_date", { p_match_id: matchId });
+    if (error || !data) return null;
+    return data;
+  },
+  async proposeDate(matchId, idea) {
+    const { data, error } = await supabase.rpc("propose_date", { p_match_id: matchId, p_idea: idea });
+    if (error) return { error: error.message };
+    return { ok: true, date: data };
+  },
+  async confirmDate(dateId) {
+    const { error } = await supabase.rpc("confirm_date", { p_date_id: dateId });
+    return error ? { error: error.message } : { ok: true };
+  },
+  async completeDate(dateId) {
+    const { error } = await supabase.rpc("complete_date", { p_date_id: dateId });
+    return error ? { error: error.message } : { ok: true };
+  },
+  async submitReview(dateId, timeWellSpent, traits, flag) {
+    const { error } = await supabase.rpc("submit_date_review", {
+      p_date_id: dateId, p_time_well_spent: timeWellSpent, p_traits: traits, p_flag: flag || null,
+    });
+    return error ? { error: error.message } : { ok: true };
+  },
+  async loadPendingReview() {
+    // Returns the oldest completed date this user has not reviewed yet, or null
+    const { data, error } = await supabase.rpc("pending_review");
+    if (error || !data) return null;
+    return data;
+  },
+  async loadReputations(userIds) {
+    if (!userIds || userIds.length === 0) return {};
+    const { data, error } = await supabase.rpc("get_time_reputations", { p_user_ids: userIds });
+    if (error || !data) return {};
+    const map = {};
+    (data || []).forEach((r) => { map[r.user_id] = { pct: r.well_spent_pct, traits: r.top_traits || [], total: r.total }; });
+    return map;
   },
   async loadDailyUsage() {
     if (!this.user || !this.user.id) return { likesUsed: 0, goldenUsed: 0 };
@@ -504,6 +548,42 @@ const Ic = {
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M6 21.5V3.5" stroke={c} strokeWidth="2.2" strokeLinecap="round" />
       <path d="M6 4h11.5l-2.6 3.5 2.6 3.5H6z" fill={c} />
+    </svg>
+  ),
+  Leaf: ({ s = 18, c = "#5B21B6" }) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M19.5 4.5C11 4.5 5.5 9 5.5 15.5c0 1.4.3 2.6.8 3.6C9 20.5 13 20 15.5 17.5c3.3-3.3 4-8.5 4-13z" fill={c} />
+      <path d="M5.5 19.5C9 14 13 10.5 17.5 8" stroke="#FFFFFF" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  ),
+  Bubble: ({ s = 18, c = "#5B21B6" }) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 3.5c-5 0-9 3.3-9 7.4 0 2.3 1.3 4.4 3.3 5.8-.1 1.2-.6 2.4-1.6 3.4 1.9-.2 3.5-.9 4.7-1.7.8.2 1.7.3 2.6.3 5 0 9-3.3 9-7.4S17 3.5 12 3.5z" fill={c} />
+      <circle cx="8.5" cy="11" r="1.2" fill="#FFFFFF" /><circle cx="12" cy="11" r="1.2" fill="#FFFFFF" /><circle cx="15.5" cy="11" r="1.2" fill="#FFFFFF" />
+    </svg>
+  ),
+  Palette: ({ s = 18, c = "#5B21B6" }) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 3a9 9 0 1 0 .8 17.96c1.3-.1 1.7-1.6.9-2.5-.9-1-.3-2.46 1-2.46h2.8c2 0 3.5-1.6 3.5-3.5C21 7 17 3 12 3z" fill={c} />
+      <circle cx="8" cy="9" r="1.5" fill="#FFFFFF" /><circle cx="12.5" cy="7" r="1.5" fill="#FFFFFF" /><circle cx="7" cy="13.5" r="1.5" fill="#FFFFFF" />
+    </svg>
+  ),
+  Rain: ({ s = 18, c = "#5B21B6" }) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M7 14.5a4.5 4.5 0 0 1-.7-8.95A6 6 0 0 1 18 7.6a4 4 0 0 1-.6 7.9H7z" fill={c} />
+      <path d="M8.5 17.5l-1 3M12.5 17.5l-1 3M16.5 17.5l-1 3" stroke={c} strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  ),
+  Column: ({ s = 18, c = "#5B21B6" }) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 2.5L3.5 7h17z" fill={c} />
+      <path d="M5 9h2.6v9H5zM10.7 9h2.6v9h-2.6zM16.4 9H19v9h-2.6z" fill={c} />
+      <rect x="3.5" y="19.5" width="17" height="2.2" rx="1" fill={c} />
+    </svg>
+  ),
+  Check: ({ s = 16, c = "#2FBF71" }) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4.5 12.5l5 5L19.5 7" stroke={c} strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
   Camera: ({ s = 20, c = "#5B21B6" }) => (
@@ -730,6 +810,189 @@ function PrimeTimeModal({ onClose, onActivate, boostUntil }) {
   );
 }
 
+// ================= Batch 3: Mission Dates, plans, reviews =================
+const MISSIONS = [
+  { id: "adventure", label: "Adventure", icon: "Compass", ideas: [
+    "Sunrise mission: reach the best viewpoint in town before the sun does",
+    "Explore a neighborhood neither of you has ever walked",
+    "Urban treasure hunt: find five hidden details most people miss",
+    "Walk-on ferry ride at golden hour, best story wins",
+    "Follow a street cat and see where it takes you",
+    "Find the highest free viewpoint in the city together",
+  ]},
+  { id: "conversation", label: "Conversation", icon: "Bubble", ideas: [
+    "36 questions on a park bench, no phones",
+    "Swap playlists and each explain three songs that made you",
+    "People-watch and invent their life stories",
+    "Teach each other something new in twenty minutes",
+    "Walk and talk: describe the street you grew up on",
+    "Debate your silliest hills to die on",
+  ]},
+  { id: "nature", label: "Nature", icon: "Leaf", ideas: [
+    "Botanical garden on its free day",
+    "Sunset picnic, everyone brings something from home",
+    "Stone skipping contest at the water",
+    "Find the oldest tree in the park",
+    "Birdwatching with a shared thermos",
+    "Barefoot walk on the grass, loser plans the next date",
+  ]},
+  { id: "culture", label: "Culture", icon: "Column", ideas: [
+    "Free museum night, invent backstories for the art",
+    "Street art hunt: photograph ten murals",
+    "Self-guided walking tour of the old town",
+    "Library date: pick a book for each other",
+    "Free concert or open rehearsal in the park",
+    "Visit the oldest building either of you can find",
+  ]},
+  { id: "exercise", label: "Exercise", icon: "Rise", ideas: [
+    "Sunrise run or brisk walk along the water",
+    "Outdoor gym challenge: who gives up first",
+    "Race up the famous steps, winner picks next mission",
+    "Park yoga, bring two mats",
+    "Bike ride to somewhere neither of you has been",
+    "Swim at the public beach",
+  ]},
+  { id: "creativity", label: "Creativity", icon: "Palette", ideas: [
+    "Sketch each other in ten minutes, reveal at the same time",
+    "Phone photo challenge: one theme, ten shots each",
+    "Write a six word story about this exact date",
+    "Build something tiny from found objects",
+    "Learn a dance from a free video, film the result",
+    "Cook-off using only what's already in the kitchen",
+  ]},
+  { id: "rainy", label: "Rainy Day", icon: "Rain", ideas: [
+    "Board games marathon, loser makes the tea",
+    "Covered bazaar wander, strictly buy nothing",
+    "Library afternoon: read each other one page",
+    "Movie marathon with homemade popcorn",
+    "Puzzle race against the rain",
+    "Rain-on-window photography from a dry doorway",
+  ]},
+  { id: "nighttime", label: "Nighttime", icon: "Moon", ideas: [
+    "Stargazing from the darkest spot you can reach",
+    "Full moon walk through the old streets",
+    "City lights viewpoint, hot drinks from home",
+    "Night market stroll, spend nothing",
+    "Ghost story walk: scariest local legend wins",
+    "Midnight breakfast at home",
+  ]},
+];
+
+const REVIEW_TRAITS = ["On time", "Great listener", "Made me laugh", "Felt safe", "Genuine", "Good energy", "Planned it well", "Respectful", "Easy to talk to", "Adventurous"];
+const REVIEW_FLAGS = ["They paid or insisted on paying", "Didn't show up", "Made me uncomfortable"];
+
+function Missions({ matches, onSend }) {
+  const [cat, setCat] = useState(MISSIONS[0].id);
+  const active = MISSIONS.find((m) => m.id === cat);
+  const CatIcon = Ic[active.icon];
+  return (
+    <div style={{ flex: 1, overflowY: "auto", padding: "6px 16px 16px" }}>
+      <h2 style={{ ...fr(700, 21, T.ink), margin: "0 0 3px" }}>Mission Dates</h2>
+      <p style={{ ...nu(700, 13, T.soft), margin: "0 0 12px" }}>Curated $0 dates. Pick one, send it to a match. Always optional.</p>
+      <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 10, marginBottom: 6 }}>
+        {MISSIONS.map((m) => {
+          const MIcon = Ic[m.icon];
+          const on = m.id === cat;
+          return (
+            <button key={m.id} onClick={() => setCat(m.id)} style={{ display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", padding: "8px 13px", borderRadius: 999, border: `2px solid ${on ? T.royal : T.lilacDeep}`, background: on ? T.royal : T.white, cursor: "pointer", ...nu(700, 13, on ? T.white : T.royal) }}>
+              <MIcon s={15} c={on ? T.white : T.royal} />{m.label}
+            </button>
+          );
+        })}
+      </div>
+      {active.ideas.map((idea) => (
+        <div key={idea} style={{ background: T.white, borderRadius: 16, padding: "13px 15px", marginBottom: 9, boxShadow: "0 3px 10px rgba(42,27,74,.06)", display: "flex", alignItems: "center", gap: 10 }}>
+          <CatIcon s={18} c={T.royal} />
+          <span style={{ flex: 1, ...nu(700, 13.5, T.ink) }}>{idea}</span>
+          <button onClick={() => onSend(idea)} style={{ border: "none", borderRadius: 999, padding: "8px 12px", background: matches.length ? T.royal : T.lilacDeep, cursor: matches.length ? "pointer" : "default", ...fr(600, 12, T.white) }} disabled={!matches.length}>Send</button>
+        </div>
+      ))}
+      {!matches.length && <p style={{ ...nu(600, 12.5, T.soft), textAlign: "center", marginTop: 8 }}>Match with someone first, then send them a mission.</p>}
+    </div>
+  );
+}
+
+function SendMissionModal({ idea, matches, onPick, onClose }) {
+  return (
+    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
+      <div style={{ width: "100%", background: T.white, borderRadius: "26px 26px 0 0", padding: "20px 20px 24px", maxHeight: "70%", overflowY: "auto", animation: "floatUp .25s ease" }}>
+        <h2 style={{ ...fr(700, 18, T.royal), margin: "0 0 4px" }}>Send this mission to</h2>
+        <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 14px" }}>{idea}</p>
+        {matches.map((p) => (
+          <button key={p.id} onClick={() => onPick(p)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, background: T.white, border: `2px solid ${T.lilacDeep}`, borderRadius: 16, padding: 12, marginBottom: 8, cursor: "pointer" }}>
+            <div style={{ width: 44, height: 44, borderRadius: "50%", background: p.photo ? `url(${p.photo}) center/cover no-repeat` : `linear-gradient(135deg, ${p.grad[0]}, ${p.grad[1]})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, ...fr(700, 18, T.white) }}>{p.photo ? "" : p.name[0]}</div>
+            <span style={{ ...fr(600, 15, T.ink) }}>{p.name}</span>
+          </button>
+        ))}
+        <button onClick={onClose} style={{ width: "100%", marginTop: 4, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+// Banner inside Chat showing the current plan and its next action
+function PlanBanner({ plan, myId, profileName, onConfirm, onComplete }) {
+  if (!plan) return null;
+  const mine = plan.proposed_by === myId;
+  return (
+    <div style={{ margin: "10px 16px 0", background: plan.status === "confirmed" ? "#F0FBF5" : T.lilac, border: `2px solid ${plan.status === "confirmed" ? T.green : T.lilacDeep}`, borderRadius: 16, padding: "11px 13px" }}>
+      <div style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".5px", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 5 }}>
+        <Ic.Hourglass s={13} c={T.royal} />{plan.status === "confirmed" ? "It's a plan" : "Date proposal"}
+      </div>
+      <div style={{ ...nu(700, 13.5, T.ink), margin: "3px 0 8px" }}>{plan.idea}</div>
+      {plan.status === "proposed" && mine && <div style={{ ...nu(700, 12, T.soft) }}>Waiting for {profileName} to confirm</div>}
+      {plan.status === "proposed" && !mine && (
+        <button onClick={onConfirm} style={{ border: "none", borderRadius: 999, padding: "8px 14px", background: T.royal, cursor: "pointer", ...fr(600, 12.5, T.white) }}>Confirm the date</button>
+      )}
+      {plan.status === "confirmed" && (
+        <button onClick={onComplete} style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "none", borderRadius: 999, padding: "8px 14px", background: T.green, cursor: "pointer", ...fr(600, 12.5, T.white) }}>
+          <Ic.Check s={13} c={T.white} />We met up
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ReviewModal({ pending, onDone, onSkip }) {
+  const [well, setWell] = useState(null); // true | false
+  const [traits, setTraits] = useState([]);
+  const [flag, setFlag] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const toggle = (t) => setTraits((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : prev.length < 3 ? [...prev, t] : prev);
+  const submit = async () => {
+    if (well === null || saving) return;
+    setSaving(true);
+    await api.submitReview(pending.date_id, well, traits, flag);
+    setSaving(false);
+    onDone();
+  };
+  return (
+    <div style={{ position: "absolute", inset: 0, zIndex: 30, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div style={{ background: T.white, borderRadius: 26, padding: "22px 20px", width: "100%", maxWidth: 330, animation: "popIn .3s ease", maxHeight: "88%", overflowY: "auto" }}>
+        <h2 style={{ ...fr(700, 21, T.royal), margin: "0 0 2px", textAlign: "center" }}>Rate your TOM date</h2>
+        <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 14px", textAlign: "center" }}>With {pending.other_name}. About the time, never the looks.</p>
+        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 7 }}>Was it time well spent?</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          <button onClick={() => setWell(true)} style={{ flex: 1, padding: "11px 0", borderRadius: 14, border: `2px solid ${well === true ? T.green : T.lilacDeep}`, background: well === true ? "#F0FBF5" : T.white, cursor: "pointer", ...fr(600, 14, well === true ? T.green : T.ink) }}>Yes</button>
+          <button onClick={() => setWell(false)} style={{ flex: 1, padding: "11px 0", borderRadius: 14, border: `2px solid ${well === false ? T.ink : T.lilacDeep}`, background: well === false ? T.lilac : T.white, cursor: "pointer", ...fr(600, 14, T.ink) }}>Not really</button>
+        </div>
+        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 7 }}>What were they like? (pick up to 3)</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 14 }}>
+          {REVIEW_TRAITS.map((t) => <Chip key={t} label={t} active={traits.includes(t)} onClick={() => toggle(t)} />)}
+        </div>
+        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 7 }}>Anything to flag? (optional, private)</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 16 }}>
+          {REVIEW_FLAGS.map((f) => (
+            <button key={f} onClick={() => setFlag(flag === f ? null : f)} style={{ textAlign: "left", padding: "9px 12px", borderRadius: 12, border: `2px solid ${flag === f ? T.royal : T.lilacDeep}`, background: flag === f ? T.lilac : T.white, cursor: "pointer", ...nu(700, 12.5, T.ink) }}>{f}</button>
+          ))}
+        </div>
+        <PrimaryBtn disabled={well === null || saving} onClick={submit}>{saving ? "Sending..." : "Submit review"}</PrimaryBtn>
+        <button onClick={onSkip} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Skip for now</button>
+      </div>
+    </div>
+  );
+}
+
 // ================= Swipe card =================
 function Card({ profile, onSwipe, isTop, myLoc, onReport }) {
   const [drag, setDrag] = useState({ x: 0, y: 0, active: false });
@@ -755,6 +1018,12 @@ function Card({ profile, onSwipe, isTop, myLoc, onReport }) {
             <span style={{ ...nu(700, 13, T.soft), display: "inline-flex", alignItems: "center", gap: 4 }}><Ic.Pin s={13} c={T.soft} />{distLabel(myLoc, profile)} away</span>
             <button onClick={() => onReport(profile)} onPointerDown={(e) => e.stopPropagation()} aria-label="Report this profile" style={{ marginLeft: "auto", border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Flag s={15} c={T.lilacDeep} /></button>
           </div>
+          {profile.rep && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span style={{ ...fr(700, 12, T.green), background: "#E8F8EF", borderRadius: 999, padding: "4px 10px", display: "inline-flex", alignItems: "center", gap: 4 }}><Ic.Hourglass s={12} c={T.green} />{profile.rep.pct}% time well spent</span>
+              {(profile.rep.traits || []).slice(0, 2).map((t) => <Pill key={t}>{t}</Pill>)}
+            </div>
+          )}
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {haversineKm(myLoc, profile.loc) < 3 && (
               <span style={{ ...nu(800, 11.5, "#177245"), background: "#E8F8EF", padding: "5px 11px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 5 }}><Ic.Bolt s={12} c="#177245" />Close enough to meet today</span>
@@ -1292,19 +1561,26 @@ function VerifyModal({ onClose, onSubmit }) {
   );
 }
 
-function Chat({ profile, onBack }) {
+function Chat({ profile, onBack, onDateCompleted }) {
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
+  const [plan, setPlan] = useState(null);
+  const [planning, setPlanning] = useState(false);
+  const [planDraft, setPlanDraft] = useState("");
   const endRef = useRef(null);
   const myId = api.user && api.user.id;
 
   const refresh = React.useCallback(async () => {
     if (!profile.matchId) { setLoading(false); return; }
-    const rows = await api.loadMessages(profile.matchId);
+    const [rows, p] = await Promise.all([
+      api.loadMessages(profile.matchId),
+      api.getPlannedDate(profile.matchId),
+    ]);
     setMessages(rows);
+    setPlan(p && p.status !== "completed" ? p : null);
     setLoading(false);
   }, [profile.matchId]);
 
@@ -1332,6 +1608,31 @@ function Chat({ profile, onBack }) {
     setMessages((m) => [...m, r.message]);
   };
 
+  const propose = async () => {
+    const idea = planDraft.trim();
+    if (!idea) return;
+    const r = await api.proposeDate(profile.matchId, idea);
+    if (r.ok) {
+      setPlan(r.date);
+      setPlanning(false);
+      await api.sendMessage(profile.matchId, `Date proposal: ${idea}`);
+      refresh();
+    }
+  };
+
+  const confirmPlan = async () => {
+    const r = await api.confirmDate(plan.id);
+    if (r.ok) setPlan({ ...plan, status: "confirmed" });
+  };
+
+  const completePlan = async () => {
+    const r = await api.completeDate(plan.id);
+    if (r.ok) {
+      setPlan(null);
+      if (onDateCompleted) onDateCompleted();
+    }
+  };
+
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderBottom: `1px solid ${T.lilacDeep}` }}>
@@ -1341,8 +1642,24 @@ function Chat({ profile, onBack }) {
         {profile.photo ? <PhotoThumb src={profile.photo} size={34} round /> : (
           <div style={{ width: 34, height: 34, borderRadius: "50%", background: profile.photo ? `url(${profile.photo}) center/cover no-repeat` : `linear-gradient(135deg, ${profile.grad[0]}, ${profile.grad[1]})` }} />
         )}
-        <div style={{ ...fr(600, 16, T.ink) }}>{profile.name}</div>
+        <div style={{ ...fr(600, 16, T.ink), flex: 1 }}>{profile.name}</div>
+        {!plan && profile.matchId && (
+          <button onClick={() => { setPlanDraft(profile.idea || ""); setPlanning(true); }} style={{ border: "none", borderRadius: 999, padding: "7px 12px", background: T.lilac, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, ...fr(600, 12, T.royal) }}>
+          <Ic.Hourglass s={13} c={T.royal} />Plan a date
+          </button>
+        )}
       </div>
+      <PlanBanner plan={plan} myId={myId} profileName={profile.name} onConfirm={confirmPlan} onComplete={completePlan} />
+      {planning && (
+        <div style={{ margin: "10px 16px 0", background: T.white, border: `2px solid ${T.lilacDeep}`, borderRadius: 16, padding: "11px 13px" }}>
+          <div style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 6 }}>Propose a $0 date</div>
+          <input value={planDraft} onChange={(e) => setPlanDraft(e.target.value)} placeholder="What's the plan?" style={{ ...inputStyle, marginBottom: 8 }} />
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={propose} style={{ flex: 1, border: "none", borderRadius: 999, padding: "9px 0", background: T.royal, cursor: "pointer", ...fr(600, 13, T.white) }}>Propose</button>
+            <button onClick={() => setPlanning(false)} style={{ flex: 1, border: `2px solid ${T.lilacDeep}`, borderRadius: 999, padding: "9px 0", background: T.white, cursor: "pointer", ...fr(600, 13, T.soft) }}>Cancel</button>
+          </div>
+        </div>
+      )}
 
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
         {loading ? (
@@ -1728,6 +2045,10 @@ export default function TomApp() {
   const [boostUntil, setBoostUntil] = useState(null);
   const [plusGate, setPlusGate] = useState(null); // null | { title, blurb }
 
+  // Batch 3: missions and reviews
+  const [missionToSend, setMissionToSend] = useState(null); // idea string
+  const [pendingReview, setPendingReview] = useState(null);
+
   const logout = async () => {
     await api.logout();
     setDeck(PROFILES);
@@ -1793,6 +2114,20 @@ export default function TomApp() {
   const startPrimeTime = async () => {
     const r = await api.activateWeeklyBoost();
     if (r.ok) setBoostUntil(r.expiresAt);
+  };
+
+  const sendMissionTo = async (p, idea) => {
+    setMissionToSend(null);
+    if (p.matchId) {
+      await api.sendMessage(p.matchId, `Mission Date idea: ${idea}`);
+    }
+    setTab("matches");
+    setChatWith(p);
+  };
+
+  const onDateCompleted = async () => {
+    const pr = await api.loadPendingReview();
+    if (pr) setPendingReview(pr);
   };
 
   const likeBackAdmirer = (p) => {
@@ -1877,6 +2212,9 @@ export default function TomApp() {
         setAgeFilter({ min: api.user.filterMinAge ?? 18, max: api.user.filterMaxAge ?? 99 });
         setInterestFilter(api.user.filterInterests || []);
       }
+      // Batch 3: prompt for any completed date not yet reviewed
+      const pr = await api.loadPendingReview();
+      if (pr) setPendingReview(pr);
     })();
   }, [screen]);
 
@@ -1932,6 +2270,7 @@ export default function TomApp() {
 
   const tabs = [
     { id: "discover", icon: Ic.Hourglass, label: "Discover" },
+    { id: "missions", icon: Ic.Compass, label: "Missions" },
     { id: "matches", icon: Ic.Heart, label: "Dates" },
     { id: "profile", icon: Ic.Person, label: "You" },
   ];
@@ -1990,8 +2329,9 @@ export default function TomApp() {
           <>
             {tab === "discover" && showAdmirers && <AdmirersPanel admirers={admirers} myLoc={deckOrigin} onLikeBack={likeBackAdmirer} onBack={() => setShowAdmirers(false)} onReport={(p) => setReporting({ profile: p, from: "admirers" })} />}
             {tab === "discover" && !showAdmirers && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={deckOrigin} onGolden={onGolden} goldenLeft={goldenLeft} likesLeft={likesLeft} isPlus={isPlus} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "deck" })} />}
+            {tab === "missions" && <Missions matches={matches} onSend={(idea) => setMissionToSend(idea)} />}
             {tab === "matches" && (chatWith
-              ? <Chat profile={chatWith} onBack={() => setChatWith(null)} />
+              ? <Chat profile={chatWith} onBack={() => setChatWith(null)} onDateCompleted={onDateCompleted} />
               : <Matches matches={matches} myLoc={myLoc} admirerCount={admirerCount} onUpgrade={openAdmirers} onReport={(p) => setReporting({ profile: p, from: "matches" })} onOpenChat={(p) => setChatWith(p)} />
             )}
             {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} onLogout={logout} onOffClock={() => requirePlus("Off the Clock", "Go invisible without deleting anything. A TOM+ perk.", () => setOffClockOpen(true))} onPrimeTime={() => requirePlus("Weekly Prime Time", "Rise to the top of nearby decks for 7 days. A TOM+ perk.", () => setPrimeTimeOpen(true))} />}
@@ -2025,6 +2365,8 @@ export default function TomApp() {
         {timeZonesOpen && <TimeZonesModal current={travelCity} onPick={(c) => { setTravelCity(c); setTimeZonesOpen(false); }} onClose={() => setTimeZonesOpen(false)} />}
         {primeTimeOpen && <PrimeTimeModal onClose={() => setPrimeTimeOpen(false)} onActivate={startPrimeTime} boostUntil={boostUntil} />}
         {plusGate && <PlusGate title={plusGate.title} blurb={plusGate.blurb} onClose={() => setPlusGate(null)} onUpgrade={() => { setPlusGate(null); setPaywall(true); }} />}
+        {missionToSend && <SendMissionModal idea={missionToSend} matches={matches} onPick={(p) => sendMissionTo(p, missionToSend)} onClose={() => setMissionToSend(null)} />}
+        {pendingReview && <ReviewModal pending={pendingReview} onDone={() => { setPendingReview(null); onDateCompleted(); }} onSkip={() => setPendingReview(null)} />}
       </div>
     </div>
   );
