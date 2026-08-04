@@ -54,8 +54,6 @@ function dbRowToCard(row) {
     age: row.age,
     loc: { lat: row.latitude ?? FALLBACK_LOC.lat, lng: row.longitude ?? FALLBACK_LOC.lng },
     grad: CARD_GRADIENTS[h % CARD_GRADIENTS.length],
-    photo: row.avatar_url || null,
-    photos: row.gallery_photos || [],
     vibe: likes[0] || "New here",
     tags: (row.hobbies && row.hobbies.length ? row.hobbies : (row.interests || [])).slice(0, 2),
     idea: DATE_IDEAS[h % DATE_IDEAS.length],
@@ -85,24 +83,8 @@ function rowToUser(row, email) {
     verified: Boolean(row.verified),
     searchRadiusKm: row.search_radius_km ?? 50,
     distanceUnit: row.distance_unit || "km",
-    isPlus: Boolean(row.is_plus) && (!row.plus_until || new Date(row.plus_until) > new Date()),
-    plusUntil: row.plus_until || null,
-    offTheClock: Boolean(row.off_the_clock),
-    filterMinAge: row.filter_min_age ?? 18,
-    filterMaxAge: row.filter_max_age ?? 99,
-    filterInterests: row.filter_interests || [],
   };
 }
-
-// Free-tier daily limits. TOM+ lifts these.
-const FREE_DAILY_LIKES = 50;
-const FREE_DAILY_GOLDEN = 1;
-const PLUS_DAILY_GOLDEN = 5;
-const startOfTodayISO = () => {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
-};
 
 const api = {
   user: null,
@@ -171,17 +153,9 @@ const api = {
       interests: u.interests, hobbies: u.hobbies, things_i_like_to_do: u.thingsILikeToDo,
       avatar_url: u.profilePhoto, gallery_photos: u.photos,
       search_radius_km: u.searchRadiusKm, distance_unit: u.distanceUnit,
-      off_the_clock: Boolean(u.offTheClock),
-      filter_min_age: u.filterMinAge ?? 18, filter_max_age: u.filterMaxAge ?? 99,
-      filter_interests: u.filterInterests || [],
       orientation_consent_at: new Date().toISOString(),
     }).eq("id", u.id);
     if (error) return { error: error.message };
-    return { ok: true };
-  },
-  async logout() {
-    await supabase.auth.signOut();
-    this.user = null;
     return { ok: true };
   },
   async deleteAccount() {
@@ -204,9 +178,7 @@ const api = {
       ...(myLikes || []).map((l) => l.liked_user_id),
       ...(myBlocks || []).map((b) => b.blocked_user_id),
     ]);
-    return (allProfiles || [])
-      .filter((p) => !seen.has(p.id) && !p.off_the_clock)
-      .map(dbRowToCard);
+    return (allProfiles || []).filter((p) => !seen.has(p.id)).map(dbRowToCard);
   },
   async loadMatches() {
     if (!this.user || !this.user.id) return [];
@@ -216,28 +188,27 @@ const api = {
     if (!rows || rows.length === 0) return [];
     const otherIds = rows.map((r) => (r.user_id_1 === myId ? r.user_id_2 : r.user_id_1));
     const { data: profs } = await supabase.from("profiles").select("*").in("id", otherIds);
-    const matchIdByUser = {};
-    rows.forEach((r) => { matchIdByUser[r.user_id_1 === myId ? r.user_id_2 : r.user_id_1] = r.id; });
-    return (profs || []).map((p) => ({ ...dbRowToCard(p), matchId: matchIdByUser[p.id] }));
+    return (profs || []).map(dbRowToCard);
   },
   async swipe(profileId, action) {
     if (!this.user || !this.user.id) return { matched: false };
-    // Server-side function checks the mutual like and creates the match in one
-    // atomic step. The old client-side check was blocked by row security.
-    const { data, error } = await supabase.rpc("swipe_and_match", {
-      target_id: profileId, swipe_action: action,
-    });
-    if (error || !data) return { matched: false };
-    return { matched: Boolean(data.matched), matchId: data.match_id || null };
+    const myId = this.user.id;
+    await supabase.from("likes").insert({ user_id: myId, liked_user_id: profileId, action });
+    if (action !== "spend_time") return { matched: false };
+    const { data: mutual } = await supabase.from("likes").select("*")
+      .eq("user_id", profileId).eq("liked_user_id", myId).eq("action", "spend_time").maybeSingle();
+    if (!mutual) return { matched: false };
+    const u1 = myId < profileId ? myId : profileId;
+    const u2 = myId < profileId ? profileId : myId;
+    await supabase.from("matches").insert({ user_id_1: u1, user_id_2: u2 });
+    return { matched: true };
   },
   async sendGoldenHour(profileId) {
     if (!this.user || !this.user.id) return { ok: false };
     const myId = this.user.id;
-    const { data } = await supabase.rpc("swipe_and_match", {
-      target_id: profileId, swipe_action: "golden_hour",
-    });
+    await supabase.from("likes").insert({ user_id: myId, liked_user_id: profileId, action: "golden_hour" });
     await supabase.from("golden_hours").insert({ user_id: myId, recipient_id: profileId });
-    return { ok: true, matchId: data && data.match_id ? data.match_id : null };
+    return { ok: true };
   },
   async reportAndBlock(profileId, reason) {
     const myId = this.user && this.user.id ? this.user.id : null;
@@ -255,66 +226,6 @@ const api = {
     const matchedIds = new Set((matchRows || []).map((r) => (r.user_id_1 === myId ? r.user_id_2 : r.user_id_1)));
     const admirerIds = new Set((likes || []).map((l) => l.user_id).filter((id) => !matchedIds.has(id)));
     return admirerIds.size;
-  },
-  // Batch 2: full admirer profiles for TOM+ "See who likes you"
-  async loadAdmirers() {
-    if (!this.user || !this.user.id) return [];
-    const myId = this.user.id;
-    const [{ data: likes }, { data: matchRows }, { data: myBlocks }] = await Promise.all([
-      supabase.from("likes").select("user_id").eq("liked_user_id", myId).in("action", ["spend_time", "golden_hour"]),
-      supabase.from("matches").select("*").or(`user_id_1.eq.${myId},user_id_2.eq.${myId}`).eq("is_active", true),
-      supabase.from("blocks").select("blocked_user_id").eq("user_id", myId),
-    ]);
-    const matchedIds = new Set((matchRows || []).map((r) => (r.user_id_1 === myId ? r.user_id_2 : r.user_id_1)));
-    const blockedIds = new Set((myBlocks || []).map((b) => b.blocked_user_id));
-    const admirerIds = [...new Set((likes || []).map((l) => l.user_id))].filter((id) => !matchedIds.has(id) && !blockedIds.has(id));
-    if (admirerIds.length === 0) return [];
-    const { data: profs } = await supabase.from("profiles").select("*").in("id", admirerIds).eq("is_deleted", false);
-    return (profs || []).map(dbRowToCard);
-  },
-  // Batch 2: Weekly Prime Time boost (7 days at the top of the deck)
-  async activateWeeklyBoost() {
-    if (!this.user || !this.user.id) return { error: "Not signed in" };
-    const expiry = new Date();
-    expiry.setDate(expiry.getDate() + 7);
-    const { error } = await supabase.from("profiles").update({
-      weekly_boost_active_at: new Date().toISOString(),
-      weekly_boost_expires_at: expiry.toISOString(),
-    }).eq("id", this.user.id);
-    if (error) return { error: error.message };
-    return { ok: true, expiresAt: expiry.toISOString() };
-  },
-  async loadDailyUsage() {
-    if (!this.user || !this.user.id) return { likesUsed: 0, goldenUsed: 0 };
-    const since = startOfTodayISO();
-    const { data } = await supabase.from("likes")
-      .select("action").eq("user_id", this.user.id).gte("created_at", since);
-    const rows = data || [];
-    return {
-      likesUsed: rows.filter((r) => r.action === "spend_time" || r.action === "golden_hour").length,
-      goldenUsed: rows.filter((r) => r.action === "golden_hour").length,
-    };
-  },
-  likeLimit() {
-    return this.user && this.user.isPlus ? Infinity : FREE_DAILY_LIKES;
-  },
-  goldenLimit() {
-    return this.user && this.user.isPlus ? PLUS_DAILY_GOLDEN : FREE_DAILY_GOLDEN;
-  },
-  async loadMessages(matchId) {
-    const { data } = await supabase.from("messages").select("*")
-      .eq("match_id", matchId).order("created_at", { ascending: true });
-    return data || [];
-  },
-  async sendMessage(matchId, body) {
-    if (!this.user || !this.user.id) return { error: "Not signed in" };
-    const text = (body || "").trim();
-    if (!text) return { error: "Message is empty" };
-    const { data, error } = await supabase.from("messages")
-      .insert({ match_id: matchId, sender_id: this.user.id, body: text })
-      .select().single();
-    if (error) return { error: error.message };
-    return { ok: true, message: data };
   },
   validatePhoto(file) {
     if (!isAllowedFile(file)) return "Only JPEG, PNG, WebP, or HEIC photos are allowed";
@@ -557,175 +468,13 @@ function PhotoThumb({ src, size = 76, onRemove, round }) {
   return (
     <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
       {broken ? (
-        <div style={{ width: size, height: size, borderRadius: round ? "50%" : 14, background: `linear-gradient(135deg, ${T.royal}, ${T.violet})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.35 }} title="HEIC photo saved (preview depends on browser)"><Ic.Camera s={size * 0.4} c={T.white} /></div>
+        <div style={{ width: size, height: size, borderRadius: round ? "50%" : 14, background: `linear-gradient(135deg, ${T.royal}, ${T.violet})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.35 }} title="HEIC photo saved (preview depends on browser)">📷</div>
       ) : (
         <img src={src} onError={() => setBroken(true)} alt="" style={{ width: size, height: size, borderRadius: round ? "50%" : 14, objectFit: "cover", boxShadow: "0 3px 10px rgba(42,27,74,.15)" }} />
       )}
       {onRemove && (
         <button onClick={onRemove} style={{ position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: "50%", border: "none", background: T.ink, color: T.white, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Cross s={10} c={T.white} /></button>
       )}
-    </div>
-  );
-}
-
-// ================= Batch 2: TOM+ features =================
-function PlusGate({ title, blurb, onClose, onUpgrade }) {
-  return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 24 }}>
-      <div style={{ width: "100%", background: T.white, borderRadius: 24, padding: 22, textAlign: "center", animation: "popIn .25s ease" }}>
-        <Ic.Sun s={34} c={T.sun} />
-        <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>{title}</h2>
-        <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>{blurb}</p>
-        <PrimaryBtn onClick={onUpgrade}>Get TOM<span style={{ color: T.sun }}>+</span></PrimaryBtn>
-        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Not now</button>
-      </div>
-    </div>
-  );
-}
-
-function AdmirersPanel({ admirers, myLoc, onLikeBack, onBack, onReport }) {
-  return (
-    <div style={{ flex: 1, overflowY: "auto", padding: "6px 16px 16px" }}>
-      <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, border: "none", background: "none", cursor: "pointer", padding: "4px 0 10px", ...nu(800, 13, T.royal) }}>
-        <span style={{ transform: "rotate(180deg)", display: "inline-flex" }}><Ic.Chevron s={14} c={T.royal} /></span> Back to Discover
-      </button>
-      <h2 style={{ ...fr(700, 21, T.ink), margin: "0 0 3px" }}>Worth their time</h2>
-      <p style={{ ...nu(700, 13, T.soft), margin: "0 0 14px" }}>These people already said yes to spending time with you.</p>
-      {admirers.length === 0 ? (
-        <div style={{ textAlign: "center", paddingTop: 60 }}>
-          <Ic.Eye s={44} c={T.royal} />
-          <h3 style={{ ...fr(600, 19, T.ink), margin: "10px 0 4px" }}>No admirers yet</h3>
-          <p style={{ ...nu(600, 13.5, T.soft), margin: 0 }}>When someone likes you, they show up here first.</p>
-        </div>
-      ) : admirers.map((p) => (
-        <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, background: T.white, borderRadius: 18, padding: 12, marginBottom: 10, boxShadow: "0 4px 14px rgba(42,27,74,.08)", animation: "floatUp .3s ease" }}>
-          <div style={{ width: 54, height: 54, borderRadius: "50%", background: p.photo ? `url(${p.photo}) center/cover no-repeat` : `linear-gradient(135deg, ${p.grad[0]}, ${p.grad[1]})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, ...fr(700, 22, T.white) }}>{p.photo ? "" : p.name[0]}</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ ...fr(600, 17, T.ink), display: "flex", alignItems: "center", gap: 6 }}>{p.name}, {p.age}{p.verified && <Ic.ShieldCheck s={16} c={T.green} />}</div>
-            <div style={{ ...nu(700, 12, T.soft), display: "inline-flex", alignItems: "center", gap: 3 }}><Ic.Pin s={11} c={T.soft} />{distLabel(myLoc, p)} away</div>
-          </div>
-          <button onClick={() => onReport(p)} aria-label="Report" style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Flag s={15} c={T.lilacDeep} /></button>
-          <button onClick={() => onLikeBack(p)} style={{ border: "none", borderRadius: 999, padding: "9px 14px", background: T.royal, cursor: "pointer", ...fr(600, 13, T.white) }}>Spend time</button>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function FiltersModal({ onClose, onApply }) {
-  const u = api.user || {};
-  const [minAge, setMinAge] = useState(u.filterMinAge ?? 18);
-  const [maxAge, setMaxAge] = useState(u.filterMaxAge ?? 99);
-  const [radius, setRadius] = useState(u.searchRadiusKm ?? 50);
-  const [picked, setPicked] = useState(u.filterInterests || []);
-  const toggle = (i) => setPicked((prev) => prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]);
-  const lo = Math.min(Number(minAge) || 18, Number(maxAge) || 99);
-  const hi = Math.max(Number(minAge) || 18, Number(maxAge) || 99);
-  return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
-      <div style={{ width: "100%", background: T.white, borderRadius: "26px 26px 0 0", padding: "20px 20px 24px", maxHeight: "82%", overflowY: "auto", animation: "floatUp .25s ease" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <h2 style={{ ...fr(700, 20, T.royal), margin: 0, display: "flex", alignItems: "center", gap: 8 }}><Ic.Sliders s={20} c={T.royal} />Fine-tune your time</h2>
-          <button onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Cross s={18} /></button>
-        </div>
-        <Field label="Age range">
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <input type="number" min="18" max="99" value={minAge} onChange={(e) => setMinAge(e.target.value)} style={{ ...inputStyle, textAlign: "center" }} />
-            <span style={nu(800, 14, T.soft)}>to</span>
-            <input type="number" min="18" max="99" value={maxAge} onChange={(e) => setMaxAge(e.target.value)} style={{ ...inputStyle, textAlign: "center" }} />
-          </div>
-        </Field>
-        <Field label={`Max distance: ${radius} km`}>
-          <input type="range" min="1" max="300" value={radius} onChange={(e) => setRadius(Number(e.target.value))} style={{ width: "100%", accentColor: T.royal }} />
-        </Field>
-        <Field label="Only show people into">
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {INTEREST_POOL.map((i) => <Chip key={i} label={i} active={picked.includes(i)} onClick={() => toggle(i)} />)}
-          </div>
-        </Field>
-        <PrimaryBtn onClick={() => onApply({ minAge: lo, maxAge: hi, radius, interests: picked })}>Apply filters</PrimaryBtn>
-        <button onClick={() => onApply({ minAge: 18, maxAge: 99, radius: 50, interests: [] })} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Reset all</button>
-      </div>
-    </div>
-  );
-}
-
-function OffTheClockModal({ onClose, onToggle }) {
-  const active = Boolean(api.user && api.user.offTheClock);
-  return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 24 }}>
-      <div style={{ width: "100%", background: T.white, borderRadius: 24, padding: 22, textAlign: "center", animation: "popIn .25s ease" }}>
-        <Ic.Moon s={34} c={T.royal} />
-        <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>Off the Clock</h2>
-        <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>
-          {active
-            ? "You're invisible right now. Nobody new can see your card. Your matches can still message you."
-            : "Take a break without deleting anything. Your card disappears from every deck until you come back."}
-        </p>
-        <PrimaryBtn onClick={onToggle}>{active ? "Punch back in" : "Go off the clock"}</PrimaryBtn>
-        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Cancel</button>
-      </div>
-    </div>
-  );
-}
-
-// City list for Time Zones. lat/lng power the distance labels while browsing.
-const TIME_ZONE_CITIES = [
-  { id: "istanbul", name: "Istanbul", loc: { lat: 41.0082, lng: 28.9784 } },
-  { id: "athens", name: "Athens", loc: { lat: 37.9838, lng: 23.7275 } },
-  { id: "valletta", name: "Valletta", loc: { lat: 35.8989, lng: 14.5146 } },
-  { id: "london", name: "London", loc: { lat: 51.5074, lng: -0.1278 } },
-  { id: "paris", name: "Paris", loc: { lat: 48.8566, lng: 2.3522 } },
-  { id: "berlin", name: "Berlin", loc: { lat: 52.52, lng: 13.405 } },
-  { id: "newyork", name: "New York", loc: { lat: 40.7128, lng: -74.006 } },
-  { id: "losangeles", name: "Los Angeles", loc: { lat: 34.0522, lng: -118.2437 } },
-];
-
-function TimeZonesModal({ current, onPick, onClose }) {
-  return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
-      <div style={{ width: "100%", background: T.white, borderRadius: "26px 26px 0 0", padding: "20px 20px 24px", maxHeight: "82%", overflowY: "auto", animation: "floatUp .25s ease" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-          <h2 style={{ ...fr(700, 20, T.royal), margin: 0, display: "flex", alignItems: "center", gap: 8 }}><Ic.Globe s={20} c={T.royal} />Time Zones</h2>
-          <button onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Cross s={18} /></button>
-        </div>
-        <p style={{ ...nu(700, 13, T.soft), margin: "0 0 14px" }}>Spend time in another city before you even get there.</p>
-        <button onClick={() => { onPick(null); }} style={{ width: "100%", background: !current ? T.lilac : T.white, border: `2px solid ${!current ? T.royal : T.lilacDeep}`, borderRadius: 16, padding: "13px 15px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ ...nu(800, 14.5, T.ink) }}>My current area</span>
-          <Ic.Pin s={14} c={T.royal} />
-        </button>
-        {TIME_ZONE_CITIES.map((c) => (
-          <button key={c.id} onClick={() => { onPick(c); }} style={{ width: "100%", background: current && current.id === c.id ? T.lilac : T.white, border: `2px solid ${current && current.id === c.id ? T.royal : T.lilacDeep}`, borderRadius: 16, padding: "13px 15px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ ...nu(800, 14.5, T.ink) }}>{c.name}</span>
-            <Ic.Chevron s={14} c={T.soft} />
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function PrimeTimeModal({ onClose, onActivate, boostUntil }) {
-  const active = boostUntil && new Date(boostUntil) > new Date();
-  const daysLeft = active ? Math.max(1, Math.ceil((new Date(boostUntil) - new Date()) / 86400000)) : 0;
-  return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 24 }}>
-      <div style={{ width: "100%", background: T.white, borderRadius: 24, padding: 22, textAlign: "center", animation: "popIn .25s ease" }}>
-        <Ic.Rise s={34} c={T.royal} />
-        <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>Weekly Prime Time</h2>
-        {active ? (
-          <>
-            <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>You're in Prime Time. Your card rises to the top of nearby decks for {daysLeft} more {daysLeft === 1 ? "day" : "days"}.</p>
-            <PrimaryBtn onClick={onClose}>Nice</PrimaryBtn>
-          </>
-        ) : (
-          <>
-            <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>Rise to the top of nearby decks for 7 days. More eyes on your card, more time offers.</p>
-            <PrimaryBtn onClick={onActivate}>Start my Prime Time</PrimaryBtn>
-            <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Not now</button>
-          </>
-        )}
-      </div>
     </div>
   );
 }
@@ -742,8 +491,8 @@ function Card({ profile, onSwipe, isTop, myLoc, onReport }) {
     <div onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp}
       style={{ position: "absolute", inset: 0, touchAction: "none", transform: `translate(${drag.x}px, ${drag.y * 0.3}px) rotate(${rot}deg) scale(${isTop ? 1 : 0.95})`, transition: drag.active ? "none" : "transform .25s ease", cursor: isTop ? "grab" : "default", zIndex: isTop ? 2 : 1 }}>
       <div style={{ height: "100%", borderRadius: 26, overflow: "hidden", background: T.white, boxShadow: "0 12px 32px rgba(42,27,74,.16)", display: "flex", flexDirection: "column" }}>
-        <div style={{ flex: "0 0 44%", position: "relative", background: profile.photo ? `url(${profile.photo}) center/cover no-repeat, linear-gradient(135deg, ${profile.grad[0]}, ${profile.grad[1]})` : `linear-gradient(135deg, ${profile.grad[0]}, ${profile.grad[1]})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {!profile.photo && <span style={{ ...fr(700, 92, "rgba(255,255,255,.95)"), filter: "drop-shadow(0 6px 12px rgba(0,0,0,.2))", lineHeight: 1 }}>{profile.name[0]}</span>}
+        <div style={{ flex: "0 0 44%", position: "relative", background: `linear-gradient(135deg, ${profile.grad[0]}, ${profile.grad[1]})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <span style={{ ...fr(700, 92, "rgba(255,255,255,.95)"), filter: "drop-shadow(0 6px 12px rgba(0,0,0,.2))", lineHeight: 1 }}>{profile.name[0]}</span>
           <div style={{ position: "absolute", top: 14, right: 14 }}><ZeroStamp /></div>
           <div style={{ position: "absolute", top: 18, left: 16, opacity: likeOp, ...fr(700, 24, T.white), border: `3px solid ${T.white}`, borderRadius: 12, padding: "2px 12px", transform: "rotate(-10deg)", background: "rgba(47,191,113,.85)" }}>WORTH MY TIME</div>
           <div style={{ position: "absolute", top: 18, right: 76, opacity: nopeOp, ...fr(700, 24, T.white), border: `3px solid ${T.white}`, borderRadius: 12, padding: "2px 12px", transform: "rotate(10deg)", background: "rgba(42,27,74,.6)" }}>NOT THIS TIME</div>
@@ -1129,20 +878,7 @@ function Builder({ onDone, editMode }) {
   );
 }
 
-function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlus, onUpgrade, onReport }) {
-  const outOfLikes = !isPlus && likesLeft !== undefined && likesLeft <= 0;
-  if (outOfLikes) {
-    return (
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 32, textAlign: "center" }}>
-        <Ic.Hourglass s={54} c={T.royal} />
-        <h2 style={{ ...fr(600, 22, T.ink), margin: 0 }}>You're out of likes for today</h2>
-        <p style={{ ...nu(600, 14, T.soft), margin: 0 }}>Your likes reset tomorrow. Passing is always unlimited.</p>
-        <div style={{ width: "100%", maxWidth: 240, marginTop: 6 }}>
-          <PrimaryBtn onClick={onUpgrade}>Get unlimited with TOM+</PrimaryBtn>
-        </div>
-      </div>
-    );
-  }
+function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, onReport }) {
   if (deck.length === 0) {
     return (
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: 32, textAlign: "center" }}>
@@ -1179,17 +915,8 @@ function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlu
   );
 }
 
-function MatchModal({ profile, onClose, myLoc, onMessage }) {
+function MatchModal({ profile, onClose, myLoc }) {
   const [idea, setIdea] = useState(null);
-  const [sending, setSending] = useState(false);
-  const go = async () => {
-    if (!idea || !profile.matchId) { onClose(); return; }
-    setSending(true);
-    await api.sendMessage(profile.matchId, `How about this for a free first date: ${idea}?`);
-    setSending(false);
-    onClose();
-    if (onMessage) onMessage(profile);
-  };
   return (
     <div style={{ position: "absolute", inset: 0, zIndex: 20, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: T.white, borderRadius: 26, padding: "26px 22px 22px", width: "100%", maxWidth: 320, textAlign: "center", animation: "popIn .35s ease", boxShadow: "0 20px 50px rgba(0,0,0,.3)" }}>
@@ -1203,7 +930,7 @@ function MatchModal({ profile, onClose, myLoc, onMessage }) {
             <button key={s} onClick={() => setIdea(s)} style={{ ...nu(700, 13.5, idea === s ? T.royal : T.ink), padding: "11px 12px", borderRadius: 14, cursor: "pointer", border: `2px solid ${idea === s ? T.royal : T.lilacDeep}`, background: idea === s ? T.lilac : T.white, textAlign: "left" }}>{s}</button>
           ))}
         </div>
-        <PrimaryBtn disabled={sending} onClick={go}>{sending ? "Sending..." : (idea ? "Send this idea" : "Keep swiping")}</PrimaryBtn>
+        <PrimaryBtn onClick={onClose}>{idea ? "Send this idea" : "Keep swiping"}</PrimaryBtn>
       </div>
     </div>
   );
@@ -1220,7 +947,7 @@ function GoldenIntro({ profileName, goldenLeft, onSend, onClose }) {
         <p style={{ ...nu(700, 14.5, T.ink), margin: "0 0 6px", lineHeight: 1.5 }}>
           Instantly tell {profileName} they're worth your best hour. They see it before anyone else.
         </p>
-        <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 18px" }}>{goldenLeft > 0 ? `You have ${goldenLeft} left today.` : "You're out for today."}</p>
+        <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 18px" }}>You get 1 free every day.</p>
         <PrimaryBtn onClick={onSend} disabled={goldenLeft <= 0}>Send Golden Hour</PrimaryBtn>
         <button onClick={onClose} style={{ width: "100%", marginTop: 10, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Not now</button>
       </div>
@@ -1292,96 +1019,7 @@ function VerifyModal({ onClose, onSubmit }) {
   );
 }
 
-function Chat({ profile, onBack }) {
-  const [messages, setMessages] = useState([]);
-  const [draft, setDraft] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState(null);
-  const endRef = useRef(null);
-  const myId = api.user && api.user.id;
-
-  const refresh = React.useCallback(async () => {
-    if (!profile.matchId) { setLoading(false); return; }
-    const rows = await api.loadMessages(profile.matchId);
-    setMessages(rows);
-    setLoading(false);
-  }, [profile.matchId]);
-
-  React.useEffect(() => { refresh(); }, [refresh]);
-
-  // Light polling so both sides see new messages without a refresh.
-  React.useEffect(() => {
-    const t = setInterval(refresh, 5000);
-    return () => clearInterval(t);
-  }, [refresh]);
-
-  React.useEffect(() => {
-    if (endRef.current) endRef.current.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
-
-  const send = async () => {
-    const text = draft.trim();
-    if (!text || sending) return;
-    setSending(true);
-    setError(null);
-    const r = await api.sendMessage(profile.matchId, text);
-    setSending(false);
-    if (r.error) { setError(r.error); return; }
-    setDraft("");
-    setMessages((m) => [...m, r.message]);
-  };
-
-  return (
-    <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderBottom: `1px solid ${T.lilacDeep}` }}>
-        <button onClick={onBack} aria-label="Back" style={{ border: "none", background: "none", cursor: "pointer", padding: 4, display: "inline-flex" }}>
-          <span style={{ display: "inline-flex", transform: "rotate(180deg)" }}><Ic.Chevron s={18} c={T.royal} /></span>
-        </button>
-        {profile.photo ? <PhotoThumb src={profile.photo} size={34} round /> : (
-          <div style={{ width: 34, height: 34, borderRadius: "50%", background: profile.photo ? `url(${profile.photo}) center/cover no-repeat` : `linear-gradient(135deg, ${profile.grad[0]}, ${profile.grad[1]})` }} />
-        )}
-        <div style={{ ...fr(600, 16, T.ink) }}>{profile.name}</div>
-      </div>
-
-      <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
-        {loading ? (
-          <p style={{ ...nu(600, 13, T.soft), textAlign: "center" }}>Loading...</p>
-        ) : messages.length === 0 ? (
-          <div style={{ textAlign: "center", paddingTop: 40 }}>
-            <Ic.Hourglass s={40} c={T.royal} />
-            <p style={{ ...fr(600, 16, T.ink), margin: "10px 0 4px" }}>You matched with {profile.name}</p>
-            <p style={{ ...nu(600, 13, T.soft), margin: 0 }}>Say hi and plan something free.</p>
-          </div>
-        ) : messages.map((m) => {
-          const mine = m.sender_id === myId;
-          return (
-            <div key={m.id} style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "78%", background: mine ? T.royal : T.lilac, color: mine ? T.white : T.ink, borderRadius: 16, padding: "9px 13px", ...nu(600, 14, mine ? T.white : T.ink) }}>
-              {m.body}
-            </div>
-          );
-        })}
-        <div ref={endRef} />
-      </div>
-
-      {error && <p style={{ ...nu(700, 12.5, T.red), margin: "0 16px 6px" }}>{error}</p>}
-      <div style={{ display: "flex", gap: 8, padding: "10px 16px 14px", borderTop: `1px solid ${T.lilacDeep}` }}>
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") send(); }}
-          placeholder="Message"
-          style={{ flex: 1, padding: "11px 14px", borderRadius: 999, border: `2px solid ${T.lilacDeep}`, outline: "none", ...nu(600, 14, T.ink) }}
-        />
-        <button onClick={send} disabled={sending || !draft.trim()} style={{ padding: "0 18px", borderRadius: 999, border: "none", cursor: draft.trim() ? "pointer" : "default", background: draft.trim() ? T.royal : T.lilacDeep, ...nu(800, 13.5, T.white) }}>
-          {sending ? "..." : "Send"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat }) {
+function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport }) {
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "6px 16px 16px" }}>
       {admirerCount > 0 && (
@@ -1407,13 +1045,11 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
         <>
           {matches.map((p) => (
             <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, background: T.white, borderRadius: 18, padding: 12, marginBottom: 10, boxShadow: "0 4px 14px rgba(42,27,74,.08)", animation: "floatUp .3s ease" }}>
-              <button onClick={() => onOpenChat && onOpenChat(p)} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, border: "none", background: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
-                <div style={{ width: 54, height: 54, borderRadius: "50%", background: p.photo ? `url(${p.photo}) center/cover no-repeat` : `linear-gradient(135deg, ${p.grad[0]}, ${p.grad[1]})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, ...fr(700, 22, T.white) }}>{p.photo ? "" : p.name[0]}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={fr(600, 17, T.ink)}>{p.name} <span style={{ ...nu(700, 12, T.soft), display: "inline-flex", alignItems: "center", gap: 3 }}>· <Ic.Pin s={11} c={T.soft} />{distLabel(myLoc, p)}</span></div>
-                  <div style={{ ...nu(700, 12.5, T.royal), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Tap to message</div>
-                </div>
-              </button>
+              <div style={{ width: 54, height: 54, borderRadius: "50%", background: `linear-gradient(135deg, ${p.grad[0]}, ${p.grad[1]})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, ...fr(700, 22, T.white) }}>{p.name[0]}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={fr(600, 17, T.ink)}>{p.name} <span style={{ ...nu(700, 12, T.soft), display: "inline-flex", alignItems: "center", gap: 3 }}>· <Ic.Pin s={11} c={T.soft} />{distLabel(myLoc, p)}</span></div>
+                <div style={{ ...nu(700, 12.5, T.soft), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "flex", alignItems: "center", gap: 5 }}><Ic.Bulb s={12} c={T.soft} />{p.idea}</div>
+              </div>
               <button onClick={() => onReport(p)} aria-label="Report or unmatch" style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Flag s={15} c={T.lilacDeep} /></button>
               <span style={{ ...fr(700, 13, T.green), background: "#E8F8EF", borderRadius: 999, padding: "5px 10px" }}>$0</span>
             </div>
@@ -1429,7 +1065,7 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
   );
 }
 
-function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, onEditProfile, onLogout, onOffClock, onPrimeTime }) {
+function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, onEditProfile }) {
   const u = api.user;
   const [, force] = useState(0);
   const rerender = () => force((n) => n + 1);
@@ -1505,22 +1141,6 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
         </span>
         <Ic.Chevron s={16} c={T.royal} />
       </button>
-      <button onClick={onPrimeTime} style={{ width: "100%", marginTop: 10, borderRadius: 18, padding: "14px 16px", border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
-        <Ic.Rise s={26} c={T.royal} />
-        <span style={{ flex: 1 }}>
-          <span style={{ ...fr(700, 16, T.ink), display: "block" }}>Weekly Prime Time</span>
-          <span style={{ ...nu(700, 12.5, T.soft) }}>Rise to the top of nearby decks for 7 days</span>
-        </span>
-        <Ic.Chevron s={16} c={T.royal} />
-      </button>
-      <button onClick={onOffClock} style={{ width: "100%", marginTop: 10, borderRadius: 18, padding: "14px 16px", border: `2px solid ${T.lilacDeep}`, background: u.offTheClock ? T.lilac : T.white, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
-        <Ic.Moon s={26} c={T.royal} />
-        <span style={{ flex: 1 }}>
-          <span style={{ ...fr(700, 16, T.ink), display: "block" }}>Off the Clock{u.offTheClock ? " · ON" : ""}</span>
-          <span style={{ ...nu(700, 12.5, T.soft) }}>{u.offTheClock ? "You're invisible right now" : "Go invisible without deleting anything"}</span>
-        </span>
-        <Ic.Chevron s={16} c={T.royal} />
-      </button>
       <div style={{ marginTop: 16 }}>
         <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".6px", textTransform: "uppercase", margin: "0 2px 8px" }}>About and privacy</div>
         {[
@@ -1532,10 +1152,6 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
             <Ic.Chevron s={14} c={T.soft} />
           </button>
         ))}
-        <button onClick={onLogout} style={{ width: "100%", background: T.white, border: "none", borderRadius: 16, padding: "13px 15px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 3px 10px rgba(42,27,74,.06)" }}>
-          <span style={{ ...nu(700, 14.5, T.royal) }}>Log out</span>
-          <Ic.Chevron s={14} c={T.royal} />
-        </button>
         <button onClick={onDelete} style={{ width: "100%", background: T.white, border: "none", borderRadius: 16, padding: "13px 15px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 3px 10px rgba(42,27,74,.06)" }}>
           <span style={{ ...nu(700, 14.5, T.red) }}>Delete my account</span>
           <Ic.Chevron s={14} c={T.red} />
@@ -1699,12 +1315,7 @@ export default function TomApp() {
   const [tab, setTab] = useState("discover");
   const [matched, setMatched] = useState(null);
   const [paywall, setPaywall] = useState(false);
-  const [goldenUsed, setGoldenUsed] = useState(0);
-  const [likesUsed, setLikesUsed] = useState(0);
-  const [chatWith, setChatWith] = useState(null);
-  const isPlus = Boolean(api.user && api.user.isPlus);
-  const goldenLeft = Math.max(0, api.goldenLimit() - goldenUsed);
-  const likesLeft = api.likeLimit() - likesUsed;
+  const [goldenLeft, setGoldenLeft] = useState(1); // 1 free Golden Hour per day
   const [myLoc, setMyLoc] = useState(FALLBACK_LOC);
 
   const [goldenIntro, setGoldenIntro] = useState(false);
@@ -1715,103 +1326,18 @@ export default function TomApp() {
   const [legal, setLegal] = useState(null); // null | "privacy" | "terms"
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  // Batch 2: TOM+ feature state
-  const [admirers, setAdmirers] = useState([]);
-  const [showAdmirers, setShowAdmirers] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [ageFilter, setAgeFilter] = useState({ min: 18, max: 99 });
-  const [interestFilter, setInterestFilter] = useState([]);
-  const [offClockOpen, setOffClockOpen] = useState(false);
-  const [timeZonesOpen, setTimeZonesOpen] = useState(false);
-  const [travelCity, setTravelCity] = useState(null); // null = my current area
-  const [primeTimeOpen, setPrimeTimeOpen] = useState(false);
-  const [boostUntil, setBoostUntil] = useState(null);
-  const [plusGate, setPlusGate] = useState(null); // null | { title, blurb }
-
-  const logout = async () => {
-    await api.logout();
-    setDeck(PROFILES);
-    setMatches([]);
-    setMatched(null);
-    setGoldenUsed(0);
-    setLikesUsed(0);
-    setChatWith(null);
-    setVerifyStatus(null);
-    setPaywall(false);
-    setTab("discover");
-    setScreen("home");
-  };
-
   const deleteAccount = async () => {
     await api.deleteAccount();
     setDeck(PROFILES);
     setMatches([]);
     setMatched(null);
-    setGoldenUsed(0);
-    setLikesUsed(0);
-    setChatWith(null);
+    setGoldenLeft(1);
     setGoldenSeen(false);
     setVerifyStatus(null);
     setPaywall(false);
     setDeleteOpen(false);
     setTab("discover");
     setScreen("home");
-  };
-
-  // ===== Batch 2 handlers =====
-  const requirePlus = (title, blurb, fn) => {
-    if (isPlus) fn();
-    else setPlusGate({ title, blurb });
-  };
-
-  const openAdmirers = () => requirePlus(
-    "See who likes you",
-    "TOM+ shows you everyone who already said your time is worth it.",
-    () => { setTab("discover"); setShowAdmirers(true); }
-  );
-
-  const applyFilters = async ({ minAge, maxAge, radius, interests }) => {
-    setAgeFilter({ min: minAge, max: maxAge });
-    setInterestFilter(interests);
-    setFiltersOpen(false);
-    if (api.user && !api.user.isGuest) {
-      api.user.filterMinAge = minAge;
-      api.user.filterMaxAge = maxAge;
-      api.user.filterInterests = interests;
-      api.user.searchRadiusKm = radius;
-      await api.saveProfile();
-    }
-  };
-
-  const toggleOffClock = async () => {
-    if (!api.user || api.user.isGuest) { setOffClockOpen(false); return; }
-    api.user.offTheClock = !api.user.offTheClock;
-    await api.saveProfile();
-    setOffClockOpen(false);
-  };
-
-  const startPrimeTime = async () => {
-    const r = await api.activateWeeklyBoost();
-    if (r.ok) setBoostUntil(r.expiresAt);
-  };
-
-  const likeBackAdmirer = (p) => {
-    if (likesLeft <= 0 && !isPlus) { setPaywall(true); return; }
-    setAdmirers((a) => a.filter((x) => x.id !== p.id));
-    setAdmirerCount((n) => Math.max(0, n - 1));
-    setLikesUsed((n) => n + 1);
-    if (api.user && api.user.id && !api.user.isGuest) {
-      api.swipe(p.id, "spend_time").then((r) => {
-        if (r.matched) {
-          const mp = { ...p, matchId: r.matchId };
-          setMatched(mp);
-          setMatches((m) => [...m, mp]);
-        }
-      });
-    } else {
-      setMatched(p);
-      setMatches((m) => [...m, p]);
-    }
   };
 
   React.useEffect(() => {
@@ -1839,19 +1365,13 @@ export default function TomApp() {
   const fireGolden = () => {
     if (sortedDeck.length === 0) return;
     if (goldenLeft <= 0) { setPaywall(true); return; }
+    setGoldenLeft(goldenLeft - 1);
     const top = sortedDeck[0];
-    setGoldenUsed((n) => n + 1);
-    setLikesUsed((n) => n + 1);
     setDeck((d) => d.filter((p) => p.id !== top.id));
+    setMatched(top);
+    setMatches((m) => [...m, top]);
     if (api.user && api.user.id && !api.user.isGuest) {
-      api.sendGoldenHour(top.id).then((r) => {
-        const mp = { ...top, matchId: r.matchId || null };
-        setMatched(mp);
-        setMatches((m) => [...m, mp]);
-      });
-    } else {
-      setMatched(top);
-      setMatches((m) => [...m, top]);
+      api.sendGoldenHour(top.id);
     }
   };
   const onGolden = () => {
@@ -1864,19 +1384,10 @@ export default function TomApp() {
     if (screen !== "main") return;
     if (!api.user || api.user.isGuest || !api.user.id) return; // guests keep the demo deck
     (async () => {
-      const [d, m, c, usage, adm] = await Promise.all([
-        api.loadDeck(), api.loadMatches(), api.countAdmirers(), api.loadDailyUsage(), api.loadAdmirers(),
-      ]);
+      const [d, m, c] = await Promise.all([api.loadDeck(), api.loadMatches(), api.countAdmirers()]);
       setDeck(d);
       setMatches(m);
       setAdmirerCount(c);
-      setAdmirers(adm);
-      setLikesUsed(usage.likesUsed);
-      setGoldenUsed(usage.goldenUsed);
-      if (api.user) {
-        setAgeFilter({ min: api.user.filterMinAge ?? 18, max: api.user.filterMaxAge ?? 99 });
-        setInterestFilter(api.user.filterInterests || []);
-      }
     })();
   }, [screen]);
 
@@ -1890,34 +1401,21 @@ export default function TomApp() {
   }, [screen]);
 
   // Ranking: distance minus shared-interest boost (closest + most in common first)
-  // Time Zones: when travelling, rank the deck from the chosen city instead
-  const deckOrigin = travelCity ? travelCity.loc : myLoc;
   const sortedDeck = React.useMemo(() => {
-    const isReal = api.user && !api.user.isGuest;
-    // When travelling with Time Zones, the radius follows the destination city
-    const radiusKm = isReal ? (api.user.searchRadiusKm ?? 50) : Infinity;
+    const radiusKm = (api.user && !api.user.isGuest) ? (api.user.searchRadiusKm ?? 50) : Infinity;
     return deck
-      .filter((p) => haversineKm(deckOrigin, p.loc) <= radiusKm)
-      .filter((p) => !isReal || (p.age >= ageFilter.min && p.age <= ageFilter.max))
-      .filter((p) => interestFilter.length === 0 || (p.likes || []).some((l) => interestFilter.includes(l)))
-      .sort((a, b) => rankScore(deckOrigin, a) - rankScore(deckOrigin, b));
-  }, [deck, myLoc, travelCity, ageFilter, interestFilter]);
+      .filter((p) => haversineKm(myLoc, p.loc) <= radiusKm)
+      .sort((a, b) => rankScore(myLoc, a) - rankScore(myLoc, b));
+  }, [deck, myLoc]);
 
   const onSwipe = (dir) => {
     if (sortedDeck.length === 0) return;
-    const isRealUser = Boolean(api.user && api.user.id && !api.user.isGuest);
-    // Passes are always free; only likes count against the daily limit.
-    if (dir === "right" && isRealUser && likesLeft <= 0) { setPaywall(true); return; }
     const top = sortedDeck[0];
     setDeck((d) => d.filter((p) => p.id !== top.id));
+    const isRealUser = Boolean(api.user && api.user.id && !api.user.isGuest);
     if (isRealUser) {
-      if (dir === "right") setLikesUsed((n) => n + 1);
       api.swipe(top.id, dir === "right" ? "spend_time" : "pass").then((r) => {
-        if (r.matched) {
-          const matchedProfile = { ...top, matchId: r.matchId };
-          setMatched(matchedProfile);
-          setMatches((m) => [...m, matchedProfile]);
-        }
+        if (r.matched) { setMatched(top); setMatches((m) => [...m, top]); }
       });
       return;
     }
@@ -1955,21 +1453,7 @@ export default function TomApp() {
               <h1 style={{ ...fr(700, 28, T.royal), margin: 0, lineHeight: 1, letterSpacing: "1px" }}>TOM<span style={{ color: T.sun }}>.</span></h1>
               <p style={{ ...nu(800, 10.5, T.soft), margin: "3px 0 0", letterSpacing: ".6px" }}>TIME OVER MONEY</p>
             </div>
-            {screen === "main" && tab === "discover" && !showAdmirers && (
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <button onClick={openAdmirers} aria-label="See who likes you" style={{ position: "relative", width: 38, height: 38, borderRadius: "50%", border: "none", background: T.lilac, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Ic.Eye s={19} c={T.royal} />
-                  {admirerCount > 0 && <span style={{ position: "absolute", top: -3, right: -3, minWidth: 17, height: 17, borderRadius: 999, background: T.sun, ...fr(700, 10.5, T.ink), display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{admirerCount}</span>}
-                </button>
-                <button onClick={() => setFiltersOpen(true)} aria-label="Filters" style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: T.lilac, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Ic.Sliders s={19} c={T.royal} />
-                </button>
-                <button onClick={() => requirePlus("Time Zones", "Browse and match in other cities before you travel. A TOM+ perk.", () => setTimeZonesOpen(true))} aria-label="Time Zones" style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: travelCity ? T.royal : T.lilac, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Ic.Globe s={19} c={travelCity ? T.white : T.royal} />
-                </button>
-              </div>
-            )}
-            {screen === "main" && (tab !== "discover" || showAdmirers) && (
+            {screen === "main" && (
               <span style={{ ...fr(700, 12.5, T.royal), background: T.lilac, borderRadius: 999, padding: "6px 12px", textAlign: "center", lineHeight: 1.25 }}>Don't spend money.<br />Spend time.</span>
             )}
           </header>
@@ -1988,16 +1472,12 @@ export default function TomApp() {
         {screen === "builder" && <Builder editMode={editingProfile} onDone={() => { setEditingProfile(false); setScreen("main"); }} />}
         {screen === "main" && (
           <>
-            {tab === "discover" && showAdmirers && <AdmirersPanel admirers={admirers} myLoc={deckOrigin} onLikeBack={likeBackAdmirer} onBack={() => setShowAdmirers(false)} onReport={(p) => setReporting({ profile: p, from: "admirers" })} />}
-            {tab === "discover" && !showAdmirers && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={deckOrigin} onGolden={onGolden} goldenLeft={goldenLeft} likesLeft={likesLeft} isPlus={isPlus} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "deck" })} />}
-            {tab === "matches" && (chatWith
-              ? <Chat profile={chatWith} onBack={() => setChatWith(null)} />
-              : <Matches matches={matches} myLoc={myLoc} admirerCount={admirerCount} onUpgrade={openAdmirers} onReport={(p) => setReporting({ profile: p, from: "matches" })} onOpenChat={(p) => setChatWith(p)} />
-            )}
-            {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} onLogout={logout} onOffClock={() => requirePlus("Off the Clock", "Go invisible without deleting anything. A TOM+ perk.", () => setOffClockOpen(true))} onPrimeTime={() => requirePlus("Weekly Prime Time", "Rise to the top of nearby decks for 7 days. A TOM+ perk.", () => setPrimeTimeOpen(true))} />}
+            {tab === "discover" && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={myLoc} onGolden={onGolden} goldenLeft={goldenLeft} onReport={(p) => setReporting({ profile: p, from: "deck" })} />}
+            {tab === "matches" && <Matches matches={matches} myLoc={myLoc} admirerCount={admirerCount} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "matches" })} />}
+            {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} />}
             <nav style={{ display: "flex", justifyContent: "space-around", padding: "10px 8px 16px", background: T.white, borderTop: `1px solid ${T.lilac}` }}>
               {tabs.map((t) => (
-                <button key={t.id} onClick={() => { setTab(t.id); setChatWith(null); }} style={{ border: "none", background: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, opacity: tab === t.id ? 1 : 0.45, padding: "4px 14px" }}>
+                <button key={t.id} onClick={() => setTab(t.id)} style={{ border: "none", background: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, opacity: tab === t.id ? 1 : 0.45, padding: "4px 14px" }}>
                   {React.createElement(t.icon, { s: 22, c: T.royal })}
                   <span style={nu(800, 11, T.royal)}>{t.label}</span>
                 </button>
@@ -2006,7 +1486,7 @@ export default function TomApp() {
           </>
         )}
 
-        {matched && <MatchModal profile={matched} onClose={() => setMatched(null)} myLoc={myLoc} onMessage={(p) => { setTab("matches"); setChatWith(p); }} />}
+        {matched && <MatchModal profile={matched} onClose={() => setMatched(null)} myLoc={myLoc} />}
         {goldenIntro && (
           <GoldenIntro
             profileName={sortedDeck[0]?.name || "someone"}
@@ -2020,11 +1500,6 @@ export default function TomApp() {
         {paywall && <Paywall onClose={() => setPaywall(false)} />}
         {legal && <LegalModal doc={legal} onClose={() => setLegal(null)} />}
         {deleteOpen && <DeleteModal onCancel={() => setDeleteOpen(false)} onConfirm={deleteAccount} />}
-        {filtersOpen && <FiltersModal onClose={() => setFiltersOpen(false)} onApply={applyFilters} />}
-        {offClockOpen && <OffTheClockModal onClose={() => setOffClockOpen(false)} onToggle={toggleOffClock} />}
-        {timeZonesOpen && <TimeZonesModal current={travelCity} onPick={(c) => { setTravelCity(c); setTimeZonesOpen(false); }} onClose={() => setTimeZonesOpen(false)} />}
-        {primeTimeOpen && <PrimeTimeModal onClose={() => setPrimeTimeOpen(false)} onActivate={startPrimeTime} boostUntil={boostUntil} />}
-        {plusGate && <PlusGate title={plusGate.title} blurb={plusGate.blurb} onClose={() => setPlusGate(null)} onUpgrade={() => { setPlusGate(null); setPaywall(true); }} />}
       </div>
     </div>
   );
