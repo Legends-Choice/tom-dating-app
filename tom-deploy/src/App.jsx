@@ -664,6 +664,7 @@ function PlusGate({ title, blurb, onClose, onUpgrade }) {
 }
 
 function AdmirersPanel({ admirers, myLoc, onLikeBack, onBack, onReport }) {
+  const [viewing, setViewing] = useState(null);
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "6px 16px 16px" }}>
       <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, border: "none", background: "none", cursor: "pointer", padding: "4px 0 10px", ...nu(800, 13, T.royal) }}>
@@ -679,15 +680,25 @@ function AdmirersPanel({ admirers, myLoc, onLikeBack, onBack, onReport }) {
         </div>
       ) : admirers.map((p) => (
         <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, background: T.white, borderRadius: 18, padding: 12, marginBottom: 10, boxShadow: "0 4px 14px rgba(42,27,74,.08)", animation: "floatUp .3s ease" }}>
-          <div style={{ width: 54, height: 54, borderRadius: "50%", background: p.photo ? `url(${p.photo}) center/cover no-repeat` : `linear-gradient(135deg, ${p.grad[0]}, ${p.grad[1]})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, ...fr(700, 22, T.white) }}>{p.photo ? "" : p.name[0]}</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ ...fr(600, 17, T.ink), display: "flex", alignItems: "center", gap: 6 }}>{p.name}, {p.age}{p.verified && <Ic.ShieldCheck s={16} c={T.green} />}</div>
-            <div style={{ ...nu(700, 12, T.soft), display: "inline-flex", alignItems: "center", gap: 3 }}><Ic.Pin s={11} c={T.soft} />{distLabel(myLoc, p)} away</div>
-          </div>
+          <button onClick={() => setViewing(p)} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, border: "none", background: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
+            <div style={{ width: 54, height: 54, borderRadius: "50%", background: p.photo ? `url(${p.photo}) center/cover no-repeat` : `linear-gradient(135deg, ${p.grad[0]}, ${p.grad[1]})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, ...fr(700, 22, T.white) }}>{p.photo ? "" : p.name[0]}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ ...fr(600, 17, T.ink), display: "flex", alignItems: "center", gap: 6 }}>{p.name}, {p.age}{p.verified && <Ic.ShieldCheck s={16} c={T.green} />}</div>
+              <div style={{ ...nu(700, 12, T.soft), display: "inline-flex", alignItems: "center", gap: 3 }}><Ic.Pin s={11} c={T.soft} />{distLabel(myLoc, p)} away</div>
+            </div>
+          </button>
           <button onClick={() => onReport(p)} aria-label="Report" style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Flag s={15} c={T.lilacDeep} /></button>
           <button onClick={() => onLikeBack(p)} style={{ border: "none", borderRadius: 999, padding: "9px 14px", background: T.royal, cursor: "pointer", ...fr(600, 13, T.white) }}>Spend time</button>
         </div>
       ))}
+      {viewing && (
+        <ProfileDetailModal
+          profile={viewing}
+          myLoc={myLoc}
+          onClose={() => setViewing(null)}
+          onLikeBack={(p) => { setViewing(null); onLikeBack(p); }}
+        />
+      )}
     </div>
   );
 }
@@ -993,8 +1004,70 @@ function ReviewModal({ pending, onDone, onSkip }) {
   );
 }
 
+// ================= Full profile view (before or after matching) =================
+function ProfileDetailModal({ profile, myLoc, onClose, onSwipe, onMessage, onLikeBack }) {
+  const [idx, setIdx] = useState(0);
+  if (!profile) return null;
+  const gallery = [profile.photo, ...(profile.photos || [])].filter(Boolean);
+  const hasPhotos = gallery.length > 0;
+  const shared = sharedLikes(profile);
+  return (
+    <div style={{ position: "absolute", inset: 0, zIndex: 40, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div style={{ background: T.white, borderRadius: "26px 26px 0 0", width: "100%", maxHeight: "92%", overflowY: "auto", animation: "floatUp .3s ease" }}>
+        <div style={{ position: "relative", height: 300, background: hasPhotos ? `url(${gallery[idx]}) center/cover no-repeat` : `linear-gradient(135deg, ${profile.grad[0]}, ${profile.grad[1]})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {!hasPhotos && <span style={{ ...fr(700, 100, "rgba(255,255,255,.95)"), lineHeight: 1 }}>{profile.name[0]}</span>}
+          <button onClick={onClose} aria-label="Close" style={{ position: "absolute", top: 14, right: 14, width: 34, height: 34, borderRadius: "50%", border: "none", background: "rgba(0,0,0,.35)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Cross s={16} c={T.white} /></button>
+          {gallery.length > 1 && (
+            <>
+              <button onClick={() => setIdx((i) => (i - 1 + gallery.length) % gallery.length)} aria-label="Previous photo" style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", width: 34, height: 34, borderRadius: "50%", border: "none", background: "rgba(0,0,0,.35)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ display: "inline-flex", transform: "rotate(180deg)" }}><Ic.Chevron s={16} c={T.white} /></span></button>
+              <button onClick={() => setIdx((i) => (i + 1) % gallery.length)} aria-label="Next photo" style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", width: 34, height: 34, borderRadius: "50%", border: "none", background: "rgba(0,0,0,.35)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Chevron s={16} c={T.white} /></button>
+              <div style={{ position: "absolute", bottom: 12, left: 0, right: 0, display: "flex", justifyContent: "center", gap: 5 }}>
+                {gallery.map((_, i) => <span key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: i === idx ? T.white : "rgba(255,255,255,.5)" }} />)}
+              </div>
+            </>
+          )}
+          <div style={{ position: "absolute", top: 14, left: 14 }}><ZeroStamp size={54} /></div>
+        </div>
+        <div style={{ padding: "16px 20px 22px", display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={fr(700, 26, T.ink)}>{profile.name}, {profile.age}</span>
+            {profile.verified && <Ic.ShieldCheck s={20} c={T.green} />}
+            <span style={{ ...nu(700, 13, T.soft), marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4 }}><Ic.Pin s={13} c={T.soft} />{distLabel(myLoc, profile)} away</span>
+          </div>
+          {profile.rep && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span style={{ ...fr(700, 12, T.green), background: "#E8F8EF", borderRadius: 999, padding: "4px 10px", display: "inline-flex", alignItems: "center", gap: 4 }}><Ic.Hourglass s={12} c={T.green} />{profile.rep.pct}% time well spent</span>
+              {(profile.rep.traits || []).map((t) => <Pill key={t}>{t}</Pill>)}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <Pill filled>{profile.vibe}</Pill>
+            {(profile.tags || []).map((t) => <Pill key={t}>{t}</Pill>)}
+          </div>
+          {shared.length > 0 && (
+            <div style={{ background: "#FFF4D6", borderRadius: 14, padding: "10px 12px", ...nu(700, 13, "#8A6400"), display: "flex", alignItems: "center", gap: 6 }}>
+              <Ic.Spark s={14} c={T.sun} />You both love: {shared.join(", ")}
+            </div>
+          )}
+          <div style={{ background: T.lilac, borderRadius: 14, padding: "11px 13px", ...nu(700, 13.5, T.royal), display: "flex", alignItems: "center", gap: 6 }}><Ic.Bulb s={14} c={T.royal} />Free date idea: {profile.idea}</div>
+          {profile.bio && <p style={{ margin: 0, ...nu(600, 14, T.ink), lineHeight: 1.5 }}>{profile.bio}</p>}
+
+          {onSwipe && (
+            <div style={{ display: "flex", justifyContent: "center", gap: 18, paddingTop: 8 }}>
+              <button onClick={() => onSwipe("left")} aria-label="Pass" style={{ width: 54, height: 54, borderRadius: "50%", border: "none", background: T.lilac, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Cross s={20} c={T.ink} /></button>
+              <button onClick={() => onSwipe("right")} aria-label="Spend time" style={{ width: 64, height: 64, borderRadius: "50%", border: "none", background: T.royal, cursor: "pointer", boxShadow: "0 6px 18px rgba(91,33,182,.35)", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Hourglass s={26} c={T.white} /></button>
+            </div>
+          )}
+          {onLikeBack && <PrimaryBtn onClick={() => onLikeBack(profile)}>Spend time with {profile.name}</PrimaryBtn>}
+          {onMessage && <PrimaryBtn onClick={() => onMessage(profile)}>Message {profile.name}</PrimaryBtn>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ================= Swipe card =================
-function Card({ profile, onSwipe, isTop, myLoc, onReport }) {
+function Card({ profile, onSwipe, isTop, myLoc, onReport, onView }) {
   const [drag, setDrag] = useState({ x: 0, y: 0, active: false });
   const start = useRef({ x: 0, y: 0 });
   const onDown = (e) => { if (!isTop) return; const p = e.touches ? e.touches[0] : e; start.current = { x: p.clientX, y: p.clientY }; setDrag((d) => ({ ...d, active: true })); };
@@ -1010,6 +1083,9 @@ function Card({ profile, onSwipe, isTop, myLoc, onReport }) {
           <div style={{ position: "absolute", top: 14, right: 14 }}><ZeroStamp /></div>
           <div style={{ position: "absolute", top: 18, left: 16, opacity: likeOp, ...fr(700, 24, T.white), border: `3px solid ${T.white}`, borderRadius: 12, padding: "2px 12px", transform: "rotate(-10deg)", background: "rgba(47,191,113,.85)" }}>WORTH MY TIME</div>
           <div style={{ position: "absolute", top: 18, right: 76, opacity: nopeOp, ...fr(700, 24, T.white), border: `3px solid ${T.white}`, borderRadius: 12, padding: "2px 12px", transform: "rotate(10deg)", background: "rgba(42,27,74,.6)" }}>NOT THIS TIME</div>
+          <button onClick={() => onView(profile)} onPointerDown={(e) => e.stopPropagation()} aria-label="View full profile" style={{ position: "absolute", bottom: 14, right: 14, display: "flex", alignItems: "center", gap: 5, border: "none", borderRadius: 999, padding: "7px 12px", background: "rgba(0,0,0,.35)", cursor: "pointer", ...nu(700, 12, T.white) }}>
+            <Ic.Eye s={14} c={T.white} />View profile
+          </button>
         </div>
         <div style={{ flex: 1, padding: "16px 18px 14px", display: "flex", flexDirection: "column", gap: 10, overflow: "hidden" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1399,6 +1475,7 @@ function Builder({ onDone, editMode }) {
 }
 
 function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlus, onUpgrade, onReport }) {
+  const [viewing, setViewing] = useState(null);
   const outOfLikes = !isPlus && likesLeft !== undefined && likesLeft <= 0;
   if (outOfLikes) {
     return (
@@ -1425,8 +1502,16 @@ function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlu
     <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "6px 16px 0" }}>
       <div style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".6px", paddingBottom: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}><Ic.Pin s={11} c={T.soft} />CLOSEST · <Ic.Spark s={11} c={T.sun} />MOST IN COMMON FIRST</div>
       <div style={{ position: "relative", flex: 1, marginBottom: 12 }}>
-        {deck.slice(0, 2).map((p, i) => <Card key={p.id} profile={p} isTop={i === 0} onSwipe={onSwipe} myLoc={myLoc} onReport={onReport} />).reverse()}
+        {deck.slice(0, 2).map((p, i) => <Card key={p.id} profile={p} isTop={i === 0} onSwipe={onSwipe} myLoc={myLoc} onReport={onReport} onView={setViewing} />).reverse()}
       </div>
+      {viewing && (
+        <ProfileDetailModal
+          profile={viewing}
+          myLoc={myLoc}
+          onClose={() => setViewing(null)}
+          onSwipe={(dir) => { setViewing(null); onSwipe(dir); }}
+        />
+      )}
       <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-start", gap: 22, padding: "4px 0 12px" }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
           <button onClick={() => onSwipe("left")} aria-label="Pass" style={{ width: 56, height: 56, borderRadius: "50%", border: "none", background: T.white, cursor: "pointer", boxShadow: "0 6px 16px rgba(42,27,74,.18)", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Cross s={20} c={T.ink} /></button>
@@ -1699,6 +1784,7 @@ function Chat({ profile, onBack, onDateCompleted }) {
 }
 
 function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat }) {
+  const [viewing, setViewing] = useState(null);
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "6px 16px 16px" }}>
       {admirerCount > 0 && (
@@ -1724,8 +1810,10 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
         <>
           {matches.map((p) => (
             <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, background: T.white, borderRadius: 18, padding: 12, marginBottom: 10, boxShadow: "0 4px 14px rgba(42,27,74,.08)", animation: "floatUp .3s ease" }}>
-              <button onClick={() => onOpenChat && onOpenChat(p)} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, border: "none", background: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
+              <button onClick={() => setViewing(p)} aria-label={`View ${p.name}'s profile`} style={{ border: "none", background: "none", padding: 0, cursor: "pointer", flexShrink: 0 }}>
                 <div style={{ width: 54, height: 54, borderRadius: "50%", background: p.photo ? `url(${p.photo}) center/cover no-repeat` : `linear-gradient(135deg, ${p.grad[0]}, ${p.grad[1]})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, ...fr(700, 22, T.white) }}>{p.photo ? "" : p.name[0]}</div>
+              </button>
+              <button onClick={() => onOpenChat && onOpenChat(p)} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, border: "none", background: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={fr(600, 17, T.ink)}>{p.name} <span style={{ ...nu(700, 12, T.soft), display: "inline-flex", alignItems: "center", gap: 3 }}>· <Ic.Pin s={11} c={T.soft} />{distLabel(myLoc, p)}</span></div>
                   <div style={{ ...nu(700, 12.5, T.royal), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Tap to message</div>
@@ -1741,6 +1829,14 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
             <div style={{ ...nu(600, 11.5, T.soft), marginTop: 3 }}>Only if you choose. The date itself stays $0.</div>
           </div>
         </>
+      )}
+      {viewing && (
+        <ProfileDetailModal
+          profile={viewing}
+          myLoc={myLoc}
+          onClose={() => setViewing(null)}
+          onMessage={(p) => { setViewing(null); onOpenChat && onOpenChat(p); }}
+        />
       )}
     </div>
   );
