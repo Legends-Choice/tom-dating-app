@@ -52,7 +52,7 @@ function dbRowToCard(row) {
     verified: Boolean(row.verified),
     likes,
     age: row.age,
-    loc: { lat: row.latitude ?? FALLBACK_LOC.lat, lng: row.longitude ?? FALLBACK_LOC.lng },
+    loc: (row.latitude != null && row.longitude != null) ? { lat: row.latitude, lng: row.longitude } : null,
     grad: CARD_GRADIENTS[h % CARD_GRADIENTS.length],
     photo: row.avatar_url || null,
     photos: row.gallery_photos || [],
@@ -277,6 +277,17 @@ const api = {
     return (profs || []).map(dbRowToCard);
   },
   // Batch 2: Weekly Prime Time boost (7 days at the top of the deck)
+  async saveLocation(lat, lng) {
+    if (!this.user || !this.user.id || this.user.isGuest) return { ok: false };
+    if (typeof lat !== "number" || typeof lng !== "number") return { ok: false };
+    const { error } = await supabase.from("profiles")
+      .update({ latitude: lat, longitude: lng, location_updated_at: new Date().toISOString() })
+      .eq("id", this.user.id);
+    if (error) return { error: error.message };
+    this.user.latitude = lat;
+    this.user.longitude = lng;
+    return { ok: true };
+  },
   async activateWeeklyBoost() {
     if (!this.user || !this.user.id) return { error: "Not signed in" };
     const expiry = new Date();
@@ -382,22 +393,29 @@ const INTERESTED_IN = [["men", "Men"], ["women", "Women"], ["everyone", "Everyon
 const CHRONO = [["morning_person", "Morning person"], ["night_person", "Night person"], ["both", "Both"]];
 
 // ================= Location & distance =================
-// Real app: phone GPS via geolocation permission. Fallback: city center.
-const FALLBACK_LOC = { lat: 41.0082, lng: 28.9784 };
+// Real app: phone GPS via geolocation permission. If either side has no saved
+// location we show nothing rather than a made-up distance.
 function haversineKm(a, b) {
+  if (!a || !b || a.lat == null || b.lat == null) return null;
   const R = 6371, toRad = (d) => (d * Math.PI) / 180;
   const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
   const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(s));
 }
 const distLabel = (from, p) => {
-  const km = haversineKm(from, p.loc);
+  const km = haversineKm(from, p && p.loc);
+  if (km === null) return "Distance unavailable";
   const useMiles = api.user?.distanceUnit === "mi";
   if (useMiles) {
     const mi = km * 0.621371;
     return mi < 0.1 ? `${Math.max(Math.round(mi * 5280), 100)} ft` : `${mi.toFixed(1)} mi`;
   }
   return km < 1 ? `${Math.max(Math.round(km * 10) * 100, 100)} m` : `${km.toFixed(1)} km`;
+};
+// "3.2 mi away" reads wrong when there's no distance, so callers use this.
+const distPhrase = (from, p) => {
+  const km = haversineKm(from, p && p.loc);
+  return km === null ? "Distance unavailable" : `${distLabel(from, p)} away`;
 };
 
 // Shared-interest boost: each interest you have in common counts as being
@@ -409,7 +427,12 @@ const myLikes = () => new Set([
   ...(api.user?.hobbies || []),
 ]);
 const sharedLikes = (p) => { const mine = myLikes(); return (p.likes || []).filter((l) => mine.has(l)); };
-const rankScore = (from, p) => haversineKm(from, p.loc) - sharedLikes(p).length * BOOST_KM;
+// No known distance sorts to the back of the deck, but is never hidden.
+const rankScore = (from, p) => {
+  const km = haversineKm(from, p.loc);
+  const base = km === null ? 100000 : km;
+  return base - sharedLikes(p).length * BOOST_KM;
+};
 
 // ================= Demo profiles for the deck =================
 const PROFILES = [
@@ -684,7 +707,7 @@ function AdmirersPanel({ admirers, myLoc, onLikeBack, onBack, onReport }) {
             <div style={{ width: 54, height: 54, borderRadius: "50%", background: p.photo ? `url(${p.photo}) center/cover no-repeat` : `linear-gradient(135deg, ${p.grad[0]}, ${p.grad[1]})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, ...fr(700, 22, T.white) }}>{p.photo ? "" : p.name[0]}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ ...fr(600, 17, T.ink), display: "flex", alignItems: "center", gap: 6 }}>{p.name}, {p.age}{p.verified && <Ic.ShieldCheck s={16} c={T.green} />}</div>
-              <div style={{ ...nu(700, 12, T.soft), display: "inline-flex", alignItems: "center", gap: 3 }}><Ic.Pin s={11} c={T.soft} />{distLabel(myLoc, p)} away</div>
+              <div style={{ ...nu(700, 12, T.soft), display: "inline-flex", alignItems: "center", gap: 3 }}><Ic.Pin s={11} c={T.soft} />{distPhrase(myLoc, p)}</div>
             </div>
           </button>
           <button onClick={() => onReport(p)} aria-label="Report" style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Flag s={15} c={T.lilacDeep} /></button>
@@ -1032,7 +1055,7 @@ function ProfileDetailModal({ profile, myLoc, onClose, onSwipe, onMessage, onLik
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={fr(700, 26, T.ink)}>{profile.name}, {profile.age}</span>
             {profile.verified && <Ic.ShieldCheck s={20} c={T.green} />}
-            <span style={{ ...nu(700, 13, T.soft), marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4 }}><Ic.Pin s={13} c={T.soft} />{distLabel(myLoc, profile)} away</span>
+            <span style={{ ...nu(700, 13, T.soft), marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4 }}><Ic.Pin s={13} c={T.soft} />{distPhrase(myLoc, profile)}</span>
           </div>
           {profile.rep && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
@@ -1091,7 +1114,7 @@ function Card({ profile, onSwipe, isTop, myLoc, onReport, onView }) {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={fr(600, 26, T.ink)}>{profile.name}, {profile.age}</span>
             {profile.verified && <Ic.ShieldCheck s={19} c={T.green} />}
-            <span style={{ ...nu(700, 13, T.soft), display: "inline-flex", alignItems: "center", gap: 4 }}><Ic.Pin s={13} c={T.soft} />{distLabel(myLoc, profile)} away</span>
+            <span style={{ ...nu(700, 13, T.soft), display: "inline-flex", alignItems: "center", gap: 4 }}><Ic.Pin s={13} c={T.soft} />{distPhrase(myLoc, profile)}</span>
             <button onClick={() => onReport(profile)} onPointerDown={(e) => e.stopPropagation()} aria-label="Report this profile" style={{ marginLeft: "auto", border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Flag s={15} c={T.lilacDeep} /></button>
           </div>
           {profile.rep && (
@@ -1101,7 +1124,7 @@ function Card({ profile, onSwipe, isTop, myLoc, onReport, onView }) {
             </div>
           )}
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {haversineKm(myLoc, profile.loc) < 3 && (
+            {haversineKm(myLoc, profile.loc) !== null && haversineKm(myLoc, profile.loc) < 3 && (
               <span style={{ ...nu(800, 11.5, "#177245"), background: "#E8F8EF", padding: "5px 11px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 5 }}><Ic.Bolt s={12} c="#177245" />Close enough to meet today</span>
             )}
             <Pill filled>{profile.vibe}</Pill>
@@ -1474,7 +1497,7 @@ function Builder({ onDone, editMode }) {
   );
 }
 
-function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlus, onUpgrade, onReport }) {
+function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlus, onUpgrade, onReport, locDenied }) {
   const [viewing, setViewing] = useState(null);
   const outOfLikes = !isPlus && likesLeft !== undefined && likesLeft <= 0;
   if (outOfLikes) {
@@ -1501,6 +1524,12 @@ function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlu
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "6px 16px 0" }}>
       <div style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".6px", paddingBottom: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}><Ic.Pin s={11} c={T.soft} />CLOSEST · <Ic.Spark s={11} c={T.sun} />MOST IN COMMON FIRST</div>
+      {locDenied && (
+        <div style={{ background: "#FFF4D6", borderRadius: 14, padding: "9px 12px", marginBottom: 8, display: "flex", alignItems: "center", gap: 7, ...nu(700, 12, "#8A6400") }}>
+          <Ic.Pin s={13} c="#8A6400" />
+          Location is off, so distances are hidden. Turn it on in your browser or phone settings to see who's nearby.
+        </div>
+      )}
       <div style={{ position: "relative", flex: 1, marginBottom: 12 }}>
         {deck.slice(0, 2).map((p, i) => <Card key={p.id} profile={p} isTop={i === 0} onSwipe={onSwipe} myLoc={myLoc} onReport={onReport} onView={setViewing} />).reverse()}
       </div>
@@ -1550,7 +1579,7 @@ function MatchModal({ profile, onClose, myLoc, onMessage }) {
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}><ZeroStamp size={64} /></div>
         <h2 style={{ ...fr(700, 27, T.royal), margin: "0 0 4px" }}>Time well matched!</h2>
         <p style={{ ...nu(700, 14, T.ink), margin: "0 0 6px" }}>You and {profile.name} both chose time over money.</p>
-        <p style={{ ...nu(800, 13, T.royal), margin: "0 0 14px", background: T.lilac, borderRadius: 999, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 5 }}><Ic.Pin s={12} c={T.royal} />You're {distLabel(myLoc, profile)} apart</p>
+        <p style={{ ...nu(800, 13, T.royal), margin: "0 0 14px", background: T.lilac, borderRadius: 999, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 5 }}><Ic.Pin s={12} c={T.royal} />{haversineKm(myLoc, profile.loc) === null ? "Distance unavailable" : `You're ${distLabel(myLoc, profile)} apart`}</p>
         <p style={{ ...nu(800, 12, T.soft), margin: "0 0 8px", letterSpacing: ".5px", textTransform: "uppercase" }}>Suggest a free first date (public places only)</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18, maxHeight: 190, overflowY: "auto" }}>
           {DATE_IDEAS.map((s) => (
@@ -2118,7 +2147,7 @@ export default function TomApp() {
   const isPlus = Boolean(api.user && api.user.isPlus);
   const goldenLeft = Math.max(0, api.goldenLimit() - goldenUsed);
   const likesLeft = api.likeLimit() - likesUsed;
-  const [myLoc, setMyLoc] = useState(FALLBACK_LOC);
+  const [myLoc, setMyLoc] = useState(null);
 
   const [goldenIntro, setGoldenIntro] = useState(false);
   const [goldenSeen, setGoldenSeen] = useState(false);
@@ -2314,14 +2343,32 @@ export default function TomApp() {
     })();
   }, [screen]);
 
+  // Location: read the phone's GPS, save it to the profile so OTHER people can
+  // measure their distance to us, then refresh the deck with real coordinates.
+  // Runs on every visit so a moving user stays accurate. If permission is
+  // denied we keep the city-center fallback and never write a location.
+  const [locSaved, setLocSaved] = useState(false);
+  const [locDenied, setLocDenied] = useState(false);
   React.useEffect(() => {
     if (screen !== "main" || !navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
-      (pos) => setMyLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => {}, // denied or unavailable: keep city-center fallback
-      { enableHighAccuracy: false, maximumAge: 300000, timeout: 8000 }
+      async (pos) => {
+        const lat = pos.coords.latitude, lng = pos.coords.longitude;
+        setLocDenied(false);
+        setMyLoc({ lat, lng });
+        if (api.user && api.user.id && !api.user.isGuest) {
+          const r = await api.saveLocation(lat, lng);
+          if (r.ok && !locSaved) {
+            setLocSaved(true);
+            const fresh = await api.loadDeck();
+            setDeck(fresh);
+          }
+        }
+      },
+      () => { setLocDenied(true); setMyLoc(null); }, // denied: show no distance rather than a wrong one
+      { enableHighAccuracy: true, maximumAge: 60000, timeout: 10000 }
     );
-  }, [screen]);
+  }, [screen, locSaved]);
 
   // Ranking: distance minus shared-interest boost (closest + most in common first)
   // Time Zones: when travelling, rank the deck from the chosen city instead
@@ -2331,7 +2378,11 @@ export default function TomApp() {
     // When travelling with Time Zones, the radius follows the destination city
     const radiusKm = isReal ? (api.user.searchRadiusKm ?? 50) : Infinity;
     return deck
-      .filter((p) => haversineKm(deckOrigin, p.loc) <= radiusKm)
+      .filter((p) => {
+        const km = haversineKm(deckOrigin, p.loc);
+        // Unknown distance is not a reason to hide someone; it ranks last instead.
+        return km === null || km <= radiusKm;
+      })
       .filter((p) => !isReal || (p.age >= ageFilter.min && p.age <= ageFilter.max))
       .filter((p) => interestFilter.length === 0 || (p.likes || []).some((l) => interestFilter.includes(l)))
       .sort((a, b) => rankScore(deckOrigin, a) - rankScore(deckOrigin, b));
@@ -2424,7 +2475,7 @@ export default function TomApp() {
         {screen === "main" && (
           <>
             {tab === "discover" && showAdmirers && <AdmirersPanel admirers={admirers} myLoc={deckOrigin} onLikeBack={likeBackAdmirer} onBack={() => setShowAdmirers(false)} onReport={(p) => setReporting({ profile: p, from: "admirers" })} />}
-            {tab === "discover" && !showAdmirers && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={deckOrigin} onGolden={onGolden} goldenLeft={goldenLeft} likesLeft={likesLeft} isPlus={isPlus} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "deck" })} />}
+            {tab === "discover" && !showAdmirers && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={deckOrigin} onGolden={onGolden} goldenLeft={goldenLeft} likesLeft={likesLeft} isPlus={isPlus} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "deck" })} locDenied={locDenied && !travelCity} />}
             {tab === "missions" && <Missions matches={matches} onSend={(idea) => setMissionToSend(idea)} />}
             {tab === "matches" && (chatWith
               ? <Chat profile={chatWith} onBack={() => setChatWith(null)} onDateCompleted={onDateCompleted} />
