@@ -4,7 +4,17 @@ import { createClient } from "@supabase/supabase-js";
 // ================= Supabase =================
 const SUPABASE_URL = "https://adanpwwxovponnluoztd.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_fxfFnuDXlNm8dgEwPbNLog_1hkZlsbL";
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    // Keep people signed in until THEY log out: store the session on the
+    // device and refresh the token in the background before it expires.
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storageKey: "tom-auth",
+    flowType: "pkce",
+  },
+});
 
 // ================= Brand =================
 const T = {
@@ -157,7 +167,24 @@ const api = {
     const { data } = await supabase.auth.getSession();
     if (!data.session) return { ok: false };
     const { data: row, error } = await supabase.from("profiles").select("*").eq("id", data.session.user.id).single();
-    if (error || !row) return { ok: false };
+    if (error || !row) {
+      // The session is valid, so a failed profile read (network blip, brief
+      // outage) must NOT log the person out. Keep them in with what we know
+      // and let the next load fill in the rest.
+      this.user = {
+        id: data.session.user.id,
+        email: data.session.user.email,
+        name: "", age: null, bio: "", city: "",
+        heightCm: null, gender: null, orientation: null, interestedIn: null,
+        chronotype: null, thingsILikeToDo: [], interests: [], hobbies: [],
+        profilePhoto: null, photos: [], verified: false,
+        searchRadiusKm: 50, distanceUnit: "km",
+        isPlus: false, offTheClock: false,
+        filterMinAge: 18, filterMaxAge: 99, filterInterests: [],
+        profileIncomplete: true,
+      };
+      return { ok: true, complete: false };
+    }
     this.user = rowToUser(row, data.session.user.email);
     return { ok: true, complete: Boolean(this.user.bio && this.user.profilePhoto) };
   },
@@ -1675,7 +1702,7 @@ function VerifyModal({ onClose, onSubmit }) {
   );
 }
 
-function Chat({ profile, onBack, onDateCompleted }) {
+function Chat({ profile, onBack, onDateCompleted, myLoc }) {
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(true);
@@ -1684,6 +1711,7 @@ function Chat({ profile, onBack, onDateCompleted }) {
   const [plan, setPlan] = useState(null);
   const [planning, setPlanning] = useState(false);
   const [planDraft, setPlanDraft] = useState("");
+  const [viewing, setViewing] = useState(null);
   const endRef = useRef(null);
   const myId = api.user && api.user.id;
 
@@ -1753,10 +1781,12 @@ function Chat({ profile, onBack, onDateCompleted }) {
         <button onClick={onBack} aria-label="Back" style={{ border: "none", background: "none", cursor: "pointer", padding: 4, display: "inline-flex" }}>
           <span style={{ display: "inline-flex", transform: "rotate(180deg)" }}><Ic.Chevron s={18} c={T.royal} /></span>
         </button>
-        {profile.photo ? <PhotoThumb src={profile.photo} size={34} round /> : (
-          <div style={{ width: 34, height: 34, borderRadius: "50%", background: profile.photo ? `url(${profile.photo}) center/cover no-repeat` : `linear-gradient(135deg, ${profile.grad[0]}, ${profile.grad[1]})` }} />
-        )}
-        <div style={{ ...fr(600, 16, T.ink), flex: 1 }}>{profile.name}</div>
+        <button onClick={() => setViewing(profile)} aria-label={`View ${profile.name}'s profile`} style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, border: "none", background: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
+          {profile.photo ? <PhotoThumb src={profile.photo} size={34} round /> : (
+            <div style={{ width: 34, height: 34, borderRadius: "50%", background: `linear-gradient(135deg, ${profile.grad[0]}, ${profile.grad[1]})`, display: "flex", alignItems: "center", justifyContent: "center", ...fr(700, 14, T.white) }}>{profile.name[0]}</div>
+          )}
+          <div style={{ ...fr(600, 16, T.ink), flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{profile.name}</div>
+        </button>
         {!plan && profile.matchId && (
           <button onClick={() => { setPlanDraft(profile.idea || ""); setPlanning(true); }} style={{ border: "none", borderRadius: 999, padding: "7px 12px", background: T.lilac, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, ...fr(600, 12, T.royal) }}>
           <Ic.Hourglass s={13} c={T.royal} />Plan a date
@@ -1808,6 +1838,13 @@ function Chat({ profile, onBack, onDateCompleted }) {
           {sending ? "..." : "Send"}
         </button>
       </div>
+      {viewing && (
+        <ProfileDetailModal
+          profile={viewing}
+          myLoc={myLoc}
+          onClose={() => setViewing(null)}
+        />
+      )}
     </div>
   );
 }
@@ -2478,7 +2515,7 @@ export default function TomApp() {
             {tab === "discover" && !showAdmirers && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={deckOrigin} onGolden={onGolden} goldenLeft={goldenLeft} likesLeft={likesLeft} isPlus={isPlus} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "deck" })} locDenied={locDenied && !travelCity} />}
             {tab === "missions" && <Missions matches={matches} onSend={(idea) => setMissionToSend(idea)} />}
             {tab === "matches" && (chatWith
-              ? <Chat profile={chatWith} onBack={() => setChatWith(null)} onDateCompleted={onDateCompleted} />
+              ? <Chat profile={chatWith} onBack={() => setChatWith(null)} onDateCompleted={onDateCompleted} myLoc={myLoc} />
               : <Matches matches={matches} myLoc={myLoc} admirerCount={admirerCount} onUpgrade={openAdmirers} onReport={(p) => setReporting({ profile: p, from: "matches" })} onOpenChat={(p) => setChatWith(p)} />
             )}
             {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} onLogout={logout} onOffClock={() => requirePlus("Off the Clock", "Go invisible without deleting anything. A TOM+ perk.", () => setOffClockOpen(true))} onPrimeTime={() => requirePlus("Weekly Prime Time", "Rise to the top of nearby decks for 7 days. A TOM+ perk.", () => setPrimeTimeOpen(true))} />}
