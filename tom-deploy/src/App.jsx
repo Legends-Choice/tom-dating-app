@@ -333,10 +333,25 @@ const api = {
     if (error || !data) return null;
     return data;
   },
-  async proposeDate(matchId, idea) {
-    const { data, error } = await supabase.rpc("propose_date", { p_match_id: matchId, p_idea: idea });
+  async proposeDate(matchId, idea, scheduledAt) {
+    const { data, error } = await supabase.rpc("propose_date", {
+      p_match_id: matchId, p_idea: idea, p_scheduled_at: scheduledAt || null,
+    });
     if (error) return { error: error.message };
     return { ok: true, date: data };
+  },
+  // Both people are asked what happened; a date only counts when both say met
+  async answerOutcome(dateId, answer) {
+    const { data, error } = await supabase.rpc("answer_date_outcome", {
+      p_date_id: dateId, p_answer: answer,
+    });
+    if (error) return { error: error.message };
+    return { ok: true, result: data };
+  },
+  async loadPendingOutcome() {
+    const { data, error } = await supabase.rpc("pending_outcome");
+    if (error || !data) return null;
+    return data;
   },
   async confirmDate(dateId) {
     const { error } = await supabase.rpc("confirm_date", { p_date_id: dateId });
@@ -877,67 +892,126 @@ const MISSIONS = [
     "Sunrise mission: reach the best viewpoint in town before the sun does",
     "Explore a neighborhood neither of you has ever walked",
     "Urban treasure hunt: find five hidden details most people miss",
-    "Walk-on ferry ride at golden hour, best story wins",
+    "Walk on ferry ride at golden hour, best story wins",
     "Follow a street cat and see where it takes you",
     "Find the highest free viewpoint in the city together",
+    "Get deliberately lost, then find your way home with no maps",
+    "Ride a bus to the last stop and explore whatever is there",
+    "Find the oldest street in town and walk its full length",
+    "Coin flip walk: heads you go left, tails you go right, twenty flips",
+    "Explore the biggest park end to end without repeating a path",
+    "Find five staircases and climb every one",
+    "Pick a direction and walk it for one hour, then turn around",
   ]},
   { id: "conversation", label: "Conversation", icon: "Bubble", ideas: [
     "36 questions on a park bench, no phones",
     "Swap playlists and each explain three songs that made you",
-    "People-watch and invent their life stories",
+    "People watch and invent their life stories",
     "Teach each other something new in twenty minutes",
     "Walk and talk: describe the street you grew up on",
     "Debate your silliest hills to die on",
+    "Interview each other like a talk show host",
+    "Trade the three best pieces of advice you ever got",
+    "Describe your perfect ordinary Tuesday, then compare",
+    "Two truths and a lie until someone finally gets caught",
+    "Plan an imaginary road trip you will never actually take",
+    "Tell each other the story behind a scar",
+    "Say what you would do with a completely free year",
   ]},
   { id: "nature", label: "Nature", icon: "Leaf", ideas: [
     "Botanical garden on its free day",
-    "Sunset picnic, everyone brings something from home",
+    "Sunset picnic, you each bring something from home",
     "Stone skipping contest at the water",
     "Find the oldest tree in the park",
     "Birdwatching with a shared thermos",
     "Barefoot walk on the grass, loser plans the next date",
+    "Collect five leaves each and rank them seriously",
+    "Cloud watching, name every shape out loud",
+    "Walk the whole waterfront, wherever it starts and ends",
+    "Find water: river, fountain, lake, whichever is closest",
+    "Wildflower hunt, photograph them and leave them growing",
+    "Hunt for the best shade tree and read there",
+    "Follow a trail neither of you has taken all the way to its end",
   ]},
   { id: "culture", label: "Culture", icon: "Column", ideas: [
     "Free museum night, invent backstories for the art",
     "Street art hunt: photograph ten murals",
-    "Self-guided walking tour of the old town",
+    "Self guided walking tour of the old town",
     "Library date: pick a book for each other",
     "Free concert or open rehearsal in the park",
     "Visit the oldest building either of you can find",
+    "Read the plaque on every monument you pass",
+    "Find the strangest statue in the city and pose with it",
+    "Sit in on a free lecture or open class",
+    "Bookshop browse, choose each other's next read",
+    "Cemetery walk for the history and the quiet",
+    "Find a place your grandparents would still recognize",
+    "Watch the buskers and pick who deserves to be famous",
   ]},
   { id: "exercise", label: "Exercise", icon: "Rise", ideas: [
     "Sunrise run or brisk walk along the water",
-    "Outdoor gym challenge: who gives up first",
-    "Race up the famous steps, winner picks next mission",
+    "Outdoor gym challenge: see who gives up first",
+    "Race up the big steps, winner picks the next mission",
     "Park yoga, bring two mats",
     "Bike ride to somewhere neither of you has been",
     "Swim at the public beach",
+    "Plank contest in the park, no mercy",
+    "Walk ten thousand steps together and actually count them",
+    "Teach each other your best stretch",
+    "Hill sprints until one of you calls it",
+    "Handstand attempts against a wall, film the failures",
+    "Long walk with one rule: no stopping for an hour",
+    "Shadow boxing lesson from whichever of you knows more",
   ]},
   { id: "creativity", label: "Creativity", icon: "Palette", ideas: [
     "Sketch each other in ten minutes, reveal at the same time",
     "Phone photo challenge: one theme, ten shots each",
     "Write a six word story about this exact date",
-    "Build something tiny from found objects",
-    "Learn a dance from a free video, film the result",
-    "Cook-off using only what's already in the kitchen",
+    "Build something tiny out of found objects",
+    "Learn a dance from a free video and film the result",
+    "Cook off using only what is already in the kitchen",
+    "Write each other a terrible poem on purpose",
+    "Invent a board game using whatever is on the table",
+    "Photograph the same thing ten completely different ways",
+    "Make up a song about your day, talent not required",
+    "Design your dream house on scrap paper",
+    "Write the opening line of a novel, trade, keep going",
+    "Rename every shop you pass with a better name",
   ]},
   { id: "rainy", label: "Rainy Day", icon: "Rain", ideas: [
     "Board games marathon, loser makes the tea",
-    "Covered bazaar wander, strictly buy nothing",
-    "Library afternoon: read each other one page",
-    "Movie marathon with homemade popcorn",
+    "Covered market wander, strictly buy nothing",
+    "Library afternoon, read each other one page",
+    "Movie marathon with popcorn from your own kitchen",
     "Puzzle race against the rain",
-    "Rain-on-window photography from a dry doorway",
+    "Rain on window photography from a dry doorway",
+    "Card games, invent house rules as you go",
+    "Build a blanket fort with real structural engineering",
+    "Cook something neither of you has ever made",
+    "Trade favourite childhood shows and watch one each",
+    "Deep clean a room together with the music loud",
+    "Learn a card trick from a video and perform it badly",
+    "Bake with whatever is already in the cupboard",
   ]},
   { id: "nighttime", label: "Nighttime", icon: "Moon", ideas: [
     "Stargazing from the darkest spot you can reach",
     "Full moon walk through the old streets",
-    "City lights viewpoint, hot drinks from home",
+    "City lights viewpoint with hot drinks from home",
     "Night market stroll, spend nothing",
-    "Ghost story walk: scariest local legend wins",
+    "Ghost story walk, scariest local legend wins",
     "Midnight breakfast at home",
+    "Find every lit fountain in the city",
+    "Late walk with one earbud each, shared playlist",
+    "Watch planes land from wherever you can see them",
+    "Sit somewhere high and invent your own constellations",
+    "Empty street photography after midnight",
+    "Stay up for the sunrise, then sleep the day away",
+    "Rooftop or hilltop, whichever one you can reach for free",
   ]},
 ];
+
+// Flat list for the date proposal picker
+const ALL_IDEAS = MISSIONS.flatMap((m) => m.ideas.map((idea) => ({ idea, cat: m.id, label: m.label, icon: m.icon })));
 
 const REVIEW_TRAITS = ["On time", "Great listener", "Made me laugh", "Felt safe", "Genuine", "Good energy", "Planned it well", "Respectful", "Easy to talk to", "Adventurous"];
 const REVIEW_FLAGS = ["They paid or insisted on paying", "Didn't show up", "Made me uncomfortable"];
@@ -992,24 +1066,84 @@ function SendMissionModal({ idea, matches, onPick, onClose }) {
 }
 
 // Banner inside Chat showing the current plan and its next action
+function whenLabel(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  const today = new Date();
+  const tomorrow = new Date(); tomorrow.setDate(today.getDate() + 1);
+  const same = (a, b) => a.toDateString() === b.toDateString();
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (same(d, today)) return `Today at ${time}`;
+  if (same(d, tomorrow)) return `Tomorrow at ${time}`;
+  return `${d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} at ${time}`;
+}
+
 function PlanBanner({ plan, myId, profileName, onConfirm, onComplete }) {
   if (!plan) return null;
   const mine = plan.proposed_by === myId;
+  const when = whenLabel(plan.scheduled_at);
+  const past = plan.scheduled_at && new Date(plan.scheduled_at) < new Date();
   return (
     <div style={{ margin: "10px 16px 0", background: plan.status === "confirmed" ? "#F0FBF5" : T.lilac, border: `2px solid ${plan.status === "confirmed" ? T.green : T.lilacDeep}`, borderRadius: 16, padding: "11px 13px" }}>
       <div style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".5px", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 5 }}>
         <Ic.Hourglass s={13} c={T.royal} />{plan.status === "confirmed" ? "It's a plan" : "Date proposal"}
       </div>
-      <div style={{ ...nu(700, 13.5, T.ink), margin: "3px 0 8px" }}>{plan.idea}</div>
+      <div style={{ ...nu(700, 13.5, T.ink), margin: "3px 0 2px" }}>{plan.idea}</div>
+      {when && <div style={{ ...nu(800, 12, T.royal), marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}><Ic.Hourglass s={11} c={T.royal} />{when}</div>}
+      {!when && <div style={{ marginBottom: 8 }} />}
       {plan.status === "proposed" && mine && <div style={{ ...nu(700, 12, T.soft) }}>Waiting for {profileName} to confirm</div>}
       {plan.status === "proposed" && !mine && (
         <button onClick={onConfirm} style={{ border: "none", borderRadius: 999, padding: "8px 14px", background: T.royal, cursor: "pointer", ...fr(600, 12.5, T.white) }}>Confirm the date</button>
       )}
-      {plan.status === "confirmed" && (
+      {plan.status === "confirmed" && (!when || past) && (
         <button onClick={onComplete} style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "none", borderRadius: 999, padding: "8px 14px", background: T.green, cursor: "pointer", ...fr(600, 12.5, T.white) }}>
           <Ic.Check s={13} c={T.white} />We met up
         </button>
       )}
+      {plan.status === "confirmed" && when && !past && (
+        <div style={{ ...nu(700, 12, T.soft) }}>TOM will check in after to see how it went</div>
+      )}
+    </div>
+  );
+}
+
+// Asked of BOTH people a few hours after a scheduled date
+function OutcomeModal({ pending, onAnswer, onLater }) {
+  const [saving, setSaving] = useState(false);
+  const [waiting, setWaiting] = useState(false);
+  const answer = async (a) => {
+    if (saving) return;
+    setSaving(true);
+    const r = await api.answerOutcome(pending.date_id, a);
+    setSaving(false);
+    if (r.ok && r.result && r.result.status === "waiting") { setWaiting(true); return; }
+    onAnswer(a, r.result);
+  };
+  if (waiting) {
+    return (
+      <div style={{ position: "absolute", inset: 0, zIndex: 30, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+        <div style={{ background: T.white, borderRadius: 26, padding: "22px 20px", width: "100%", maxWidth: 330, textAlign: "center", animation: "popIn .3s ease" }}>
+          <Ic.Hourglass s={34} c={T.royal} />
+          <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>Thanks</h2>
+          <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>Once {pending.other_name} confirms too, you'll both get to rate the time you spent.</p>
+          <PrimaryBtn onClick={() => onAnswer("met", { status: "waiting" })}>Got it</PrimaryBtn>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div style={{ position: "absolute", inset: 0, zIndex: 30, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div style={{ background: T.white, borderRadius: 26, padding: "22px 20px", width: "100%", maxWidth: 330, animation: "popIn .3s ease" }}>
+        <h2 style={{ ...fr(700, 21, T.royal), margin: "0 0 2px", textAlign: "center" }}>How did it go?</h2>
+        <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 4px", textAlign: "center" }}>Your plan with {pending.other_name}</p>
+        <div style={{ background: T.lilac, borderRadius: 14, padding: "9px 12px", margin: "0 0 16px", ...nu(700, 13, T.royal), textAlign: "center" }}>
+          {pending.idea}{pending.scheduled_at ? ` · ${whenLabel(pending.scheduled_at)}` : ""}
+        </div>
+        <button onClick={() => answer("met")} disabled={saving} style={{ width: "100%", padding: "13px 0", marginBottom: 8, borderRadius: 14, border: `2px solid ${T.green}`, background: "#F0FBF5", cursor: "pointer", ...fr(600, 15, T.green) }}>We met up</button>
+        <button onClick={() => answer("cancelled")} disabled={saving} style={{ width: "100%", padding: "12px 0", marginBottom: 8, borderRadius: 14, border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", ...fr(600, 14, T.ink) }}>We rescheduled or called it off</button>
+        <button onClick={() => answer("no_show")} disabled={saving} style={{ width: "100%", padding: "12px 0", borderRadius: 14, border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", ...fr(600, 14, T.ink) }}>They didn't show up</button>
+        <button onClick={onLater} style={{ width: "100%", marginTop: 10, padding: "8px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Ask me later</button>
+      </div>
     </div>
   );
 }
@@ -1711,6 +1845,10 @@ function Chat({ profile, onBack, onDateCompleted, myLoc }) {
   const [plan, setPlan] = useState(null);
   const [planning, setPlanning] = useState(false);
   const [planDraft, setPlanDraft] = useState("");
+  const [planDate, setPlanDate] = useState("");
+  const [planTime, setPlanTime] = useState("");
+  const [ideaPicker, setIdeaPicker] = useState(false);
+  const [ideaCat, setIdeaCat] = useState("all");
   const [viewing, setViewing] = useState(null);
   const endRef = useRef(null);
   const myId = api.user && api.user.id;
@@ -1753,11 +1891,19 @@ function Chat({ profile, onBack, onDateCompleted, myLoc }) {
   const propose = async () => {
     const idea = planDraft.trim();
     if (!idea) return;
-    const r = await api.proposeDate(profile.matchId, idea);
+    // Combine the pickers into a real timestamp in the user's own timezone
+    let scheduledAt = null;
+    if (planDate && planTime) {
+      const local = new Date(`${planDate}T${planTime}`);
+      if (!isNaN(local.getTime())) scheduledAt = local.toISOString();
+    }
+    const r = await api.proposeDate(profile.matchId, idea, scheduledAt);
     if (r.ok) {
       setPlan(r.date);
       setPlanning(false);
-      await api.sendMessage(profile.matchId, `Date proposal: ${idea}`);
+      setPlanDate(""); setPlanTime("");
+      const when = scheduledAt ? ` (${whenLabel(scheduledAt)})` : "";
+      await api.sendMessage(profile.matchId, `Date proposal: ${idea}${when}`);
       refresh();
     }
   };
@@ -1770,8 +1916,11 @@ function Chat({ profile, onBack, onDateCompleted, myLoc }) {
   const completePlan = async () => {
     const r = await api.completeDate(plan.id);
     if (r.ok) {
+      const both = r.result && r.result.status === "completed";
       setPlan(null);
-      if (onDateCompleted) onDateCompleted();
+      // Only prompt for a review once BOTH people have confirmed they met
+      if (both && onDateCompleted) onDateCompleted();
+      refresh();
     }
   };
 
@@ -1797,7 +1946,40 @@ function Chat({ profile, onBack, onDateCompleted, myLoc }) {
       {planning && (
         <div style={{ margin: "10px 16px 0", background: T.white, border: `2px solid ${T.lilacDeep}`, borderRadius: 16, padding: "11px 13px" }}>
           <div style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 6 }}>Propose a $0 date</div>
-          <input value={planDraft} onChange={(e) => setPlanDraft(e.target.value)} placeholder="What's the plan?" style={{ ...inputStyle, marginBottom: 8 }} />
+          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+            <input value={planDraft} onChange={(e) => setPlanDraft(e.target.value)} placeholder="What's the plan?" style={{ ...inputStyle, flex: 1 }} />
+            <button onClick={() => setIdeaPicker((v) => !v)} style={{ border: `2px solid ${ideaPicker ? T.royal : T.lilacDeep}`, borderRadius: 14, padding: "0 12px", background: ideaPicker ? T.lilac : T.white, cursor: "pointer", whiteSpace: "nowrap", ...fr(600, 12.5, T.royal) }}>
+              Ideas
+            </button>
+          </div>
+          {ideaPicker && (
+            <div style={{ border: `2px solid ${T.lilacDeep}`, borderRadius: 14, padding: 10, marginBottom: 8, background: "#FBFAFE" }}>
+              <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 8 }}>
+                <button onClick={() => setIdeaCat("all")} style={{ whiteSpace: "nowrap", padding: "5px 10px", borderRadius: 999, border: `2px solid ${ideaCat === "all" ? T.royal : T.lilacDeep}`, background: ideaCat === "all" ? T.royal : T.white, cursor: "pointer", ...nu(700, 11.5, ideaCat === "all" ? T.white : T.royal) }}>All {ALL_IDEAS.length}</button>
+                {MISSIONS.map((m) => {
+                  const on = ideaCat === m.id;
+                  const MIcon = Ic[m.icon];
+                  return (
+                    <button key={m.id} onClick={() => setIdeaCat(m.id)} style={{ display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap", padding: "5px 10px", borderRadius: 999, border: `2px solid ${on ? T.royal : T.lilacDeep}`, background: on ? T.royal : T.white, cursor: "pointer", ...nu(700, 11.5, on ? T.white : T.royal) }}>
+                      <MIcon s={12} c={on ? T.white : T.royal} />{m.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ maxHeight: 168, overflowY: "auto" }}>
+                {ALL_IDEAS.filter((i) => ideaCat === "all" || i.cat === ideaCat).map((i) => (
+                  <button key={i.idea} onClick={() => { setPlanDraft(i.idea); setIdeaPicker(false); }} style={{ display: "block", width: "100%", textAlign: "left", background: T.white, border: `1px solid ${T.lilac}`, borderRadius: 10, padding: "8px 10px", marginBottom: 5, cursor: "pointer", ...nu(600, 12.5, T.ink) }}>
+                    {i.idea}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+            <input type="date" value={planDate} onChange={(e) => setPlanDate(e.target.value)} style={{ ...inputStyle, flex: 1.3 }} />
+            <input type="time" value={planTime} onChange={(e) => setPlanTime(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+          </div>
+          <div style={{ ...nu(700, 11, T.soft), marginBottom: 8 }}>Adding a time lets TOM check in afterwards. You can skip it.</div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={propose} style={{ flex: 1, border: "none", borderRadius: 999, padding: "9px 0", background: T.royal, cursor: "pointer", ...fr(600, 13, T.white) }}>Propose</button>
             <button onClick={() => setPlanning(false)} style={{ flex: 1, border: `2px solid ${T.lilacDeep}`, borderRadius: 999, padding: "9px 0", background: T.white, cursor: "pointer", ...fr(600, 13, T.soft) }}>Cancel</button>
@@ -2210,6 +2392,7 @@ export default function TomApp() {
   // Batch 3: missions and reviews
   const [missionToSend, setMissionToSend] = useState(null); // idea string
   const [pendingReview, setPendingReview] = useState(null);
+  const [pendingOutcome, setPendingOutcome] = useState(null);
 
   const logout = async () => {
     await api.logout();
@@ -2290,6 +2473,18 @@ export default function TomApp() {
   const onDateCompleted = async () => {
     const pr = await api.loadPendingReview();
     if (pr) setPendingReview(pr);
+  };
+
+  // Answered "how did it go?" — only a mutual "we met" opens the review
+  const onOutcomeAnswered = async (answer, result) => {
+    setPendingOutcome(null);
+    if (answer === "met" && result && result.status === "completed") {
+      const pr = await api.loadPendingReview();
+      if (pr) setPendingReview(pr);
+    }
+    const [m, d] = await Promise.all([api.loadMatches(), api.loadDeck()]);
+    setMatches(m);
+    setDeck(d);
   };
 
   const likeBackAdmirer = (p) => {
@@ -2374,7 +2569,9 @@ export default function TomApp() {
         setAgeFilter({ min: api.user.filterMinAge ?? 18, max: api.user.filterMaxAge ?? 99 });
         setInterestFilter(api.user.filterInterests || []);
       }
-      // Batch 3: prompt for any completed date not yet reviewed
+      // Ask what happened first, then ask for a review of a confirmed date
+      const po = await api.loadPendingOutcome();
+      if (po) { setPendingOutcome(po); return; }
       const pr = await api.loadPendingReview();
       if (pr) setPendingReview(pr);
     })();
@@ -2550,6 +2747,7 @@ export default function TomApp() {
         {primeTimeOpen && <PrimeTimeModal onClose={() => setPrimeTimeOpen(false)} onActivate={startPrimeTime} boostUntil={boostUntil} />}
         {plusGate && <PlusGate title={plusGate.title} blurb={plusGate.blurb} onClose={() => setPlusGate(null)} onUpgrade={() => { setPlusGate(null); setPaywall(true); }} />}
         {missionToSend && <SendMissionModal idea={missionToSend} matches={matches} onPick={(p) => sendMissionTo(p, missionToSend)} onClose={() => setMissionToSend(null)} />}
+        {pendingOutcome && <OutcomeModal pending={pendingOutcome} onAnswer={onOutcomeAnswered} onLater={() => setPendingOutcome(null)} />}
         {pendingReview && <ReviewModal pending={pendingReview} onDone={() => { setPendingReview(null); onDateCompleted(); }} onSkip={() => setPendingReview(null)} />}
       </div>
     </div>
