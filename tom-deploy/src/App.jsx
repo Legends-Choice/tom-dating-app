@@ -220,7 +220,16 @@ const api = {
     return { ok: true };
   },
   async loadDeck() {
-    if (!this.user || !this.user.id) return [];
+    // Guests browse real people too. TOM never shows invented profiles.
+    if (!this.user || this.user.isGuest || !this.user.id) {
+      const { data: guestRows } = await supabase.from("profiles").select("*")
+        .eq("is_deleted", false).limit(50);
+      const guestCards = (guestRows || [])
+        .filter((p) => p.name && !p.off_the_clock)
+        .map(dbRowToCard);
+      const guestReps = await this.loadReputations(guestCards.map((c) => c.id));
+      return guestCards.map((c) => ({ ...c, rep: guestReps[c.id] || null }));
+    }
     const myId = this.user.id;
     const [{ data: allProfiles }, { data: myLikes }, { data: myBlocks }] = await Promise.all([
       supabase.from("profiles").select("*").neq("id", myId).eq("is_deleted", false),
@@ -232,7 +241,8 @@ const api = {
       ...(myBlocks || []).map((b) => b.blocked_user_id),
     ]);
     let cards = (allProfiles || [])
-      .filter((p) => !seen.has(p.id) && !p.off_the_clock)
+      // A row with no name is a half finished signup, not a person to show
+      .filter((p) => !seen.has(p.id) && !p.off_the_clock && p.name)
       .map(dbRowToCard);
     // Batch 3: attach Time Reputation to each card (only 3+ reviews come back)
     const reps = await this.loadReputations(cards.map((c) => c.id));
@@ -477,14 +487,7 @@ const rankScore = (from, p) => {
 };
 
 // ================= Demo profiles for the deck =================
-const PROFILES = [
-  { id: 1, name: "Elif", verified: true, likes: ["Stargazing", "Sunset spots", "Photography", "Nature", "Reading"], age: 27, loc: { lat: 41.0296, lng: 28.9490 }, grad: ["#7C3AED", "#B197F0"], vibe: "Stargazer", tags: ["Night owl", "Big questions"], idea: "Stargazing from the hilltop lookout", bio: "I know exactly three constellations and I will point at all of them with total confidence." },
-  { id: 2, name: "Marco", likes: ["Board games", "Park hangs", "Chess", "Picnics", "Food"], age: 31, loc: { lat: 40.9906, lng: 29.0250 }, grad: ["#5B21B6", "#8B5CF6"], vibe: "Board gamer", tags: ["Brings the games", "Park tables"], idea: "Chess and backgammon at the park tables", bio: "I carry a travel chess set everywhere. Losing to me is free. Beating me is priceless." },
-  { id: 3, name: "Ayşe", likes: ["Free museums", "Museums", "Art Galleries", "Art", "History", "Photography"], age: 25, loc: { lat: 41.0370, lng: 28.9850 }, grad: ["#9333EA", "#F0ABFC"], vibe: "Museum hopper", tags: ["Free entry days", "Art opinions"], idea: "Free museum night this Thursday", bio: "I will absolutely make up backstories for the paintings. You judge which ones are real." },
-  { id: 4, name: "Deniz", verified: true, likes: ["Walks", "Walking", "Hiking", "Running", "Fitness", "Nature"], age: 29, loc: { lat: 41.0430, lng: 29.0061 }, grad: ["#6D28D9", "#67E8F9"], vibe: "Walker", tags: ["Sea air", "Deep talks"], idea: "Coastal walk along the breakwater", bio: "I walk fast and ask real questions. Keep up and I'll keep it interesting." },
-  { id: 5, name: "Sofia", verified: true, likes: ["Sunset spots", "Music", "Dancing", "Photography strolls", "Stargazing"], age: 26, loc: { lat: 41.0226, lng: 29.0155 }, grad: ["#7E22CE", "#FDA4AF"], vibe: "Sunset chaser", tags: ["Golden hour", "Rooftop views"], idea: "Sunset at the viewpoint, shared playlist", bio: "You pick three songs, I pick three songs. The sunset decides who won." },
-  { id: 6, name: "Leo", likes: ["Market browsing", "Window Shopping", "People watching", "Food", "Travel", "Walking"], age: 28, loc: { lat: 40.9832, lng: 29.0273 }, grad: ["#6B21A8", "#FDBA74"], vibe: "Market browser", tags: ["Bazaar wanderer", "Zero purchases"], idea: "Browse the grand bazaar, buy nothing", bio: "World champion of picking things up, admiring them, and putting them back down." },
-];
+// Demo profiles removed. TOM only ever shows real people.
 const DATE_IDEAS = ["Sunset at the overlook", "Board games, main square tables", "Free museum Thursday", "Walk from the ferry dock", "Stargazing on the hill"];
 
 // ================= Shared pieces =================
@@ -1188,6 +1191,20 @@ function ReviewModal({ pending, onDone, onSkip }) {
   );
 }
 
+function GuestPrompt({ onSignUp, onClose }) {
+  return (
+    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 24 }}>
+      <div style={{ width: "100%", background: T.white, borderRadius: 24, padding: 22, textAlign: "center", animation: "popIn .25s ease" }}>
+        <Ic.Hourglass s={34} c={T.royal} />
+        <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>Join to spend time</h2>
+        <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>These are real people. Create your free profile and they can say yes back.</p>
+        <PrimaryBtn onClick={onSignUp}>Create my profile</PrimaryBtn>
+        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Keep looking</button>
+      </div>
+    </div>
+  );
+}
+
 // ================= Full profile view (before or after matching) =================
 function ProfileDetailModal({ profile, myLoc, onClose, onSwipe, onMessage, onLikeBack }) {
   const [idx, setIdx] = useState(0);
@@ -1658,7 +1675,7 @@ function Builder({ onDone, editMode }) {
   );
 }
 
-function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlus, onUpgrade, onReport, locDenied }) {
+function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlus, onUpgrade, onReport, locDenied, loading }) {
   const [viewing, setViewing] = useState(null);
   const outOfLikes = !isPlus && likesLeft !== undefined && likesLeft <= 0;
   if (outOfLikes) {
@@ -1670,6 +1687,14 @@ function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlu
         <div style={{ width: "100%", maxWidth: 240, marginTop: 6 }}>
           <PrimaryBtn onClick={onUpgrade}>Get unlimited with TOM+</PrimaryBtn>
         </div>
+      </div>
+    );
+  }
+  if (loading) {
+    return (
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: 32, textAlign: "center" }}>
+        <Ic.Hourglass s={44} c={T.lilacDeep} />
+        <p style={{ ...nu(700, 14, T.soft), margin: 0 }}>Finding people near you</p>
       </div>
     );
   }
@@ -2354,7 +2379,8 @@ export default function TomApp() {
   }, []);
   const [authMode, setAuthMode] = useState("signup");
   const [editingProfile, setEditingProfile] = useState(false);
-  const [deck, setDeck] = useState(PROFILES);
+  const [deck, setDeck] = useState([]);
+  const [deckLoading, setDeckLoading] = useState(true);
   const [matches, setMatches] = useState([]);
   const [admirerCount, setAdmirerCount] = useState(3);
   const [tab, setTab] = useState("discover");
@@ -2393,10 +2419,11 @@ export default function TomApp() {
   const [missionToSend, setMissionToSend] = useState(null); // idea string
   const [pendingReview, setPendingReview] = useState(null);
   const [pendingOutcome, setPendingOutcome] = useState(null);
+  const [guestPrompt, setGuestPrompt] = useState(false);
 
   const logout = async () => {
     await api.logout();
-    setDeck(PROFILES);
+    setDeck([]);
     setMatches([]);
     setMatched(null);
     setGoldenUsed(0);
@@ -2410,7 +2437,7 @@ export default function TomApp() {
 
   const deleteAccount = async () => {
     await api.deleteAccount();
-    setDeck(PROFILES);
+    setDeck([]);
     setMatches([]);
     setMatched(null);
     setGoldenUsed(0);
@@ -2530,36 +2557,45 @@ export default function TomApp() {
 
   const fireGolden = () => {
     if (sortedDeck.length === 0) return;
+    if (!api.user || api.user.isGuest || !api.user.id) { setGuestPrompt(true); return; }
     if (goldenLeft <= 0) { setPaywall(true); return; }
     const top = sortedDeck[0];
     setGoldenUsed((n) => n + 1);
     setLikesUsed((n) => n + 1);
     setDeck((d) => d.filter((p) => p.id !== top.id));
-    if (api.user && api.user.id && !api.user.isGuest) {
-      api.sendGoldenHour(top.id).then((r) => {
-        const mp = { ...top, matchId: r.matchId || null };
-        setMatched(mp);
-        setMatches((m) => [...m, mp]);
-      });
-    } else {
-      setMatched(top);
-      setMatches((m) => [...m, top]);
-    }
+    api.sendGoldenHour(top.id).then((r) => {
+      const mp = { ...top, matchId: r.matchId || null };
+      setMatched(mp);
+      setMatches((m) => [...m, mp]);
+    });
   };
   const onGolden = () => {
     if (sortedDeck.length === 0) return;
+    if (!api.user || api.user.isGuest || !api.user.id) { setGuestPrompt(true); return; }
     if (!goldenSeen) { setGoldenIntro(true); return; }
     fireGolden();
   };
 
   React.useEffect(() => {
     if (screen !== "main") return;
-    if (!api.user || api.user.isGuest || !api.user.id) return; // guests keep the demo deck
+    const isGuest = !api.user || api.user.isGuest || !api.user.id;
+    if (isGuest) {
+      // Guests see the real deck, browse only. No invented profiles.
+      setDeckLoading(true);
+      (async () => {
+        const d = await api.loadDeck();
+        setDeck(d);
+        setDeckLoading(false);
+      })();
+      return;
+    }
+    setDeckLoading(true);
     (async () => {
       const [d, m, c, usage, adm] = await Promise.all([
         api.loadDeck(), api.loadMatches(), api.countAdmirers(), api.loadDailyUsage(), api.loadAdmirers(),
       ]);
       setDeck(d);
+      setDeckLoading(false);
       setMatches(m);
       setAdmirerCount(c);
       setAdmirers(adm);
@@ -2625,28 +2661,20 @@ export default function TomApp() {
   const onSwipe = (dir) => {
     if (sortedDeck.length === 0) return;
     const isRealUser = Boolean(api.user && api.user.id && !api.user.isGuest);
+    // Guests browse only. Never fake a match with a real person.
+    if (!isRealUser) { setGuestPrompt(true); return; }
     // Passes are always free; only likes count against the daily limit.
-    if (dir === "right" && isRealUser && likesLeft <= 0) { setPaywall(true); return; }
+    if (dir === "right" && likesLeft <= 0) { setPaywall(true); return; }
     const top = sortedDeck[0];
     setDeck((d) => d.filter((p) => p.id !== top.id));
-    if (isRealUser) {
-      if (dir === "right") setLikesUsed((n) => n + 1);
-      api.swipe(top.id, dir === "right" ? "spend_time" : "pass").then((r) => {
-        if (r.matched) {
-          const matchedProfile = { ...top, matchId: r.matchId };
-          setMatched(matchedProfile);
-          setMatches((m) => [...m, matchedProfile]);
-        }
-      });
-      return;
-    }
-    // Guest / demo mode: simulate matches against the sample deck
-    if (dir === "right") {
-      setMatches((m) => {
-        if (top.id % 2 === 1 || m.length === 0) { setMatched(top); return [...m, top]; }
-        return m;
-      });
-    }
+    if (dir === "right") setLikesUsed((n) => n + 1);
+    api.swipe(top.id, dir === "right" ? "spend_time" : "pass").then((r) => {
+      if (r.matched) {
+        const matchedProfile = { ...top, matchId: r.matchId };
+        setMatched(matchedProfile);
+        setMatches((m) => [...m, matchedProfile]);
+      }
+    });
   };
 
   const tabs = [
@@ -2709,7 +2737,7 @@ export default function TomApp() {
         {screen === "main" && (
           <>
             {tab === "discover" && showAdmirers && <AdmirersPanel admirers={admirers} myLoc={deckOrigin} onLikeBack={likeBackAdmirer} onBack={() => setShowAdmirers(false)} onReport={(p) => setReporting({ profile: p, from: "admirers" })} />}
-            {tab === "discover" && !showAdmirers && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={deckOrigin} onGolden={onGolden} goldenLeft={goldenLeft} likesLeft={likesLeft} isPlus={isPlus} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "deck" })} locDenied={locDenied && !travelCity} />}
+            {tab === "discover" && !showAdmirers && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={deckOrigin} onGolden={onGolden} goldenLeft={goldenLeft} likesLeft={likesLeft} isPlus={isPlus} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "deck" })} locDenied={locDenied && !travelCity} loading={deckLoading} />}
             {tab === "missions" && <Missions matches={matches} onSend={(idea) => setMissionToSend(idea)} />}
             {tab === "matches" && (chatWith
               ? <Chat profile={chatWith} onBack={() => setChatWith(null)} onDateCompleted={onDateCompleted} myLoc={myLoc} />
@@ -2745,6 +2773,7 @@ export default function TomApp() {
         {offClockOpen && <OffTheClockModal onClose={() => setOffClockOpen(false)} onToggle={toggleOffClock} />}
         {timeZonesOpen && <TimeZonesModal current={travelCity} onPick={(c) => { setTravelCity(c); setTimeZonesOpen(false); }} onClose={() => setTimeZonesOpen(false)} />}
         {primeTimeOpen && <PrimeTimeModal onClose={() => setPrimeTimeOpen(false)} onActivate={startPrimeTime} boostUntil={boostUntil} />}
+        {guestPrompt && <GuestPrompt onSignUp={() => { setGuestPrompt(false); setAuthMode("signup"); setScreen("welcome"); }} onClose={() => setGuestPrompt(false)} />}
         {plusGate && <PlusGate title={plusGate.title} blurb={plusGate.blurb} onClose={() => setPlusGate(null)} onUpgrade={() => { setPlusGate(null); setPaywall(true); }} />}
         {missionToSend && <SendMissionModal idea={missionToSend} matches={matches} onPick={(p) => sendMissionTo(p, missionToSend)} onClose={() => setMissionToSend(null)} />}
         {pendingOutcome && <OutcomeModal pending={pendingOutcome} onAnswer={onOutcomeAnswered} onLater={() => setPendingOutcome(null)} />}
