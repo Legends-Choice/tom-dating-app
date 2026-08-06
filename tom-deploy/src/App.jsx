@@ -738,19 +738,20 @@ function PlusGate({ title, blurb, onClose, onUpgrade }) {
 }
 
 function AdmirersPanel({ admirers, myLoc, onLikeBack, onBack, onReport }) {
+  const { t } = useLang();
   const [viewing, setViewing] = useState(null);
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "6px 16px 16px" }}>
       <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, border: "none", background: "none", cursor: "pointer", padding: "4px 0 10px", ...nu(800, 13, T.royal) }}>
-        <span style={{ transform: "rotate(180deg)", display: "inline-flex" }}><Ic.Chevron s={14} c={T.royal} /></span> Back to Discover
+        <span style={{ transform: "rotate(180deg)", display: "inline-flex" }}><Ic.Chevron s={14} c={T.royal} /></span> {t("backToDiscover")}
       </button>
-      <h2 style={{ ...fr(700, 21, T.ink), margin: "0 0 3px" }}>Worth their time</h2>
-      <p style={{ ...nu(700, 13, T.soft), margin: "0 0 14px" }}>These people already said yes to spending time with you.</p>
+      <h2 style={{ ...fr(700, 21, T.ink), margin: "0 0 3px" }}>{t("worthTheirTime")}</h2>
+      <p style={{ ...nu(700, 13, T.soft), margin: "0 0 14px" }}>{t("admirersSub")}</p>
       {admirers.length === 0 ? (
         <div style={{ textAlign: "center", paddingTop: 60 }}>
           <Ic.Eye s={44} c={T.royal} />
-          <h3 style={{ ...fr(600, 19, T.ink), margin: "10px 0 4px" }}>No admirers yet</h3>
-          <p style={{ ...nu(600, 13.5, T.soft), margin: 0 }}>When someone likes you, they show up here first.</p>
+          <h3 style={{ ...fr(600, 19, T.ink), margin: "10px 0 4px" }}>{t("noAdmirers")}</h3>
+          <p style={{ ...nu(600, 13.5, T.soft), margin: 0 }}>{t("noAdmirersSub")}</p>
         </div>
       ) : admirers.map((p) => (
         <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, background: T.white, borderRadius: 18, padding: 12, marginBottom: 10, boxShadow: "0 4px 14px rgba(42,27,74,.08)", animation: "floatUp .3s ease" }}>
@@ -1026,13 +1027,14 @@ const REVIEW_TRAITS = ["On time", "Great listener", "Made me laugh", "Felt safe"
 const REVIEW_FLAGS = ["They paid or insisted on paying", "Didn't show up", "Made me uncomfortable"];
 
 function Missions({ matches, onSend }) {
+  const { t } = useLang();
   const [cat, setCat] = useState(MISSIONS[0].id);
   const active = MISSIONS.find((m) => m.id === cat);
   const CatIcon = Ic[active.icon];
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "6px 16px 16px" }}>
-      <h2 style={{ ...fr(700, 21, T.ink), margin: "0 0 3px" }}>Mission Dates</h2>
-      <p style={{ ...nu(700, 13, T.soft), margin: "0 0 12px" }}>Curated $0 dates. Pick one, send it to a match. Always optional.</p>
+      <h2 style={{ ...fr(700, 21, T.ink), margin: "0 0 3px" }}>{t("missionDates")}</h2>
+      <p style={{ ...nu(700, 13, T.soft), margin: "0 0 12px" }}>{t("missionSub")}</p>
       <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 10, marginBottom: 6 }}>
         {MISSIONS.map((m) => {
           const MIcon = Ic[m.icon];
@@ -1048,19 +1050,20 @@ function Missions({ matches, onSend }) {
         <div key={idea} style={{ background: T.white, borderRadius: 16, padding: "13px 15px", marginBottom: 9, boxShadow: "0 3px 10px rgba(42,27,74,.06)", display: "flex", alignItems: "center", gap: 10 }}>
           <CatIcon s={18} c={T.royal} />
           <span style={{ flex: 1, ...nu(700, 13.5, T.ink) }}>{idea}</span>
-          <button onClick={() => onSend(idea)} style={{ border: "none", borderRadius: 999, padding: "8px 12px", background: matches.length ? T.royal : T.lilacDeep, cursor: matches.length ? "pointer" : "default", ...fr(600, 12, T.white) }} disabled={!matches.length}>Send</button>
+          <button onClick={() => onSend(idea)} style={{ border: "none", borderRadius: 999, padding: "8px 12px", background: matches.length ? T.royal : T.lilacDeep, cursor: matches.length ? "pointer" : "default", ...fr(600, 12, T.white) }} disabled={!matches.length}>{t("send")}</button>
         </div>
       ))}
-      {!matches.length && <p style={{ ...nu(600, 12.5, T.soft), textAlign: "center", marginTop: 8 }}>Match with someone first, then send them a mission.</p>}
+      {!matches.length && <p style={{ ...nu(600, 12.5, T.soft), textAlign: "center", marginTop: 8 }}>{t("matchFirst")}</p>}
     </div>
   );
 }
 
 function SendMissionModal({ idea, matches, onPick, onClose }) {
+  const { t } = useLang();
   return (
     <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
       <div style={{ width: "100%", background: T.white, borderRadius: "26px 26px 0 0", padding: "20px 20px 24px", maxHeight: "70%", overflowY: "auto", animation: "floatUp .25s ease" }}>
-        <h2 style={{ ...fr(700, 18, T.royal), margin: "0 0 4px" }}>Send this mission to</h2>
+        <h2 style={{ ...fr(700, 18, T.royal), margin: "0 0 4px" }}>{t("sendMissionTo")}</h2>
         <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 14px" }}>{idea}</p>
         {matches.map((p) => (
           <button key={p.id} onClick={() => onPick(p)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, background: T.white, border: `2px solid ${T.lilacDeep}`, borderRadius: 16, padding: 12, marginBottom: 8, cursor: "pointer" }}>
@@ -1088,6 +1091,7 @@ function whenLabel(iso) {
 }
 
 function PlanBanner({ plan, myId, profileName, onConfirm, onComplete }) {
+  const { t } = useLang();
   if (!plan) return null;
   const mine = plan.proposed_by === myId;
   const when = whenLabel(plan.scheduled_at);
@@ -1102,7 +1106,7 @@ function PlanBanner({ plan, myId, profileName, onConfirm, onComplete }) {
       {!when && <div style={{ marginBottom: 8 }} />}
       {plan.status === "proposed" && mine && <div style={{ ...nu(700, 12, T.soft) }}>Waiting for {profileName} to confirm</div>}
       {plan.status === "proposed" && !mine && (
-        <button onClick={onConfirm} style={{ border: "none", borderRadius: 999, padding: "8px 14px", background: T.royal, cursor: "pointer", ...fr(600, 12.5, T.white) }}>Confirm the date</button>
+        <button onClick={onConfirm} style={{ border: "none", borderRadius: 999, padding: "8px 14px", background: T.royal, cursor: "pointer", ...fr(600, 12.5, T.white) }}>{t("confirmTheDate")}</button>
       )}
       {plan.status === "confirmed" && (!when || past) && (
         <button onClick={onComplete} style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "none", borderRadius: 999, padding: "8px 14px", background: T.green, cursor: "pointer", ...fr(600, 12.5, T.white) }}>
@@ -1110,7 +1114,7 @@ function PlanBanner({ plan, myId, profileName, onConfirm, onComplete }) {
         </button>
       )}
       {plan.status === "confirmed" && when && !past && (
-        <div style={{ ...nu(700, 12, T.soft) }}>TOM will check in after to see how it went</div>
+        <div style={{ ...nu(700, 12, T.soft) }}>{t("willCheckIn")}</div>
       )}
     </div>
   );
@@ -1485,31 +1489,301 @@ function DeleteModal({ onCancel, onConfirm }) {
   );
 }
 
-function Home({ onPick, onLegal }) {
+// ================= Language (built into this file on purpose) =================
+// Kept inline so a future App.jsx swap can never drop it again.
+const LANGS = [
+  { code: "en", short: "EN", name: "English" },
+  { code: "tr", short: "TR", name: "Türkçe" },
+  { code: "es", short: "ES", name: "Español" },
+];
+
+const STRINGS = {
+  en: {
+    tagline: "TIME OVER MONEY", hook: "Dating without the bill.",
+    signUp: "Sign Up", logIn: "Log In", guest: "Continue as Guest",
+    agree: "By continuing, you agree to our", terms: "Terms of Service",
+    privacy: "Privacy Policy", and: "and", language: "Language",
+    languageSub: "Choose how TOM speaks to you",
+    findingPeople: "Finding people near you",
+    tabDiscover: "Discover", tabMissions: "Missions", tabDates: "Dates", tabYou: "You",
+    closest: "CLOSEST", mostInCommon: "MOST IN COMMON", primeTime: "PRIME TIME",
+    pass: "PASS", goldenHour: "GOLDEN HOUR", spendTime: "SPEND TIME",
+    seenEveryone: "You've seen everyone nearby",
+    newPeopleDaily: "New people join TOM every day. Check back soon.",
+    tuneHint: "Widen your age range or distance with the sliders button above to see more people.",
+    outOfLikes: "You're out of likes for today",
+    likesReset: "Your likes reset tomorrow. Passing is always unlimited.",
+    getUnlimited: "Get unlimited with TOM+",
+    locationOff: "Location is off, so distances are hidden. Turn it on in your browser or phone settings to see who's nearby.",
+    viewProfile: "View profile", distanceUnavailable: "Distance unavailable",
+    away: "away", bothLove: "You both love", freeDateIdea: "Free date idea",
+    yourDates: "Your dates", noDatesYet: "No dates yet",
+    noDatesSub: "Swipe right on someone whose time you'd like to share.",
+    tapToMessage: "Tap to message", worthTheirTime: "Worth their time",
+    admirersSub: "These people already said yes to spending time with you.",
+    noAdmirers: "No admirers yet",
+    noAdmirersSub: "When someone likes you, they show up here first.",
+    backToDiscover: "Back to Discover",
+    missionDates: "Mission Dates",
+    missionSub: "Curated $0 dates. Pick one, send it to a match. Always optional.",
+    send: "Send", matchFirst: "Match with someone first, then send them a mission.",
+    sendMissionTo: "Send this mission to", cancel: "Cancel",
+    planADate: "Plan a date", ideas: "Ideas", proposeADate: "Propose a $0 date",
+    whatsThePlan: "What's the plan?", propose: "Propose",
+    timeHint: "Adding a time lets TOM check in afterwards. You can skip it.",
+    itsAPlan: "It's a plan", dateProposal: "Date proposal",
+    confirmTheDate: "Confirm the date", weMetUp: "We met up",
+    waitingConfirm: "Waiting for", toConfirm: "to confirm",
+    willCheckIn: "TOM will check in after to see how it went",
+    typeMessage: "Type a message", sendBtn: "Send",
+    verifyProfile: "Verify your profile", verifyInReview: "Verification in review",
+    verifySub: "Get the green badge. Match with more confidence.",
+    verifyReviewSub: "Usually done within 24 hours",
+    getTom: "Get TOM", tomPerks: "Golden Hours, Prime Time, Time Zones and more",
+    offTheClock: "Off the Clock", offOn: "You're invisible right now",
+    offOff: "Go invisible without deleting anything",
+    emailNotifs: "Email notifications",
+    emailNotifsSub: "Matches, messages, and date check ins",
+    aboutPrivacy: "About and privacy", logOut: "Log out", deleteAccount: "Delete account",
+    everyDateCosts: "Every TOM date is designed to cost",
+    noBills: "No bills. No paying. Just time together.",
+    editProfile: "Edit profile", fineTune: "Fine-tune your time",
+    ageRange: "Age range", maxDistance: "Max distance", onlyShow: "Only show people into",
+    applyFilters: "Apply filters", resetAll: "Reset all",
+    timeZones: "Time Zones", timeZonesSub: "Spend time in another city before you even get there.",
+    myArea: "My current area",
+    howDidItGo: "How did it go?", yourPlanWith: "Your plan with",
+    weMetUpBtn: "We met up", rescheduled: "We rescheduled or called it off",
+    didntShow: "They didn't show up", askLater: "Ask me later",
+    thanks: "Thanks", waitingOther: "confirms too, you'll both get to rate the time you spent.",
+    rateYourDate: "Rate your TOM date", ratePrefix: "With",
+    rateSub: "About the time, never the looks.",
+    timeWellSpent: "Was it time well spent?", yes: "Yes", notReally: "Not really",
+    whatWereThey: "What were they like? (pick up to 3)",
+    anythingFlag: "Anything to flag? (optional, private)",
+    submitReview: "Submit review", skipForNow: "Skip for now",
+    timeWellSpentPct: "time well spent",
+    joinToSpend: "Join to spend time",
+    joinSub: "These are real people. Create your free profile and they can say yes back.",
+    createProfile: "Create my profile", keepLooking: "Keep looking",
+    notNow: "Not now", close: "Close", gotIt: "Got it",
+  },
+  tr: {
+    tagline: "PARA DEĞİL ZAMAN", hook: "Hesap ödemeden flört.",
+    signUp: "Kayıt Ol", logIn: "Giriş Yap", guest: "Misafir olarak devam et",
+    agree: "Devam ederek şunları kabul edersiniz:", terms: "Kullanım Şartları",
+    privacy: "Gizlilik Politikası", and: "ve", language: "Dil",
+    languageSub: "TOM'un sizinle hangi dilde konuşacağını seçin",
+    findingPeople: "Yakınındaki kişiler aranıyor",
+    tabDiscover: "Keşfet", tabMissions: "Görevler", tabDates: "Buluşmalar", tabYou: "Sen",
+    closest: "EN YAKIN", mostInCommon: "EN ÇOK ORTAK NOKTA", primeTime: "ALTIN SAAT",
+    pass: "GEÇ", goldenHour: "ALTIN SAAT", spendTime: "ZAMAN AYIR",
+    seenEveryone: "Yakındaki herkesi gördün",
+    newPeopleDaily: "TOM'a her gün yeni kişiler katılıyor. Yakında tekrar bak.",
+    tuneHint: "Daha fazla kişi görmek için yukarıdaki ayar düğmesinden yaş aralığını veya mesafeyi genişlet.",
+    outOfLikes: "Bugünlük beğeni hakkın bitti",
+    likesReset: "Beğenilerin yarın yenilenir. Geçmek her zaman sınırsızdır.",
+    getUnlimited: "TOM+ ile sınırsız al",
+    locationOff: "Konum kapalı, bu yüzden mesafeler gizli. Yakındakileri görmek için tarayıcı veya telefon ayarlarından aç.",
+    viewProfile: "Profili gör", distanceUnavailable: "Mesafe bilinmiyor",
+    away: "uzakta", bothLove: "İkiniz de seviyorsunuz", freeDateIdea: "Ücretsiz buluşma fikri",
+    yourDates: "Buluşmaların", noDatesYet: "Henüz buluşma yok",
+    noDatesSub: "Zamanını paylaşmak istediğin birine sağa kaydır.",
+    tapToMessage: "Mesaj için dokun", worthTheirTime: "Zamanına değer",
+    admirersSub: "Bu kişiler seninle zaman geçirmeye çoktan evet dedi.",
+    noAdmirers: "Henüz beğenen yok",
+    noAdmirersSub: "Biri seni beğendiğinde önce burada görünür.",
+    backToDiscover: "Keşfet'e dön",
+    missionDates: "Görev Buluşmaları",
+    missionSub: "Seçilmiş 0 TL buluşmalar. Birini seç, eşleşmene gönder. Her zaman isteğe bağlı.",
+    send: "Gönder", matchFirst: "Önce biriyle eşleş, sonra ona bir görev gönder.",
+    sendMissionTo: "Bu görevi şuna gönder", cancel: "İptal",
+    planADate: "Buluşma planla", ideas: "Fikirler", proposeADate: "0 TL buluşma öner",
+    whatsThePlan: "Plan ne?", propose: "Öner",
+    timeHint: "Saat eklersen TOM sonrasında nasıl geçtiğini sorar. Atlayabilirsin.",
+    itsAPlan: "Anlaştık", dateProposal: "Buluşma önerisi",
+    confirmTheDate: "Buluşmayı onayla", weMetUp: "Buluştuk",
+    waitingConfirm: "Onay bekleniyor:", toConfirm: "",
+    willCheckIn: "TOM sonrasında nasıl geçtiğini soracak",
+    typeMessage: "Bir mesaj yaz", sendBtn: "Gönder",
+    verifyProfile: "Profilini doğrula", verifyInReview: "Doğrulama inceleniyor",
+    verifySub: "Yeşil rozeti al. Daha güvenle eşleş.",
+    verifyReviewSub: "Genellikle 24 saat içinde tamamlanır",
+    getTom: "TOM", tomPerks: "Altın Saatler, Altın Saat önceliği, Zaman Dilimleri ve daha fazlası",
+    offTheClock: "Mesai Dışı", offOn: "Şu anda görünmezsin",
+    offOff: "Hesabını silmeden görünmez ol",
+    emailNotifs: "E-posta bildirimleri",
+    emailNotifsSub: "Eşleşmeler, mesajlar ve buluşma soruları",
+    aboutPrivacy: "Hakkında ve gizlilik", logOut: "Çıkış yap", deleteAccount: "Hesabı sil",
+    everyDateCosts: "Her TOM buluşmasının maliyeti",
+    noBills: "Hesap yok. Ödeme yok. Sadece birlikte zaman.",
+    editProfile: "Profili düzenle", fineTune: "Zamanını ayarla",
+    ageRange: "Yaş aralığı", maxDistance: "En fazla mesafe", onlyShow: "Sadece şunlarla ilgilenenler",
+    applyFilters: "Filtreleri uygula", resetAll: "Hepsini sıfırla",
+    timeZones: "Zaman Dilimleri", timeZonesSub: "Gitmeden önce başka bir şehirde zaman geçir.",
+    myArea: "Bulunduğum bölge",
+    howDidItGo: "Nasıl geçti?", yourPlanWith: "Şununla planın:",
+    weMetUpBtn: "Buluştuk", rescheduled: "Erteledik veya iptal ettik",
+    didntShow: "Gelmedi", askLater: "Sonra sor",
+    thanks: "Teşekkürler", waitingOther: "de onayladığında ikiniz de geçirdiğiniz zamanı puanlayabileceksiniz.",
+    rateYourDate: "TOM buluşmanı puanla", ratePrefix: "Şununla:",
+    rateSub: "Görünüş değil, geçirilen zaman hakkında.",
+    timeWellSpent: "İyi geçen bir zaman mıydı?", yes: "Evet", notReally: "Pek değil",
+    whatWereThey: "Nasıl biriydi? (en fazla 3 seç)",
+    anythingFlag: "Bildirmek istediğin bir şey var mı? (isteğe bağlı, gizli)",
+    submitReview: "Değerlendirmeyi gönder", skipForNow: "Şimdilik geç",
+    timeWellSpentPct: "iyi geçen zaman",
+    joinToSpend: "Zaman ayırmak için katıl",
+    joinSub: "Bunlar gerçek insanlar. Ücretsiz profilini oluştur ki onlar da evet diyebilsin.",
+    createProfile: "Profilimi oluştur", keepLooking: "Bakmaya devam et",
+    notNow: "Şimdi değil", close: "Kapat", gotIt: "Anladım",
+  },
+  es: {
+    tagline: "TIEMPO SOBRE DINERO", hook: "Citas sin la cuenta.",
+    signUp: "Registrarse", logIn: "Iniciar sesión", guest: "Continuar como invitado",
+    agree: "Al continuar, aceptas nuestros", terms: "Términos del Servicio",
+    privacy: "Política de Privacidad", and: "y", language: "Idioma",
+    languageSub: "Elige cómo TOM te habla",
+    findingPeople: "Buscando personas cerca de ti",
+    tabDiscover: "Descubrir", tabMissions: "Misiones", tabDates: "Citas", tabYou: "Tú",
+    closest: "MÁS CERCA", mostInCommon: "MÁS EN COMÚN", primeTime: "HORA ESTELAR",
+    pass: "PASAR", goldenHour: "HORA DORADA", spendTime: "DAR TIEMPO",
+    seenEveryone: "Ya viste a todos cerca de ti",
+    newPeopleDaily: "Cada día se une gente nueva a TOM. Vuelve pronto.",
+    tuneHint: "Amplía tu rango de edad o distancia con el botón de ajustes de arriba para ver a más personas.",
+    outOfLikes: "Se acabaron tus me gusta de hoy",
+    likesReset: "Tus me gusta se reinician mañana. Pasar es siempre ilimitado.",
+    getUnlimited: "Consigue ilimitado con TOM+",
+    locationOff: "La ubicación está desactivada, así que las distancias están ocultas. Actívala en tu navegador o teléfono para ver quién está cerca.",
+    viewProfile: "Ver perfil", distanceUnavailable: "Distancia no disponible",
+    away: "de distancia", bothLove: "A los dos les gusta", freeDateIdea: "Idea de cita gratis",
+    yourDates: "Tus citas", noDatesYet: "Aún no hay citas",
+    noDatesSub: "Desliza a la derecha en alguien con quien quieras compartir tu tiempo.",
+    tapToMessage: "Toca para escribir", worthTheirTime: "Vales su tiempo",
+    admirersSub: "Estas personas ya dijeron que sí a pasar tiempo contigo.",
+    noAdmirers: "Aún no hay admiradores",
+    noAdmirersSub: "Cuando alguien te dé me gusta, aparecerá aquí primero.",
+    backToDiscover: "Volver a Descubrir",
+    missionDates: "Citas Misión",
+    missionSub: "Citas de $0 seleccionadas. Elige una y envíala. Siempre opcional.",
+    send: "Enviar", matchFirst: "Primero haz match con alguien y luego envíale una misión.",
+    sendMissionTo: "Enviar esta misión a", cancel: "Cancelar",
+    planADate: "Planear una cita", ideas: "Ideas", proposeADate: "Propón una cita de $0",
+    whatsThePlan: "¿Cuál es el plan?", propose: "Proponer",
+    timeHint: "Añadir una hora permite que TOM pregunte después. Puedes omitirlo.",
+    itsAPlan: "Es un plan", dateProposal: "Propuesta de cita",
+    confirmTheDate: "Confirmar la cita", weMetUp: "Nos vimos",
+    waitingConfirm: "Esperando que confirme", toConfirm: "",
+    willCheckIn: "TOM preguntará después cómo fue",
+    typeMessage: "Escribe un mensaje", sendBtn: "Enviar",
+    verifyProfile: "Verifica tu perfil", verifyInReview: "Verificación en revisión",
+    verifySub: "Consigue la insignia verde. Haz match con más confianza.",
+    verifyReviewSub: "Normalmente listo en 24 horas",
+    getTom: "Consigue TOM", tomPerks: "Horas Doradas, Hora Estelar, Zonas Horarias y más",
+    offTheClock: "Fuera de servicio", offOn: "Ahora eres invisible",
+    offOff: "Vuélvete invisible sin borrar nada",
+    emailNotifs: "Notificaciones por correo",
+    emailNotifsSub: "Matches, mensajes y preguntas sobre citas",
+    aboutPrivacy: "Acerca de y privacidad", logOut: "Cerrar sesión", deleteAccount: "Eliminar cuenta",
+    everyDateCosts: "Cada cita de TOM está diseñada para costar",
+    noBills: "Sin cuentas. Sin pagar. Solo tiempo juntos.",
+    editProfile: "Editar perfil", fineTune: "Ajusta tu tiempo",
+    ageRange: "Rango de edad", maxDistance: "Distancia máxima", onlyShow: "Mostrar solo a quienes les guste",
+    applyFilters: "Aplicar filtros", resetAll: "Restablecer todo",
+    timeZones: "Zonas Horarias", timeZonesSub: "Pasa tiempo en otra ciudad antes de llegar.",
+    myArea: "Mi zona actual",
+    howDidItGo: "¿Cómo fue?", yourPlanWith: "Tu plan con",
+    weMetUpBtn: "Nos vimos", rescheduled: "Lo reprogramamos o cancelamos",
+    didntShow: "No apareció", askLater: "Pregúntame luego",
+    thanks: "Gracias", waitingOther: "confirme también, ambos podrán calificar el tiempo que pasaron.",
+    rateYourDate: "Califica tu cita TOM", ratePrefix: "Con",
+    rateSub: "Sobre el tiempo, nunca sobre la apariencia.",
+    timeWellSpent: "¿Fue tiempo bien invertido?", yes: "Sí", notReally: "La verdad no",
+    whatWereThey: "¿Cómo fue esa persona? (elige hasta 3)",
+    anythingFlag: "¿Algo que reportar? (opcional, privado)",
+    submitReview: "Enviar reseña", skipForNow: "Omitir por ahora",
+    timeWellSpentPct: "tiempo bien invertido",
+    joinToSpend: "Únete para dar tiempo",
+    joinSub: "Estas son personas reales. Crea tu perfil gratis y podrán decirte que sí.",
+    createProfile: "Crear mi perfil", keepLooking: "Seguir mirando",
+    notNow: "Ahora no", close: "Cerrar", gotIt: "Entendido",
+  },
+};
+
+const LangCtx = React.createContext({ lang: "en", setLang: () => {}, t: (k) => STRINGS.en[k] });
+const useLang = () => React.useContext(LangCtx);
+
+function LanguageProvider({ children }) {
+  const [lang, setLangState] = useState(() => {
+    try {
+      const saved = window.localStorage.getItem("tom-lang");
+      if (saved && STRINGS[saved]) return saved;
+      const browser = (navigator.language || "en").slice(0, 2);
+      return STRINGS[browser] ? browser : "en";
+    } catch { return "en"; }
+  });
+  const setLang = (code) => {
+    setLangState(code);
+    try { window.localStorage.setItem("tom-lang", code); } catch {}
+  };
+  const t = React.useCallback((key) => (STRINGS[lang] && STRINGS[lang][key]) || STRINGS.en[key] || key, [lang]);
+  return <LangCtx.Provider value={{ lang, setLang, t }}>{children}</LangCtx.Provider>;
+}
+
+// Text codes rather than flag emojis, per the no keyboard emoji rule
+function LanguageSelector() {
+  const { lang, setLang } = useLang();
+  const [open, setOpen] = useState(false);
+  const current = LANGS.find((l) => l.code === lang) || LANGS[0];
   return (
-    <div style={{ flex: 1, background: T.white, display: "flex", flexDirection: "column", padding: "0 28px 26px", textAlign: "center" }}>
+    <div style={{ position: "absolute", right: 16, bottom: 16, zIndex: 50 }}>
+      {open && (
+        <div style={{ position: "absolute", bottom: 42, right: 0, background: T.white, borderRadius: 14, boxShadow: "0 8px 24px rgba(42,27,74,.18)", border: `1px solid ${T.lilac}`, overflow: "hidden", minWidth: 132 }}>
+          {LANGS.map((l) => (
+            <button key={l.code} onClick={() => { setLang(l.code); setOpen(false); }}
+              style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "10px 13px", border: "none", background: l.code === lang ? T.lilac : T.white, cursor: "pointer", ...nu(700, 13, l.code === lang ? T.royal : T.ink) }}>
+              <span style={{ ...fr(700, 11, l.code === lang ? T.royal : T.soft), width: 22 }}>{l.short}</span>
+              {l.name}
+            </button>
+          ))}
+        </div>
+      )}
+      <button onClick={() => setOpen((v) => !v)} aria-label="Change language"
+        style={{ display: "flex", alignItems: "center", gap: 6, background: T.royal, border: "none", borderRadius: 999, padding: "8px 14px", cursor: "pointer", boxShadow: "0 4px 12px rgba(91,33,182,.28)" }}>
+        <Ic.Globe s={15} c={T.white} />
+        <span style={fr(600, 13, T.white)}>{current.short}</span>
+      </button>
+    </div>
+  );
+}
+
+function Home({ onPick, onLegal }) {
+  const { t } = useLang();
+  return (
+    <div style={{ flex: 1, background: T.white, display: "flex", flexDirection: "column", padding: "0 28px 26px", textAlign: "center", position: "relative" }}>
+      <LanguageSelector />
       <div style={{ flex: 1.2, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end" }}>
         <h1 style={{ ...fr(700, 68, T.royal), margin: 0, lineHeight: 1, letterSpacing: "2px" }}>
           TOM<span style={{ color: T.sun }}>.</span>
         </h1>
-        <p style={{ ...nu(800, 15, T.soft), margin: "12px 0 0", letterSpacing: "4px" }}>TIME OVER MONEY</p>
-        <p style={{ ...fr(600, 23, T.royal), margin: "30px 0 0" }}>Dating without the bill.</p>
+        <p style={{ ...nu(800, 15, T.soft), margin: "12px 0 0", letterSpacing: "4px" }}>{t("tagline")}</p>
+        <p style={{ ...fr(600, 23, T.royal), margin: "30px 0 0" }}>{t("hook")}</p>
       </div>
       <div style={{ flex: 1 }} />
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <button onClick={() => onPick("signup")} style={{ ...fr(600, 18, T.white), background: T.royal, border: "none", borderRadius: 16, padding: "16px 0", cursor: "pointer", boxShadow: "0 6px 16px rgba(91,33,182,.25)" }}>
-          Sign Up
+          {t("signUp")}
         </button>
         <button onClick={() => onPick("signin")} style={{ ...fr(600, 18, T.royal), background: T.white, border: `2px solid ${T.royal}`, borderRadius: 16, padding: "14px 0", cursor: "pointer" }}>
-          Log In
+          {t("logIn")}
         </button>
         <button onClick={() => onPick("guest")} style={{ ...fr(600, 16, T.royal), background: "none", border: "none", cursor: "pointer", padding: "10px 0", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
-          Continue as Guest <Ic.Chevron s={13} c={T.royal} />
+          {t("guest")} <Ic.Chevron s={13} c={T.royal} />
         </button>
       </div>
       <p style={{ ...nu(600, 12, T.soft), margin: "14px 0 0", lineHeight: 1.6 }}>
-        By continuing, you agree to our<br />
-        <button onClick={() => onLegal("terms")} style={{ ...nu(800, 12, T.soft), border: "none", background: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>Terms of Service</button>&nbsp;&nbsp;and&nbsp;&nbsp;<button onClick={() => onLegal("privacy")} style={{ ...nu(800, 12, T.soft), border: "none", background: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>Privacy Policy</button>
+        {t("agree")}<br />
+        <button onClick={() => onLegal("terms")} style={{ ...nu(800, 12, T.soft), border: "none", background: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>{t("terms")}</button>&nbsp;&nbsp;{t("and")}&nbsp;&nbsp;<button onClick={() => onLegal("privacy")} style={{ ...nu(800, 12, T.soft), border: "none", background: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>{t("privacy")}</button>
       </p>
     </div>
   );
@@ -1725,50 +1999,132 @@ function Builder({ onDone, editMode }) {
   );
 }
 
-function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlus, onUpgrade, onReport, locDenied, loading }) {
+// Clock with a sweeping hand, shown while the deck loads
+function SearchClock({ size = 68 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden="true">
+      <circle cx="50" cy="50" r="42" fill={T.lilac} />
+      <circle cx="50" cy="50" r="42" fill="none" stroke={T.royal} strokeWidth="5" />
+      {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((i) => {
+        const a = (i * 30 * Math.PI) / 180;
+        const long = i % 3 === 0;
+        const r1 = long ? 29 : 32;
+        return (
+          <line key={i}
+            x1={50 + r1 * Math.sin(a)} y1={50 - r1 * Math.cos(a)}
+            x2={50 + 36 * Math.sin(a)} y2={50 - 36 * Math.cos(a)}
+            stroke={T.royal} strokeWidth={long ? 3.5 : 2} strokeLinecap="round" opacity={long ? 0.9 : 0.45} />
+        );
+      })}
+      {/* hour hand ticks forward slowly, minute hand sweeps */}
+      <g>
+        <line x1="50" y1="50" x2="50" y2="32" stroke={T.royal} strokeWidth="4.5" strokeLinecap="round">
+          <animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="8s" repeatCount="indefinite" />
+        </line>
+      </g>
+      <g>
+        <line x1="50" y1="50" x2="50" y2="24" stroke={T.sun} strokeWidth="3.5" strokeLinecap="round">
+          <animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="1.6s" repeatCount="indefinite" />
+        </line>
+      </g>
+      <circle cx="50" cy="50" r="4.5" fill={T.royal} />
+    </svg>
+  );
+}
+
+function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlus, onUpgrade, onReport, locDenied, loading, onPrimeTime }) {
+  const { t } = useLang();
   const [viewing, setViewing] = useState(null);
   const outOfLikes = !isPlus && likesLeft !== undefined && likesLeft <= 0;
+
+  // The top strip always renders, whatever state the deck is in, so the
+  // Prime Time chip never disappears behind an empty deck.
+  const strip = (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, paddingBottom: 8 }}>
+      <div style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".6px", display: "flex", alignItems: "center", gap: 5 }}>
+        <Ic.Pin s={11} c={T.soft} />{t("closest")} · <Ic.Spark s={11} c={T.sun} />{t("mostInCommon")}
+      </div>
+      <button onClick={onPrimeTime} aria-label={t("primeTime")} style={{ display: "inline-flex", alignItems: "center", gap: 4, border: "none", borderRadius: 999, padding: "5px 10px", background: T.sun, cursor: "pointer", whiteSpace: "nowrap", ...nu(800, 10.5, T.ink), letterSpacing: ".4px" }}>
+        <Ic.Rise s={12} c={T.ink} />{t("primeTime")}
+      </button>
+    </div>
+  );
+
+  const banner = locDenied ? (
+    <div style={{ background: "#FFF4D6", borderRadius: 14, padding: "9px 12px", marginBottom: 8, display: "flex", alignItems: "center", gap: 7, ...nu(700, 12, "#8A6400") }}>
+      <Ic.Pin s={13} c="#8A6400" />
+      {t("locationOff")}
+    </div>
+  ) : null;
+
+  // Points people at the filters button when the deck runs dry
+  const tuneHint = (
+    <div style={{ background: T.lilac, borderRadius: 14, padding: "11px 13px", display: "flex", alignItems: "center", gap: 8, textAlign: "left", maxWidth: 300 }}>
+      <Ic.Sliders s={18} c={T.royal} />
+      <span style={{ ...nu(700, 12.5, T.royal) }}>{t("tuneHint")}</span>
+    </div>
+  );
+
+  let body;
   if (outOfLikes) {
-    return (
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 32, textAlign: "center" }}>
+    body = (
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 24, textAlign: "center" }}>
         <Ic.Hourglass s={54} c={T.royal} />
-        <h2 style={{ ...fr(600, 22, T.ink), margin: 0 }}>You're out of likes for today</h2>
-        <p style={{ ...nu(600, 14, T.soft), margin: 0 }}>Your likes reset tomorrow. Passing is always unlimited.</p>
+        <h2 style={{ ...fr(600, 22, T.ink), margin: 0 }}>{t("outOfLikes")}</h2>
+        <p style={{ ...nu(600, 14, T.soft), margin: 0 }}>{t("likesReset")}</p>
         <div style={{ width: "100%", maxWidth: 240, marginTop: 6 }}>
-          <PrimaryBtn onClick={onUpgrade}>Get unlimited with TOM+</PrimaryBtn>
+          <PrimaryBtn onClick={onUpgrade}>{t("getUnlimited")}</PrimaryBtn>
         </div>
       </div>
     );
-  }
-  if (loading) {
-    return (
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: 32, textAlign: "center" }}>
-        <Ic.Hourglass s={44} c={T.lilacDeep} />
-        <p style={{ ...nu(700, 14, T.soft), margin: 0 }}>Finding people near you</p>
+  } else if (loading) {
+    body = (
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: 24, textAlign: "center" }}>
+        <SearchClock />
+        <p style={{ ...nu(700, 14, T.soft), margin: 0 }}>{t("findingPeople")}</p>
       </div>
     );
-  }
-  if (deck.length === 0) {
-    return (
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: 32, textAlign: "center" }}>
+  } else if (deck.length === 0) {
+    body = (
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: 24, textAlign: "center" }}>
         <Ic.Hourglass s={54} c={T.royal} />
-        <h2 style={{ ...fr(600, 22, T.ink), margin: 0 }}>You've seen everyone nearby</h2>
-        <p style={{ ...nu(600, 14, T.soft), margin: 0 }}>New people join TOM every day. Check back soon.</p>
+        <h2 style={{ ...fr(600, 22, T.ink), margin: 0 }}>{t("seenEveryone")}</h2>
+        <p style={{ ...nu(600, 14, T.soft), margin: 0 }}>{t("newPeopleDaily")}</p>
+        {tuneHint}
       </div>
     );
+  } else {
+    body = (
+      <>
+        <div style={{ position: "relative", flex: 1, marginBottom: 12 }}>
+          {deck.slice(0, 2).map((p, i) => <Card key={p.id} profile={p} isTop={i === 0} onSwipe={onSwipe} myLoc={myLoc} onReport={onReport} onView={setViewing} />).reverse()}
+        </div>
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-start", gap: 22, padding: "4px 0 12px" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+            <button onClick={() => onSwipe("left")} aria-label={t("pass")} style={{ width: 56, height: 56, borderRadius: "50%", border: "none", background: T.white, cursor: "pointer", boxShadow: "0 6px 16px rgba(42,27,74,.18)", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Cross s={20} c={T.ink} /></button>
+            <span style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".4px" }}>{t("pass")}</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+            <button onClick={onGolden} aria-label={t("goldenHour")} style={{ position: "relative", width: 50, height: 50, borderRadius: "50%", border: "none", background: T.sun, cursor: "pointer", boxShadow: "0 6px 16px rgba(255,197,61,.5)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Ic.Sun s={24} c={T.white} />
+              <span style={{ position: "absolute", top: -4, right: -4, background: T.royal, color: T.white, borderRadius: 999, minWidth: 18, height: 18, ...nu(800, 11, T.white), display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{goldenLeft}</span>
+            </button>
+            <span style={{ ...nu(800, 10.5, "#B8860B"), letterSpacing: ".4px" }}>{t("goldenHour")}</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+            <button onClick={() => onSwipe("right")} aria-label={t("spendTime")} style={{ width: 64, height: 64, borderRadius: "50%", border: "none", background: T.royal, cursor: "pointer", boxShadow: "0 6px 18px rgba(91,33,182,.4)", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Hourglass s={26} c={T.white} /></button>
+            <span style={{ ...nu(800, 10.5, T.royal), letterSpacing: ".4px" }}>{t("spendTime")}</span>
+          </div>
+        </div>
+      </>
+    );
   }
+
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "6px 16px 0" }}>
-      <div style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".6px", paddingBottom: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}><Ic.Pin s={11} c={T.soft} />CLOSEST · <Ic.Spark s={11} c={T.sun} />MOST IN COMMON FIRST</div>
-      {locDenied && (
-        <div style={{ background: "#FFF4D6", borderRadius: 14, padding: "9px 12px", marginBottom: 8, display: "flex", alignItems: "center", gap: 7, ...nu(700, 12, "#8A6400") }}>
-          <Ic.Pin s={13} c="#8A6400" />
-          Location is off, so distances are hidden. Turn it on in your browser or phone settings to see who's nearby.
-        </div>
-      )}
-      <div style={{ position: "relative", flex: 1, marginBottom: 12 }}>
-        {deck.slice(0, 2).map((p, i) => <Card key={p.id} profile={p} isTop={i === 0} onSwipe={onSwipe} myLoc={myLoc} onReport={onReport} onView={setViewing} />).reverse()}
-      </div>
+      {strip}
+      {banner}
+      {body}
       {viewing && (
         <ProfileDetailModal
           profile={viewing}
@@ -1777,23 +2133,6 @@ function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlu
           onSwipe={(dir) => { setViewing(null); onSwipe(dir); }}
         />
       )}
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-start", gap: 22, padding: "4px 0 12px" }}>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
-          <button onClick={() => onSwipe("left")} aria-label="Pass" style={{ width: 56, height: 56, borderRadius: "50%", border: "none", background: T.white, cursor: "pointer", boxShadow: "0 6px 16px rgba(42,27,74,.18)", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Cross s={20} c={T.ink} /></button>
-          <span style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".4px" }}>PASS</span>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
-          <button onClick={onGolden} aria-label="Golden Hour" style={{ position: "relative", width: 50, height: 50, borderRadius: "50%", border: "none", background: T.sun, cursor: "pointer", boxShadow: "0 6px 16px rgba(255,197,61,.5)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Ic.Sun s={24} c={T.white} />
-            <span style={{ position: "absolute", top: -4, right: -4, background: T.royal, color: T.white, borderRadius: 999, minWidth: 18, height: 18, ...nu(800, 11, T.white), display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{goldenLeft}</span>
-          </button>
-          <span style={{ ...nu(800, 10.5, "#B8860B"), letterSpacing: ".4px" }}>GOLDEN HOUR</span>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
-          <button onClick={() => onSwipe("right")} aria-label="Spend time" style={{ width: 64, height: 64, borderRadius: "50%", border: "none", background: T.royal, cursor: "pointer", boxShadow: "0 6px 18px rgba(91,33,182,.4)", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Hourglass s={26} c={T.white} /></button>
-          <span style={{ ...nu(800, 10.5, T.royal), letterSpacing: ".4px" }}>SPEND TIME</span>
-        </div>
-      </div>
     </div>
   );
 }
@@ -1912,6 +2251,7 @@ function VerifyModal({ onClose, onSubmit }) {
 }
 
 function Chat({ profile, onBack, onDateCompleted, myLoc }) {
+  const { t } = useLang();
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(true);
@@ -2013,18 +2353,18 @@ function Chat({ profile, onBack, onDateCompleted, myLoc }) {
         </button>
         {!plan && profile.matchId && (
           <button onClick={() => { setPlanDraft(profile.idea || ""); setPlanning(true); }} style={{ border: "none", borderRadius: 999, padding: "7px 12px", background: T.lilac, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, ...fr(600, 12, T.royal) }}>
-          <Ic.Hourglass s={13} c={T.royal} />Plan a date
+          <Ic.Hourglass s={13} c={T.royal} />{t("planADate")}
           </button>
         )}
       </div>
       <PlanBanner plan={plan} myId={myId} profileName={profile.name} onConfirm={confirmPlan} onComplete={completePlan} />
       {planning && (
         <div style={{ margin: "10px 16px 0", background: T.white, border: `2px solid ${T.lilacDeep}`, borderRadius: 16, padding: "11px 13px" }}>
-          <div style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 6 }}>Propose a $0 date</div>
+          <div style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 6 }}>{t("proposeADate")}</div>
           <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-            <input value={planDraft} onChange={(e) => setPlanDraft(e.target.value)} placeholder="What's the plan?" style={{ ...inputStyle, flex: 1 }} />
+            <input value={planDraft} onChange={(e) => setPlanDraft(e.target.value)} placeholder={t("whatsThePlan")} style={{ ...inputStyle, flex: 1 }} />
             <button onClick={() => setIdeaPicker((v) => !v)} style={{ border: `2px solid ${ideaPicker ? T.royal : T.lilacDeep}`, borderRadius: 14, padding: "0 12px", background: ideaPicker ? T.lilac : T.white, cursor: "pointer", whiteSpace: "nowrap", ...fr(600, 12.5, T.royal) }}>
-              Ideas
+              {t("ideas")}
             </button>
           </div>
           {ideaPicker && (
@@ -2054,9 +2394,9 @@ function Chat({ profile, onBack, onDateCompleted, myLoc }) {
             <input type="date" value={planDate} onChange={(e) => setPlanDate(e.target.value)} style={{ ...inputStyle, flex: 1.3 }} />
             <input type="time" value={planTime} onChange={(e) => setPlanTime(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
           </div>
-          <div style={{ ...nu(700, 11, T.soft), marginBottom: 8 }}>Adding a time lets TOM check in afterwards. You can skip it.</div>
+          <div style={{ ...nu(700, 11, T.soft), marginBottom: 8 }}>{t("timeHint")}</div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={propose} style={{ flex: 1, border: "none", borderRadius: 999, padding: "9px 0", background: T.royal, cursor: "pointer", ...fr(600, 13, T.white) }}>Propose</button>
+            <button onClick={propose} style={{ flex: 1, border: "none", borderRadius: 999, padding: "9px 0", background: T.royal, cursor: "pointer", ...fr(600, 13, T.white) }}>{t("propose")}</button>
             <button onClick={() => setPlanning(false)} style={{ flex: 1, border: `2px solid ${T.lilacDeep}`, borderRadius: 999, padding: "9px 0", background: T.white, cursor: "pointer", ...fr(600, 13, T.soft) }}>Cancel</button>
           </div>
         </div>
@@ -2107,6 +2447,7 @@ function Chat({ profile, onBack, onDateCompleted, myLoc }) {
 }
 
 function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat }) {
+  const { t } = useLang();
   const [viewing, setViewing] = useState(null);
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "6px 16px 16px" }}>
@@ -2127,7 +2468,7 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
         <div style={{ textAlign: "center", paddingTop: 70 }}>
           <Ic.Hourglass s={48} c={T.royal} />
           <h2 style={{ ...fr(600, 22, T.ink), margin: "10px 0 6px" }}>No dates planned yet</h2>
-          <p style={{ ...nu(600, 14, T.soft), margin: 0 }}>Swipe right on someone worth your time.</p>
+          <p style={{ ...nu(600, 14, T.soft), margin: 0 }}>{t("noDatesSub")}</p>
         </div>
       ) : (
         <>
@@ -2139,7 +2480,7 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
               <button onClick={() => onOpenChat && onOpenChat(p)} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, border: "none", background: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={fr(600, 17, T.ink)}>{p.name} <span style={{ ...nu(700, 12, T.soft), display: "inline-flex", alignItems: "center", gap: 3 }}>· <Ic.Pin s={11} c={T.soft} />{distLabel(myLoc, p)}</span></div>
-                  <div style={{ ...nu(700, 12.5, T.royal), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Tap to message</div>
+                  <div style={{ ...nu(700, 12.5, T.royal), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t("tapToMessage")}</div>
                 </div>
               </button>
               <button onClick={() => onReport(p)} aria-label="Report or unmatch" style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Flag s={15} c={T.lilacDeep} /></button>
@@ -2165,7 +2506,31 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
   );
 }
 
-function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, onEditProfile, onLogout, onOffClock, onPrimeTime, onEmailSettings }) {
+function LanguageModal({ onClose }) {
+  const { lang, setLang, t } = useLang();
+  return (
+    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
+      <div style={{ width: "100%", background: T.white, borderRadius: "26px 26px 0 0", padding: "20px 20px 24px", animation: "floatUp .25s ease" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+          <h2 style={{ ...fr(700, 20, T.royal), margin: 0, display: "flex", alignItems: "center", gap: 8 }}><Ic.Globe s={20} c={T.royal} />{t("language")}</h2>
+          <button onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Cross s={18} /></button>
+        </div>
+        <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 14px" }}>{t("languageSub")}</p>
+        {LANGS.map((l) => (
+          <button key={l.code} onClick={() => { setLang(l.code); onClose(); }}
+            style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, background: l.code === lang ? T.lilac : T.white, border: `2px solid ${l.code === lang ? T.royal : T.lilacDeep}`, borderRadius: 16, padding: "13px 15px", marginBottom: 8, cursor: "pointer" }}>
+            <span style={{ ...fr(700, 12, l.code === lang ? T.royal : T.soft), width: 26 }}>{l.short}</span>
+            <span style={{ ...nu(800, 14.5, T.ink), flex: 1, textAlign: "left" }}>{l.name}</span>
+            {l.code === lang && <Ic.Check s={16} c={T.royal} />}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, onEditProfile, onLogout, onOffClock, onEmailSettings, onLanguage }) {
+  const { t, lang } = useLang();
   const u = api.user;
   const [, force] = useState(0);
   const rerender = () => force((n) => n + 1);
@@ -2219,16 +2584,16 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
         </div>
       ))}
       <div style={{ marginTop: 14, borderRadius: 18, padding: 16, background: `linear-gradient(135deg, ${T.royal}, ${T.violet})`, color: T.white, textAlign: "center" }}>
-        <div style={fr(700, 18, T.white)}>Every TOM date is designed to cost</div>
+        <div style={fr(700, 18, T.white)}>{t("everyDateCosts")}</div>
         <div style={{ ...fr(700, 40, T.sun), margin: "4px 0" }}>$0.00</div>
-        <div style={{ ...nu(700, 12.5, T.white), opacity: 0.9 }}>No bills. No paying. Just time together.</div>
+        <div style={{ ...nu(700, 12.5, T.white), opacity: 0.9 }}>{t("noBills")}</div>
       </div>
       {verifyStatus !== "verified" && (
         <button onClick={onVerify} disabled={verifyStatus === "review"} style={{ width: "100%", marginTop: 10, borderRadius: 18, padding: "14px 16px", border: `2px solid ${verifyStatus === "review" ? T.lilacDeep : T.green}`, background: verifyStatus === "review" ? "#F7F5FC" : "#F0FBF5", cursor: verifyStatus === "review" ? "default" : "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
           <Ic.ShieldCheck s={26} c={verifyStatus === "review" ? T.soft : T.green} />
           <span style={{ flex: 1 }}>
-            <span style={{ ...fr(700, 16, T.ink), display: "block" }}>{verifyStatus === "review" ? "Verification in review" : "Verify your profile"}</span>
-            <span style={{ ...nu(700, 12.5, T.soft) }}>{verifyStatus === "review" ? "Usually done within 24 hours" : "Get the green badge. Match with more confidence."}</span>
+            <span style={{ ...fr(700, 16, T.ink), display: "block" }}>{verifyStatus === "review" ? t("verifyInReview") : t("verifyProfile")}</span>
+            <span style={{ ...nu(700, 12.5, T.soft) }}>{verifyStatus === "review" ? t("verifyReviewSub") : t("verifySub")}</span>
           </span>
           {verifyStatus !== "review" && <Ic.Chevron s={16} c={T.green} />}
         </button>
@@ -2237,36 +2602,36 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
         <Ic.Sun s={26} c={T.sun} />
         <span style={{ flex: 1 }}>
           <span style={{ ...fr(700, 16, T.royal), display: "block" }}>Get TOM<span style={{ color: T.sun }}>+</span></span>
-          <span style={{ ...nu(700, 12.5, T.soft) }}>Golden Hours, Prime Time, Time Zones and more</span>
-        </span>
-        <Ic.Chevron s={16} c={T.royal} />
-      </button>
-      <button onClick={onPrimeTime} style={{ width: "100%", marginTop: 10, borderRadius: 18, padding: "14px 16px", border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
-        <Ic.Rise s={26} c={T.royal} />
-        <span style={{ flex: 1 }}>
-          <span style={{ ...fr(700, 16, T.ink), display: "block" }}>Weekly Prime Time</span>
-          <span style={{ ...nu(700, 12.5, T.soft) }}>Rise to the top of nearby decks for 7 days</span>
-        </span>
-        <Ic.Chevron s={16} c={T.royal} />
-      </button>
-      <button onClick={onEmailSettings} style={{ width: "100%", marginTop: 10, borderRadius: 18, padding: "14px 16px", border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
-        <Ic.Bubble s={26} c={T.royal} />
-        <span style={{ flex: 1 }}>
-          <span style={{ ...fr(700, 16, T.ink), display: "block" }}>Email notifications</span>
-          <span style={{ ...nu(700, 12.5, T.soft) }}>Matches, messages, and date check ins</span>
+          <span style={{ ...nu(700, 12.5, T.soft) }}>{t("tomPerks")}</span>
         </span>
         <Ic.Chevron s={16} c={T.royal} />
       </button>
       <button onClick={onOffClock} style={{ width: "100%", marginTop: 10, borderRadius: 18, padding: "14px 16px", border: `2px solid ${T.lilacDeep}`, background: u.offTheClock ? T.lilac : T.white, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
         <Ic.Moon s={26} c={T.royal} />
         <span style={{ flex: 1 }}>
-          <span style={{ ...fr(700, 16, T.ink), display: "block" }}>Off the Clock{u.offTheClock ? " · ON" : ""}</span>
-          <span style={{ ...nu(700, 12.5, T.soft) }}>{u.offTheClock ? "You're invisible right now" : "Go invisible without deleting anything"}</span>
+          <span style={{ ...fr(700, 16, T.ink), display: "block" }}>{t("offTheClock")}{u.offTheClock ? " · ON" : ""}</span>
+          <span style={{ ...nu(700, 12.5, T.soft) }}>{u.offTheClock ? t("offOn") : t("offOff")}</span>
+        </span>
+        <Ic.Chevron s={16} c={T.royal} />
+      </button>
+      <button onClick={onLanguage} style={{ width: "100%", marginTop: 10, borderRadius: 18, padding: "14px 16px", border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
+        <Ic.Globe s={26} c={T.royal} />
+        <span style={{ flex: 1 }}>
+          <span style={{ ...fr(700, 16, T.ink), display: "block" }}>{t("language")}</span>
+          <span style={{ ...nu(700, 12.5, T.soft) }}>{LANGS.find((l) => l.code === lang)?.name || "English"}</span>
+        </span>
+        <Ic.Chevron s={16} c={T.royal} />
+      </button>
+      <button onClick={onEmailSettings} style={{ width: "100%", marginTop: 10, borderRadius: 18, padding: "14px 16px", border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
+        <Ic.Bubble s={26} c={T.royal} />
+        <span style={{ flex: 1 }}>
+          <span style={{ ...fr(700, 16, T.ink), display: "block" }}>{t("emailNotifs")}</span>
+          <span style={{ ...nu(700, 12.5, T.soft) }}>{t("emailNotifsSub")}</span>
         </span>
         <Ic.Chevron s={16} c={T.royal} />
       </button>
       <div style={{ marginTop: 16 }}>
-        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".6px", textTransform: "uppercase", margin: "0 2px 8px" }}>About and privacy</div>
+        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".6px", textTransform: "uppercase", margin: "0 2px 8px" }}>{t("aboutPrivacy")}</div>
         {[
           ["Privacy Policy", () => onLegal("privacy")],
           ["Terms of Service", () => onLegal("terms")],
@@ -2277,7 +2642,7 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
           </button>
         ))}
         <button onClick={onLogout} style={{ width: "100%", background: T.white, border: "none", borderRadius: 16, padding: "13px 15px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 3px 10px rgba(42,27,74,.06)" }}>
-          <span style={{ ...nu(700, 14.5, T.royal) }}>Log out</span>
+          <span style={{ ...nu(700, 14.5, T.royal) }}>{t("logOut")}</span>
           <Ic.Chevron s={14} c={T.royal} />
         </button>
         <button onClick={onDelete} style={{ width: "100%", background: T.white, border: "none", borderRadius: 16, padding: "13px 15px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 3px 10px rgba(42,27,74,.06)" }}>
@@ -2425,6 +2790,15 @@ function SearchPrefsModal({ onClose, onSaved }) {
 
 // ================= App =================
 export default function TomApp() {
+  return (
+    <LanguageProvider>
+      <TomAppInner />
+    </LanguageProvider>
+  );
+}
+
+function TomAppInner() {
+  const { t } = useLang();
   const [screen, setScreen] = useState("home"); // home -> welcome -> builder -> main
   const [booting, setBooting] = useState(true);
 
@@ -2489,6 +2863,7 @@ export default function TomApp() {
   const [pendingReview, setPendingReview] = useState(null);
   const [pendingOutcome, setPendingOutcome] = useState(null);
   const [guestPrompt, setGuestPrompt] = useState(false);
+  const [languageOpen, setLanguageOpen] = useState(false);
   const [emailSettings, setEmailSettings] = useState(false);
 
   const logout = async () => {
@@ -2748,10 +3123,10 @@ export default function TomApp() {
   };
 
   const tabs = [
-    { id: "discover", icon: Ic.Hourglass, label: "Discover" },
-    { id: "missions", icon: Ic.Compass, label: "Missions" },
-    { id: "matches", icon: Ic.Heart, label: "Dates" },
-    { id: "profile", icon: Ic.Person, label: "You" },
+    { id: "discover", icon: Ic.Hourglass, label: t("tabDiscover") },
+    { id: "missions", icon: Ic.Compass, label: t("tabMissions") },
+    { id: "matches", icon: Ic.Heart, label: t("tabDates") },
+    { id: "profile", icon: Ic.Person, label: t("tabYou") },
   ];
 
   if (booting) {
@@ -2775,12 +3150,12 @@ export default function TomApp() {
             </div>
             {screen === "main" && tab === "discover" && !showAdmirers && (
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <button onClick={() => setFiltersOpen(true)} aria-label="Fine tune your time" style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: T.lilac, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Ic.Sliders s={19} c={T.royal} />
+                </button>
                 <button onClick={openAdmirers} aria-label="See who likes you" style={{ position: "relative", width: 38, height: 38, borderRadius: "50%", border: "none", background: T.lilac, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Ic.Eye s={19} c={T.royal} />
                   {admirerCount > 0 && <span style={{ position: "absolute", top: -3, right: -3, minWidth: 17, height: 17, borderRadius: 999, background: T.sun, ...fr(700, 10.5, T.ink), display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{admirerCount}</span>}
-                </button>
-                <button onClick={() => setFiltersOpen(true)} aria-label="Filters" style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: T.lilac, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Ic.Sliders s={19} c={T.royal} />
                 </button>
                 <button onClick={() => requirePlus("Time Zones", "Browse and match in other cities before you travel. A TOM+ perk.", () => setTimeZonesOpen(true))} aria-label="Time Zones" style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: travelCity ? T.royal : T.lilac, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Ic.Globe s={19} c={travelCity ? T.white : T.royal} />
@@ -2807,13 +3182,13 @@ export default function TomApp() {
         {screen === "main" && (
           <>
             {tab === "discover" && showAdmirers && <AdmirersPanel admirers={admirers} myLoc={deckOrigin} onLikeBack={likeBackAdmirer} onBack={() => setShowAdmirers(false)} onReport={(p) => setReporting({ profile: p, from: "admirers" })} />}
-            {tab === "discover" && !showAdmirers && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={deckOrigin} onGolden={onGolden} goldenLeft={goldenLeft} likesLeft={likesLeft} isPlus={isPlus} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "deck" })} locDenied={locDenied && !travelCity} loading={deckLoading} />}
+            {tab === "discover" && !showAdmirers && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={deckOrigin} onGolden={onGolden} goldenLeft={goldenLeft} likesLeft={likesLeft} isPlus={isPlus} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "deck" })} locDenied={locDenied && !travelCity} loading={deckLoading} onPrimeTime={() => requirePlus("Weekly Prime Time", "Rise to the top of nearby decks for 7 days. A TOM+ perk.", () => setPrimeTimeOpen(true))} />}
             {tab === "missions" && <Missions matches={matches} onSend={(idea) => setMissionToSend(idea)} />}
             {tab === "matches" && (chatWith
               ? <Chat profile={chatWith} onBack={() => setChatWith(null)} onDateCompleted={onDateCompleted} myLoc={myLoc} />
               : <Matches matches={matches} myLoc={myLoc} admirerCount={admirerCount} onUpgrade={openAdmirers} onReport={(p) => setReporting({ profile: p, from: "matches" })} onOpenChat={(p) => setChatWith(p)} />
             )}
-            {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} onLogout={logout} onOffClock={() => requirePlus("Off the Clock", "Go invisible without deleting anything. A TOM+ perk.", () => setOffClockOpen(true))} onEmailSettings={() => setEmailSettings(true)} onPrimeTime={() => requirePlus("Weekly Prime Time", "Rise to the top of nearby decks for 7 days. A TOM+ perk.", () => setPrimeTimeOpen(true))} />}
+            {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} onLogout={logout} onOffClock={() => requirePlus("Off the Clock", "Go invisible without deleting anything. A TOM+ perk.", () => setOffClockOpen(true))} onEmailSettings={() => setEmailSettings(true)} onLanguage={() => setLanguageOpen(true)} />}
             <nav style={{ display: "flex", justifyContent: "space-around", padding: "10px 8px 16px", background: T.white, borderTop: `1px solid ${T.lilac}` }}>
               {tabs.map((t) => (
                 <button key={t.id} onClick={() => { setTab(t.id); setChatWith(null); }} style={{ border: "none", background: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, opacity: tab === t.id ? 1 : 0.45, padding: "4px 14px" }}>
@@ -2858,6 +3233,7 @@ export default function TomApp() {
             </div>
           </div>
         )}
+        {languageOpen && <LanguageModal onClose={() => setLanguageOpen(false)} />}
         {guestPrompt && <GuestPrompt onSignUp={() => { setGuestPrompt(false); setAuthMode("signup"); setScreen("welcome"); }} onClose={() => setGuestPrompt(false)} />}
         {plusGate && <PlusGate title={plusGate.title} blurb={plusGate.blurb} onClose={() => setPlusGate(null)} onUpgrade={() => { setPlusGate(null); setPaywall(true); }} />}
         {missionToSend && <SendMissionModal idea={missionToSend} matches={matches} onPick={(p) => sendMissionTo(p, missionToSend)} onClose={() => setMissionToSend(null)} />}
