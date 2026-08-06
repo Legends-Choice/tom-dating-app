@@ -1,5 +1,7 @@
 import React, { useState, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { LanguageProvider, useLanguage } from "./LanguageContext.jsx";
+import { LanguageSelector } from "./LanguageSelector.jsx";
 
 // ================= Supabase =================
 const SUPABASE_URL = "https://adanpwwxovponnluoztd.supabase.co";
@@ -2366,7 +2368,7 @@ function SearchPrefsModal({ onClose, onSaved }) {
 }
 
 // ================= App =================
-export default function TomApp() {
+function TomApp() {
   const [screen, setScreen] = useState("home"); // home -> welcome -> builder -> main
   const [booting, setBooting] = useState(true);
 
@@ -2732,6 +2734,7 @@ export default function TomApp() {
             setScreen("welcome");
           }
         }} />}
+        {screen === "home" && <LanguageSelector />}
         {screen === "welcome" && <Welcome initialMode={authMode} onDone={(target) => setScreen(target)} />}
         {screen === "builder" && <Builder editMode={editingProfile} onDone={() => { setEditingProfile(false); setScreen("main"); }} />}
         {screen === "main" && (
@@ -2780,5 +2783,13 @@ export default function TomApp() {
         {pendingReview && <ReviewModal pending={pendingReview} onDone={() => { setPendingReview(null); onDateCompleted(); }} onSkip={() => setPendingReview(null)} />}
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <LanguageProvider>
+      <TomApp />
+    </LanguageProvider>
   );
 }
