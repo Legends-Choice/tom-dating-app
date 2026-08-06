@@ -1,28 +1,45 @@
 export const translations = {
   en: {
-    // Homepage & Landing
+    // ===== Home / landing =====
     tagline: "Dating without the bill.",
     headline: "Don't spend money. Spend time.",
     subheadline: "Meet people for free dates. No expectations, no expense.",
     description: "TOM is a dating app where you spend time, not money. Swipe, match, and plan free dates. Real connections without the cost.",
-    
-    // CTA Buttons
+    continueAsGuest: "Continue as Guest",
+    agreeContinue: "By continuing, you agree to our",
+    and: "and",
     signUpNow: "Sign Up Now",
     logIn: "Log In",
     learnMore: "Learn More",
     continueWith: "Continue with",
-    
-    // Auth Forms
+
+    // ===== Auth / forms (generic) =====
     email: "Email",
     password: "Password",
     confirmPassword: "Confirm Password",
     signUp: "Sign Up",
     signIn: "Sign In",
     forgotPassword: "Forgot Password?",
-    noAccount: "Don\\'t have an account?",
+    noAccount: "Don't have an account?",
     haveAccount: "Already have an account?",
-    
-    // Profile Setup
+
+    // ===== Welcome (signup / signin) =====
+    welcomeHeadlineSignup: "Dating costs $200 to $500 now.",
+    welcomeHeadlineSignin: "Welcome back",
+    welcomeSubSignup: "On TOM it costs nothing. Don't spend money. Spend time.",
+    welcomeSubSignin: "Your time is waiting.",
+    yourNamePlaceholder: "What should we call you?",
+    emailPlaceholder: "you@example.com",
+    passwordPlaceholderSignup: "8+ characters",
+    passwordPlaceholderSignin: "Your password",
+    agePlaceholder: "18+",
+    pleaseWait: "Please wait...",
+    createMyAccount: "Create my account",
+    alreadyOnTom: "Already on TOM? Sign in",
+    newHereCreate: "New here? Create an account",
+    publicPlacesFooter: "Public places. Equal basis. $0 always.",
+
+    // ===== Profile builder =====
     yourName: "Your Name",
     yourAge: "Your Age",
     gender: "Gender",
@@ -32,15 +49,39 @@ export const translations = {
     about: "About",
     completingProfile: "Completing Your Profile",
     uploadPhotos: "Upload up to 5 photos",
-    
-    // Navigation
+    showYourFace: "Show your face",
+    photoFormats: "JPEG, PNG, WebP, or HEIC. Up to 5 MB each.",
+    profilePicRequired: "Profile picture (required)",
+    changePhoto: "Change photo",
+    uploadPhotoBtn: "Upload photo",
+    galleryLabel: "Gallery (up to {max} more) — {count}/{max}",
+    aboutYou: "About you",
+    height: "Height",
+    cityLabel: "City",
+    cityPlaceholder: "Where you date",
+    iAmA: "I am a",
+    orientationLabel: "Orientation",
+    showMe: "Show me",
+    myHours: "My hours",
+    whatDoYouLove: "What do you love doing?",
+    freeDatesUpFor: "Free dates I'm up for (pick at least 1)",
+    hobbiesLabel: "Hobbies",
+    lastOneBio: "Last one: your bio",
+    bioPrompt: "What should someone know before they spend time with you?",
+    bioPlaceholder: "I rate every bench I sit on...",
+    back: "Back",
+    saving: "Saving...",
+    continueBtn: "Continue",
+    saveChanges: "Save changes",
+    startSpendingTime: "Start spending time",
+    galleryFull: "Gallery is full (max {max} photos). Delete one first.",
+
+    // ===== Discover / swipe =====
     discover: "Discover",
     matches: "Matches",
     messages: "Messages",
     you: "You",
     missions: "Missions",
-    
-    // Buttons & Actions
     spend: "Spend Time",
     pass: "Pass",
     message: "Message",
@@ -49,21 +90,281 @@ export const translations = {
     report: "Report",
     logout: "Log Out",
     delete: "Delete Account",
-    
-    // Messages & Status
     findingPeople: "Finding people near you...",
-    noMoreProfiles: "You\\'ve seen everyone nearby. Check back soon!",
-    itsAMatch: "It\\'s a match!",
+    noMoreProfiles: "You've seen everyone nearby. Check back soon!",
+    itsAMatch: "It's a match!",
     newMessage: "New message",
-    
-    // Settings
+    outOfLikesTitle: "You're out of likes for today",
+    outOfLikesSub: "Your likes reset tomorrow. Passing is always unlimited.",
+    getUnlimited: "Get unlimited with TOM+",
+    findingPeopleNear: "Finding people near you",
+    seenEveryoneNearby: "You've seen everyone nearby",
+    newPeopleJoin: "New people join TOM every day. Check back soon.",
+    closestLabel: "CLOSEST",
+    mostInCommon: "MOST IN COMMON FIRST",
+    locationOffWarning: "Location is off, so distances are hidden. Turn it on in your browser or phone settings to see who's nearby.",
+    passLabel: "PASS",
+    goldenHourLabel: "GOLDEN HOUR",
+    spendTimeLabel: "SPEND TIME",
+
+    // ===== Swipe card =====
+    worthMyTime: "WORTH MY TIME",
+    notThisTime: "NOT THIS TIME",
+    viewProfile: "View profile",
+    closeEnoughToday: "Close enough to meet today",
+    youBothLove: "You both love: {items}",
+    freeDateIdea: "Free date idea: {idea}",
+    timeWellSpentPct: "{pct}% time well spent",
+    spendTimeWith: "Spend time with {name}",
+    messageWithName: "Message {name}",
+
+    // ===== Match modal =====
+    timeWellMatched: "Time well matched!",
+    bothChoseTime: "You and {name} both chose time over money.",
+    distanceUnavailable: "Distance unavailable",
+    apartDistance: "You're {distance} apart",
+    suggestFreeDate: "Suggest a free first date (public places only)",
+    sendingDots: "Sending...",
+    sendThisIdea: "Send this idea",
+    keepSwiping: "Keep swiping",
+
+    // ===== Golden Hour =====
+    goldenHourTitle: "Golden Hour",
+    goldenHourDesc: "Instantly tell {name} they're worth your best hour. They see it before anyone else.",
+    goldenLeftToday: "You have {n} left today.",
+    goldenOutToday: "You're out for today.",
+    sendGoldenHour: "Send Golden Hour",
+    notNow: "Not now",
+
+    // ===== Report modal =====
+    thanksForKeepingSafe: "Thanks for keeping TOM safe",
+    blockedAndRemoved: "{name} has been blocked and removed. Our safety team will review this report. They won't know it came from you.",
+    doneLabel: "Done",
+    reportName: "Report {name}",
+    reportsAnonymous: "Reports are anonymous. Reporting also blocks them.",
+    reportReasonFake: "Fake profile or photos",
+    reportReasonInappropriate: "Inappropriate content",
+    reportReasonHarassment: "Harassment or threats",
+    reportReasonUnder18: "Under 18",
+    reportReasonMoney: "Asked for money",
+    reportReasonOther: "Something else",
+    reportAndBlock: "Report and block",
+
+    // ===== Verify modal =====
+    verifyTitle: "Verify it's really you",
+    verifyDesc1: "Take a selfie with a thumbs up next to your face. Our safety team compares it with your profile photos.",
+    verifyDesc2: "The selfie is never shown on your profile.",
+    takeSelfie: "Take selfie",
+    submitForReview: "Submit for review",
+
+    // ===== Chat =====
+    planADate: "Plan a date",
+    proposeAZeroDate: "Propose a $0 date",
+    whatsThePlan: "What's the plan?",
+    ideasBtn: "Ideas",
+    allIdeasCount: "All {count}",
+    addingTimeHint: "Adding a time lets TOM check in afterwards. You can skip it.",
+    propose: "Propose",
+    loadingDots: "Loading...",
+    youMatchedWith: "You matched with {name}",
+    sayHiPlan: "Say hi and plan something free.",
+    messagePlaceholder: "Message",
+    sendBtn: "Send",
+    waitingForConfirm: "Waiting for {name} to confirm",
+    confirmTheDate: "Confirm the date",
+    weMetUp: "We met up",
+    tomWillCheckIn: "TOM will check in after to see how it went",
+    itsAPlan: "It's a plan",
+    dateProposal: "Date proposal",
+
+    // ===== Outcome / review =====
+    thanks: "Thanks",
+    onceBothConfirm: "Once {name} confirms too, you'll both get to rate the time you spent.",
+    gotIt: "Got it",
+    howDidItGo: "How did it go?",
+    yourPlanWith: "Your plan with {name}",
+    weRescheduled: "We rescheduled or called it off",
+    theyDidntShowUp: "They didn't show up",
+    askMeLater: "Ask me later",
+    rateYourDate: "Rate your TOM date",
+    aboutTimeNeverLooks: "With {name}. About the time, never the looks.",
+    timeWellSpentQ: "Was it time well spent?",
+    yes: "Yes",
+    notReally: "Not really",
+    whatWereTheyLike: "What were they like? (pick up to 3)",
+    anythingToFlag: "Anything to flag? (optional, private)",
+    submitReview: "Submit review",
+    skipForNow: "Skip for now",
+    traitOnTime: "On time",
+    traitGreatListener: "Great listener",
+    traitMadeMeLaugh: "Made me laugh",
+    traitFeltSafe: "Felt safe",
+    traitGenuine: "Genuine",
+    traitGoodEnergy: "Good energy",
+    traitPlannedWell: "Planned it well",
+    traitRespectful: "Respectful",
+    traitEasyToTalk: "Easy to talk to",
+    traitAdventurous: "Adventurous",
+    flagPaid: "They paid or insisted on paying",
+    flagNoShow: "Didn't show up",
+    flagUncomfortable: "Made me uncomfortable",
+
+    // ===== Guest prompt =====
+    joinToSpendTime: "Join to spend time",
+    guestPromptDesc: "These are real people. Create your free profile and they can say yes back.",
+    createMyProfile: "Create my profile",
+    keepLooking: "Keep looking",
+
+    // ===== Matches list =====
+    peopleThinkWorth: "{count} {personOrPeople} think you're worth their time",
+    personThinks: "person thinks",
+    peopleThink: "people think",
+    seeWhoLikes: "See who likes you with TOM+ →",
+    noDatesPlanned: "No dates planned yet",
+    swipeRightHint: "Swipe right on someone worth your time.",
+    tapToMessage: "Tap to message",
+    tomPerk: "TOM Perk",
+    perkDesc: "After your date: Kafe Luna nearby gives TOM couples 20% off.",
+    perkNote: "Only if you choose. The date itself stays $0.",
+
+    // ===== Profile / settings (You) =====
+    browsingAsGuest: "You're browsing as a guest",
+    createProfileHint: "Create your free profile to match and plan dates.",
+    signUpFreeBtn: "Sign up free",
+    termsShort: "Terms",
+    privacyShort: "Privacy",
+    managePhotosBtn: "Manage photos",
+    editProfileBtn: "Edit profile",
+    searchPreferencesBtn: "Search preferences",
+    myBio: "My bio",
+    freeDatesUpForLabel: "Free dates I'm up for",
+    everyDateCosts: "Every TOM date is designed to cost",
+    noBillsJustTime: "No bills. No paying. Just time together.",
+    verificationInReview: "Verification in review",
+    verifyYourProfile: "Verify your profile",
+    usuallyDone24h: "Usually done within 24 hours",
+    getBadgeConfidence: "Get the green badge. Match with more confidence.",
+    getTomPlusBtn: "Get TOM+",
+    tomPlusFeatures: "Golden Hours, Prime Time, Time Zones and more",
+    weeklyPrimeTime: "Weekly Prime Time",
+    riseToTop7Days: "Rise to the top of nearby decks for 7 days",
+    offTheClockLabel: "Off the Clock",
+    offClockOnSuffix: " · ON",
+    youAreInvisible: "You're invisible right now",
+    goInvisible: "Go invisible without deleting anything",
+    aboutAndPrivacy: "About and privacy",
+    deleteMyAccountBtn: "Delete my account",
+    appLanguage: "App language",
+
+    // ===== Photo manager =====
+    managePhotosTitle: "Manage photos",
+    managePhotosDesc: "Your first photo is your main profile photo. Use the arrows to reorder, or tap Make main.",
+    mainPhoto: "Main photo",
+    photoN: "Photo {n}",
+    makeMain: "Make main",
+    addPhoto: "+ Add photo",
+    addAtLeastOne: "Add at least one photo",
+    upToPhotosTotal: "You can have up to {max} photos total. Remove one first.",
+
+    // ===== Search preferences =====
+    searchPreferencesTitle: "Search preferences",
+    chooseUnitsDesc: "Choose your units and how far you're willing to meet.",
+    units: "Units",
+    kilometers: "Kilometers",
+    miles: "Miles",
+    maxDistance: "Maximum distance",
+
+    // ===== Admirers panel =====
+    backToDiscover: "Back to Discover",
+    worthTheirTime: "Worth their time",
+    admirersDesc: "These people already said yes to spending time with you.",
+    noAdmirersYet: "No admirers yet",
+    admirersEmptyDesc: "When someone likes you, they show up here first.",
+    spendTimeBtn: "Spend time",
+
+    // ===== Filters modal =====
+    fineTuneTitle: "Fine-tune your time",
+    ageRange: "Age range",
+    toLabel: "to",
+    maxDistanceKm: "Max distance: {km} km",
+    onlyShowInto: "Only show people into",
+    applyFilters: "Apply filters",
+    resetAll: "Reset all",
+
+    // ===== Off the Clock =====
+    offClockActiveDesc: "You're invisible right now. Nobody new can see your card. Your matches can still message you.",
+    offClockInactiveDesc: "Take a break without deleting anything. Your card disappears from every deck until you come back.",
+    punchBackIn: "Punch back in",
+    goOffTheClockBtn: "Go off the clock",
+
+    // ===== Time zones =====
+    timeZonesTitle: "Time Zones",
+    spendTimeElsewhere: "Spend time in another city before you even get there.",
+    myCurrentArea: "My current area",
+
+    // ===== Prime time =====
+    primeTimeTitle: "Weekly Prime Time",
+    primeActiveDesc: "You're in Prime Time. Your card rises to the top of nearby decks for {days} more {dayOrDays}.",
+    dayLabel: "day",
+    daysLabel: "days",
+    nice: "Nice",
+    primeInactiveDesc: "Rise to the top of nearby decks for 7 days. More eyes on your card, more time offers.",
+    startMyPrimeTime: "Start my Prime Time",
+
+    // ===== Plus gates =====
+    plusGateOffClockTitle: "Off the Clock",
+    plusGateOffClockBlurb: "Go invisible without deleting anything. A TOM+ perk.",
+    plusGatePrimeTitle: "Weekly Prime Time",
+    plusGatePrimeBlurb: "Rise to the top of nearby decks for 7 days. A TOM+ perk.",
+    plusGateTimeZonesTitle: "Time Zones",
+    plusGateTimeZonesBlurb: "Browse and match in other cities before you travel. A TOM+ perk.",
+
+    // ===== Missions =====
+    missionDatesTitle: "Mission Dates",
+    missionDatesDesc: "Curated $0 dates. Pick one, send it to a match. Always optional.",
+    matchFirstHint: "Match with someone first, then send them a mission.",
+    sendThisMissionTo: "Send this mission to",
+
+    // ===== Delete account =====
+    deleteAccountTitle: "Delete your account?",
+    deleteAccountDesc: "This permanently removes your profile, photos, matches, and Golden Hours. Safety reports are kept as described in the Privacy Policy. This cannot be undone.",
+    keepMyAccount: "Keep my account",
+
+    // ===== Paywall =====
+    tomPlusTagline: "More time, better matched.",
+    featUnlimitedLikes: "Unlimited likes",
+    featUnlimitedLikesSub: "Never run out of time to give",
+    featSeeWhoLikes: "See who likes you",
+    featSeeWhoLikesSub: "Skip straight to mutual",
+    featTimeZones: "Time Zones",
+    featTimeZonesSub: "Match in other cities before you travel",
+    featOffClock: "Off the Clock",
+    featOffClockSub: "Browse invisibly",
+    featAdvancedFilters: "Advanced filters",
+    featAdvancedFiltersSub: "Hours, height, date styles",
+    featPrimeTime: "Weekly Prime Time",
+    featPrimeTimeSub: "30 minutes at the top, every week",
+    featDateGuides: "Free Date Guides",
+    featDateGuidesSub: "Curated $0 dates in your city",
+    getTomPlusPrice: "Get TOM+ · $9.99/month",
+    goldenHoursPrice: "5 Golden Hours · $4.99",
+    primeTimePrice: "Prime Time · $2.99",
+    neverChargeForDate: "TOM will never charge you to go on a date.",
+    datesAreZeroAlways: "Dates are $0. Always.",
+
+    // ===== Header pill =====
+    dontSpendMoneySpendTime: "Don't spend money.",
+    spendTimePill: "Spend time.",
+    navDates: "Dates",
+
+    // ===== Settings / language / privacy =====
     language: "Language",
     privacy: "Privacy",
     termsOfService: "Terms of Service",
     privacyPolicy: "Privacy Policy",
     settings: "Settings",
-    
-    // Errors & Validation
+
+    // ===== Errors & validation =====
     emailRequired: "Email is required",
     passwordRequired: "Password is required",
     passwordTooShort: "Password must be at least 6 characters",
@@ -71,27 +372,29 @@ export const translations = {
     invalidEmail: "Please enter a valid email",
     signUpError: "Error creating account. Please try again.",
     signInError: "Error logging in. Please check your credentials.",
-    
-    // Modals & Confirmations
+
+    // ===== Modals & confirmations (generic) =====
     areYouSure: "Are you sure?",
     cancel: "Cancel",
     confirm: "Confirm",
     close: "Close",
   },
+
   tr: {
-    // Homepage & Landing
+    // ===== Home / landing =====
     tagline: "Fatura olmadan flört.",
     headline: "Para harcama. Zaman geçir.",
     subheadline: "İnsanlarla bedava randevular için eşleş. Beklenti yok, masraf yok.",
     description: "TOM, zaman harcadığın, para değil, bir flört uygulaması. Kaydır, eşleş ve ücretsiz randevular planla. Maliyetsiz gerçek bağlantılar.",
-    
-    // CTA Buttons
+    continueAsGuest: "Misafir Olarak Devam Et",
+    agreeContinue: "Devam ederek, kabul etmiş olursun:",
+    and: "ve",
     signUpNow: "Şimdi Kaydol",
     logIn: "Giriş Yap",
     learnMore: "Daha Fazla Öğren",
     continueWith: "Devam Et",
-    
-    // Auth Forms
+
+    // ===== Auth / forms (generic) =====
     email: "E-posta",
     password: "Şifre",
     confirmPassword: "Şifreyi Onayla",
@@ -100,8 +403,24 @@ export const translations = {
     forgotPassword: "Şifreni Mi Unuttun?",
     noAccount: "Hesabın yok mu?",
     haveAccount: "Zaten bir hesabın var mı?",
-    
-    // Profile Setup
+
+    // ===== Welcome (signup / signin) =====
+    welcomeHeadlineSignup: "Flört artık 200 ile 500 dolar arası tutuyor.",
+    welcomeHeadlineSignin: "Tekrar hoş geldin",
+    welcomeSubSignup: "TOM'da hiçbir şeye mal olmaz. Para harcama. Zaman geçir.",
+    welcomeSubSignin: "Zamanın seni bekliyor.",
+    yourNamePlaceholder: "Sana nasıl hitap edelim?",
+    emailPlaceholder: "sen@ornek.com",
+    passwordPlaceholderSignup: "En az 8 karakter",
+    passwordPlaceholderSignin: "Şifren",
+    agePlaceholder: "18+",
+    pleaseWait: "Lütfen bekle...",
+    createMyAccount: "Hesabımı oluştur",
+    alreadyOnTom: "Zaten TOM'da mısın? Giriş yap",
+    newHereCreate: "Yeni misin? Hesap oluştur",
+    publicPlacesFooter: "Herkese açık yerler. Eşit temelde. Her zaman $0.",
+
+    // ===== Profile builder =====
     yourName: "Adın",
     yourAge: "Yaşın",
     gender: "Cinsiyet",
@@ -111,15 +430,39 @@ export const translations = {
     about: "Hakkında",
     completingProfile: "Profilini Tamamla",
     uploadPhotos: "5 adet fotoğraf yükle",
-    
-    // Navigation
+    showYourFace: "Yüzünü göster",
+    photoFormats: "JPEG, PNG, WebP veya HEIC. Her biri en fazla 5 MB.",
+    profilePicRequired: "Profil fotoğrafı (zorunlu)",
+    changePhoto: "Fotoğrafı değiştir",
+    uploadPhotoBtn: "Fotoğraf yükle",
+    galleryLabel: "Galeri (en fazla {max} daha) — {count}/{max}",
+    aboutYou: "Hakkında",
+    height: "Boy",
+    cityLabel: "Şehir",
+    cityPlaceholder: "Nerede buluşuyorsun",
+    iAmA: "Ben bir",
+    orientationLabel: "Yönelim",
+    showMe: "Bana göster",
+    myHours: "Saatlerim",
+    whatDoYouLove: "Neler yapmayı seversin?",
+    freeDatesUpFor: "Katılmaya hazır olduğum ücretsiz randevular (en az 1 seç)",
+    hobbiesLabel: "Hobiler",
+    lastOneBio: "Son adım: biyografin",
+    bioPrompt: "Seninle zaman geçirmeden önce biri ne bilmeli?",
+    bioPlaceholder: "Oturduğum her banka puan veririm...",
+    back: "Geri",
+    saving: "Kaydediliyor...",
+    continueBtn: "Devam et",
+    saveChanges: "Değişiklikleri kaydet",
+    startSpendingTime: "Zaman geçirmeye başla",
+    galleryFull: "Galeri dolu (en fazla {max} fotoğraf). Önce birini sil.",
+
+    // ===== Discover / swipe =====
     discover: "Keşfet",
     matches: "Eşleşmeler",
     messages: "Mesajlar",
     you: "Sen",
     missions: "Görevler",
-    
-    // Buttons & Actions
     spend: "Zaman Geçir",
     pass: "Geç",
     message: "Mesaj Gönder",
@@ -128,21 +471,281 @@ export const translations = {
     report: "Şikayet Et",
     logout: "Çıkış Yap",
     delete: "Hesabı Sil",
-    
-    // Messages & Status
     findingPeople: "Yakınındaki insanlar bulunuyor...",
     noMoreProfiles: "Yakınında herkesin profilini gördün. Daha sonra kontrol et!",
     itsAMatch: "Eşleştiniz!",
     newMessage: "Yeni mesaj",
-    
-    // Settings
+    outOfLikesTitle: "Bugünlük beğenilerin bitti",
+    outOfLikesSub: "Beğenilerin yarın sıfırlanır. Geçmek her zaman sınırsızdır.",
+    getUnlimited: "TOM+ ile sınırsız beğen",
+    findingPeopleNear: "Yakınındaki insanlar bulunuyor",
+    seenEveryoneNearby: "Yakınında herkesin profilini gördün",
+    newPeopleJoin: "Her gün TOM'a yeni insanlar katılıyor. Daha sonra kontrol et.",
+    closestLabel: "EN YAKIN",
+    mostInCommon: "ORTAK YÖNÜ EN FAZLA OLAN ÖNCE",
+    locationOffWarning: "Konum kapalı, bu yüzden mesafeler gizli. Yakınındakileri görmek için tarayıcı veya telefon ayarlarından aç.",
+    passLabel: "GEÇ",
+    goldenHourLabel: "ALTIN SAAT",
+    spendTimeLabel: "ZAMAN GEÇİR",
+
+    // ===== Swipe card =====
+    worthMyTime: "ZAMANIMA DEĞER",
+    notThisTime: "BU SEFER OLMAZ",
+    viewProfile: "Profili görüntüle",
+    closeEnoughToday: "Bugün buluşmak için yeterince yakın",
+    youBothLove: "İkiniz de seviyorsunuz: {items}",
+    freeDateIdea: "Ücretsiz randevu fikri: {idea}",
+    timeWellSpentPct: "%{pct} zaman iyi geçirildi",
+    spendTimeWith: "{name} ile zaman geçir",
+    messageWithName: "{name}'e mesaj gönder",
+
+    // ===== Match modal =====
+    timeWellMatched: "Zaman iyi eşleşti!",
+    bothChoseTime: "Sen ve {name}, ikiniz de parayı değil zamanı seçtiniz.",
+    distanceUnavailable: "Mesafe bilgisi yok",
+    apartDistance: "Aranızda {distance} var",
+    suggestFreeDate: "Ücretsiz bir ilk randevu öner (sadece herkese açık yerler)",
+    sendingDots: "Gönderiliyor...",
+    sendThisIdea: "Bu fikri gönder",
+    keepSwiping: "Kaydırmaya devam et",
+
+    // ===== Golden Hour =====
+    goldenHourTitle: "Altın Saat",
+    goldenHourDesc: "{name}'e en iyi saatine değer olduğunu anında söyle. Bunu herkesten önce görür.",
+    goldenLeftToday: "Bugün {n} tane hakkın kaldı.",
+    goldenOutToday: "Bugünlük hakkın kalmadı.",
+    sendGoldenHour: "Altın Saat Gönder",
+    notNow: "Şimdi değil",
+
+    // ===== Report modal =====
+    thanksForKeepingSafe: "TOM'u güvenli tuttuğun için teşekkürler",
+    blockedAndRemoved: "{name} engellendi ve kaldırıldı. Güvenlik ekibimiz bu şikayeti inceleyecek. Senden geldiğini bilmeyecekler.",
+    doneLabel: "Tamam",
+    reportName: "{name} kişisini şikayet et",
+    reportsAnonymous: "Şikayetler anonimdir. Şikayet etmek aynı zamanda engeller.",
+    reportReasonFake: "Sahte profil veya fotoğraflar",
+    reportReasonInappropriate: "Uygunsuz içerik",
+    reportReasonHarassment: "Taciz veya tehdit",
+    reportReasonUnder18: "18 yaşından küçük",
+    reportReasonMoney: "Para istedi",
+    reportReasonOther: "Başka bir şey",
+    reportAndBlock: "Şikayet et ve engelle",
+
+    // ===== Verify modal =====
+    verifyTitle: "Gerçekten sen olduğunu doğrula",
+    verifyDesc1: "Yüzünün yanında başparmak yukarı işareti ile bir selfie çek. Güvenlik ekibimiz bunu profil fotoğraflarınla karşılaştırır.",
+    verifyDesc2: "Bu selfie profilinde asla gösterilmez.",
+    takeSelfie: "Selfie çek",
+    submitForReview: "İncelemeye gönder",
+
+    // ===== Chat =====
+    planADate: "Randevu planla",
+    proposeAZeroDate: "$0 bir randevu öner",
+    whatsThePlan: "Plan ne?",
+    ideasBtn: "Fikirler",
+    allIdeasCount: "Tümü {count}",
+    addingTimeHint: "Bir saat eklemek TOM'un sonradan durum sormasını sağlar. Bu adımı atlayabilirsin.",
+    propose: "Öner",
+    loadingDots: "Yükleniyor...",
+    youMatchedWith: "{name} ile eşleştin",
+    sayHiPlan: "Merhaba de ve ücretsiz bir şey planla.",
+    messagePlaceholder: "Mesaj",
+    sendBtn: "Gönder",
+    waitingForConfirm: "{name}'in onaylaması bekleniyor",
+    confirmTheDate: "Randevuyu onayla",
+    weMetUp: "Buluştuk",
+    tomWillCheckIn: "TOM daha sonra nasıl geçtiğini sormak için bilgi alacak",
+    itsAPlan: "Plan yapıldı",
+    dateProposal: "Randevu önerisi",
+
+    // ===== Outcome / review =====
+    thanks: "Teşekkürler",
+    onceBothConfirm: "{name} de onayladığında, ikiniz de geçirdiğiniz zamanı değerlendirebileceksiniz.",
+    gotIt: "Anladım",
+    howDidItGo: "Nasıl geçti?",
+    yourPlanWith: "{name} ile planın",
+    weRescheduled: "Erteledik veya iptal ettik",
+    theyDidntShowUp: "Gelmediler",
+    askMeLater: "Bana sonra sor",
+    rateYourDate: "TOM randevunu değerlendir",
+    aboutTimeNeverLooks: "{name} ile. Görünüş değil, zaman hakkında.",
+    timeWellSpentQ: "Zaman iyi geçirildi mi?",
+    yes: "Evet",
+    notReally: "Pek sayılmaz",
+    whatWereTheyLike: "Nasıl biriydi? (en fazla 3 seç)",
+    anythingToFlag: "Belirtmek istediğin bir şey var mı? (isteğe bağlı, gizli)",
+    submitReview: "Değerlendirmeyi gönder",
+    skipForNow: "Şimdilik geç",
+    traitOnTime: "Zamanında geldi",
+    traitGreatListener: "İyi bir dinleyici",
+    traitMadeMeLaugh: "Beni güldürdü",
+    traitFeltSafe: "Kendimi güvende hissettim",
+    traitGenuine: "Samimi",
+    traitGoodEnergy: "İyi enerji",
+    traitPlannedWell: "İyi planladı",
+    traitRespectful: "Saygılı",
+    traitEasyToTalk: "Kolay konuşulabiliyor",
+    traitAdventurous: "Maceracı",
+    flagPaid: "Ödeme yaptı veya ısrar etti",
+    flagNoShow: "Gelmedi",
+    flagUncomfortable: "Kendimi rahatsız hissettirdi",
+
+    // ===== Guest prompt =====
+    joinToSpendTime: "Zaman geçirmek için katıl",
+    guestPromptDesc: "Bunlar gerçek insanlar. Ücretsiz profilini oluştur, sana karşılık verebilsinler.",
+    createMyProfile: "Profilimi oluştur",
+    keepLooking: "Bakmaya devam et",
+
+    // ===== Matches list =====
+    peopleThinkWorth: "{count} {personOrPeople} zamanına değer olduğunu düşünüyor",
+    personThinks: "kişi",
+    peopleThink: "kişi",
+    seeWhoLikes: "TOM+ ile seni kimlerin beğendiğini gör →",
+    noDatesPlanned: "Henüz planlanmış randevu yok",
+    swipeRightHint: "Zamanına değer birini sağa kaydır.",
+    tapToMessage: "Mesaj göndermek için dokun",
+    tomPerk: "TOM Ayrıcalığı",
+    perkDesc: "Randevundan sonra: yakındaki Kafe Luna, TOM çiftlerine %20 indirim veriyor.",
+    perkNote: "Sadece isterseniz. Randevunun kendisi $0 kalır.",
+
+    // ===== Profile / settings (You) =====
+    browsingAsGuest: "Misafir olarak geziniyorsun",
+    createProfileHint: "Eşleşmek ve randevu planlamak için ücretsiz profilini oluştur.",
+    signUpFreeBtn: "Ücretsiz kaydol",
+    termsShort: "Şartlar",
+    privacyShort: "Gizlilik",
+    managePhotosBtn: "Fotoğrafları yönet",
+    editProfileBtn: "Profili düzenle",
+    searchPreferencesBtn: "Arama tercihleri",
+    myBio: "Biyografim",
+    freeDatesUpForLabel: "Katılmaya hazır olduğum ücretsiz randevular",
+    everyDateCosts: "Her TOM randevusu şu kadara mal olacak şekilde tasarlandı",
+    noBillsJustTime: "Fatura yok. Ödeme yok. Sadece birlikte geçirilen zaman.",
+    verificationInReview: "Doğrulama inceleniyor",
+    verifyYourProfile: "Profilini doğrula",
+    usuallyDone24h: "Genellikle 24 saat içinde tamamlanır",
+    getBadgeConfidence: "Yeşil rozeti kazan. Daha güvenle eşleş.",
+    getTomPlusBtn: "TOM+'a Geç",
+    tomPlusFeatures: "Altın Saatler, Prime Time, Zaman Dilimleri ve daha fazlası",
+    weeklyPrimeTime: "Haftalık Prime Time",
+    riseToTop7Days: "7 gün boyunca yakındaki listelerin başına çık",
+    offTheClockLabel: "Mesai Dışı",
+    offClockOnSuffix: " · AÇIK",
+    youAreInvisible: "Şu anda görünmezsin",
+    goInvisible: "Hiçbir şeyi silmeden görünmez ol",
+    aboutAndPrivacy: "Hakkında ve gizlilik",
+    deleteMyAccountBtn: "Hesabımı sil",
+    appLanguage: "Uygulama dili",
+
+    // ===== Photo manager =====
+    managePhotosTitle: "Fotoğrafları yönet",
+    managePhotosDesc: "İlk fotoğrafın ana profil fotoğrafındır. Sırayı değiştirmek için okları kullan veya Ana yap'a dokun.",
+    mainPhoto: "Ana fotoğraf",
+    photoN: "Fotoğraf {n}",
+    makeMain: "Ana yap",
+    addPhoto: "+ Fotoğraf ekle",
+    addAtLeastOne: "En az bir fotoğraf ekle",
+    upToPhotosTotal: "Toplamda en fazla {max} fotoğrafın olabilir. Önce birini kaldır.",
+
+    // ===== Search preferences =====
+    searchPreferencesTitle: "Arama tercihleri",
+    chooseUnitsDesc: "Birimlerini ve ne kadar uzağa gitmek istediğini seç.",
+    units: "Birimler",
+    kilometers: "Kilometre",
+    miles: "Mil",
+    maxDistance: "Maksimum mesafe",
+
+    // ===== Admirers panel =====
+    backToDiscover: "Keşfet'e dön",
+    worthTheirTime: "Onların zamanına değer",
+    admirersDesc: "Bu kişiler seninle zaman geçirmeye zaten evet dedi.",
+    noAdmirersYet: "Henüz hayranın yok",
+    admirersEmptyDesc: "Biri seni beğendiğinde önce burada görünür.",
+    spendTimeBtn: "Zaman geçir",
+
+    // ===== Filters modal =====
+    fineTuneTitle: "Zamanını ince ayarla",
+    ageRange: "Yaş aralığı",
+    toLabel: "ile",
+    maxDistanceKm: "Maksimum mesafe: {km} km",
+    onlyShowInto: "Sadece şununla ilgilenenleri göster",
+    applyFilters: "Filtreleri uygula",
+    resetAll: "Tümünü sıfırla",
+
+    // ===== Off the Clock =====
+    offClockActiveDesc: "Şu anda görünmezsin. Kimse kartını yeni göremez. Eşleşmelerin sana yine mesaj atabilir.",
+    offClockInactiveDesc: "Hiçbir şeyi silmeden ara ver. Kartın geri dönene kadar tüm listelerden kaybolur.",
+    punchBackIn: "Geri dön",
+    goOffTheClockBtn: "Mesai dışına çık",
+
+    // ===== Time zones =====
+    timeZonesTitle: "Zaman Dilimleri",
+    spendTimeElsewhere: "Oraya varmadan önce başka bir şehirde zaman geçir.",
+    myCurrentArea: "Mevcut bölgem",
+
+    // ===== Prime time =====
+    primeTimeTitle: "Haftalık Prime Time",
+    primeActiveDesc: "Şu anda Prime Time'dasın. Kartın {days} gün daha yakındaki listelerin başında.",
+    dayLabel: "gün",
+    daysLabel: "gün",
+    nice: "Harika",
+    primeInactiveDesc: "7 gün boyunca yakındaki listelerin başına çık. Kartına daha çok göz, daha çok zaman teklifi.",
+    startMyPrimeTime: "Prime Time'ımı başlat",
+
+    // ===== Plus gates =====
+    plusGateOffClockTitle: "Mesai Dışı",
+    plusGateOffClockBlurb: "Hiçbir şeyi silmeden görünmez ol. Bir TOM+ ayrıcalığı.",
+    plusGatePrimeTitle: "Haftalık Prime Time",
+    plusGatePrimeBlurb: "7 gün boyunca yakındaki listelerin başına çık. Bir TOM+ ayrıcalığı.",
+    plusGateTimeZonesTitle: "Zaman Dilimleri",
+    plusGateTimeZonesBlurb: "Seyahat etmeden önce başka şehirlerde gezin ve eşleş. Bir TOM+ ayrıcalığı.",
+
+    // ===== Missions =====
+    missionDatesTitle: "Görev Randevuları",
+    missionDatesDesc: "Özenle seçilmiş $0 randevular. Birini seç, bir eşleşmene gönder. Her zaman isteğe bağlı.",
+    matchFirstHint: "Önce biriyle eşleş, sonra ona bir görev gönder.",
+    sendThisMissionTo: "Bu görevi şuna gönder",
+
+    // ===== Delete account =====
+    deleteAccountTitle: "Hesabını silmek istiyor musun?",
+    deleteAccountDesc: "Bu işlem profilini, fotoğraflarını, eşleşmelerini ve Altın Saatlerini kalıcı olarak kaldırır. Güvenlik şikayetleri Gizlilik Politikası'nda açıklandığı gibi saklanır. Bu geri alınamaz.",
+    keepMyAccount: "Hesabımı sakla",
+
+    // ===== Paywall =====
+    tomPlusTagline: "Daha çok zaman, daha iyi eşleşme.",
+    featUnlimitedLikes: "Sınırsız beğeni",
+    featUnlimitedLikesSub: "Verecek zamanın hiç bitmesin",
+    featSeeWhoLikes: "Seni kimin beğendiğini gör",
+    featSeeWhoLikesSub: "Doğrudan karşılıklı eşleşmeye geç",
+    featTimeZones: "Zaman Dilimleri",
+    featTimeZonesSub: "Seyahat etmeden önce başka şehirlerde eşleş",
+    featOffClock: "Mesai Dışı",
+    featOffClockSub: "Görünmez şekilde gezin",
+    featAdvancedFilters: "Gelişmiş filtreler",
+    featAdvancedFiltersSub: "Saatler, boy, randevu tarzları",
+    featPrimeTime: "Haftalık Prime Time",
+    featPrimeTimeSub: "Her hafta 30 dakika en üstte",
+    featDateGuides: "Ücretsiz Randevu Rehberleri",
+    featDateGuidesSub: "Şehrindeki özenle seçilmiş $0 randevular",
+    getTomPlusPrice: "TOM+'a Geç · $9.99/ay",
+    goldenHoursPrice: "5 Altın Saat · $4.99",
+    primeTimePrice: "Prime Time · $2.99",
+    neverChargeForDate: "TOM randevuya çıkmak için asla senden ücret almaz.",
+    datesAreZeroAlways: "Randevular her zaman $0.",
+
+    // ===== Header pill =====
+    dontSpendMoneySpendTime: "Para harcama.",
+    spendTimePill: "Zaman geçir.",
+    navDates: "Randevular",
+
+    // ===== Settings / language / privacy =====
     language: "Dil",
     privacy: "Gizlilik",
     termsOfService: "Hizmet Şartları",
     privacyPolicy: "Gizlilik Politikası",
     settings: "Ayarlar",
-    
-    // Errors & Validation
+
+    // ===== Errors & validation =====
     emailRequired: "E-posta gerekli",
     passwordRequired: "Şifre gerekli",
     passwordTooShort: "Şifre en az 6 karakter olmalı",
@@ -150,27 +753,29 @@ export const translations = {
     invalidEmail: "Lütfen geçerli bir e-posta girin",
     signUpError: "Hesap oluşturulurken hata oluştu. Lütfen tekrar deneyin.",
     signInError: "Giriş yapılırken hata oluştu. Lütfen kimlik bilgilerinizi kontrol edin.",
-    
-    // Modals & Confirmations
+
+    // ===== Modals & confirmations (generic) =====
     areYouSure: "Emin misin?",
     cancel: "İptal",
     confirm: "Onayla",
     close: "Kapat",
   },
+
   es: {
-    // Homepage & Landing
+    // ===== Home / landing =====
     tagline: "Citas sin la cuenta.",
     headline: "No gastes dinero. Pasa tiempo.",
     subheadline: "Encuentra personas para citas gratis. Sin expectativas, sin gastos.",
     description: "TOM es una aplicación de citas donde pasas tiempo, no dinero. Desliza, empareja y planifica citas gratis. Conexiones reales sin costo.",
-    
-    // CTA Buttons
+    continueAsGuest: "Continuar como Invitado",
+    agreeContinue: "Al continuar, aceptas nuestros",
+    and: "y",
     signUpNow: "Regístrate Ahora",
     logIn: "Iniciar Sesión",
     learnMore: "Saber Más",
     continueWith: "Continuar con",
-    
-    // Auth Forms
+
+    // ===== Auth / forms (generic) =====
     email: "Correo Electrónico",
     password: "Contraseña",
     confirmPassword: "Confirmar Contraseña",
@@ -179,8 +784,24 @@ export const translations = {
     forgotPassword: "¿Olvidaste tu Contraseña?",
     noAccount: "¿No tienes cuenta?",
     haveAccount: "¿Ya tienes una cuenta?",
-    
-    // Profile Setup
+
+    // ===== Welcome (signup / signin) =====
+    welcomeHeadlineSignup: "Las citas ahora cuestan entre $200 y $500.",
+    welcomeHeadlineSignin: "Bienvenido de nuevo",
+    welcomeSubSignup: "En TOM no cuesta nada. No gastes dinero. Pasa tiempo.",
+    welcomeSubSignin: "Tu tiempo te espera.",
+    yourNamePlaceholder: "¿Cómo te llamamos?",
+    emailPlaceholder: "tu@ejemplo.com",
+    passwordPlaceholderSignup: "8+ caracteres",
+    passwordPlaceholderSignin: "Tu contraseña",
+    agePlaceholder: "18+",
+    pleaseWait: "Espera un momento...",
+    createMyAccount: "Crear mi cuenta",
+    alreadyOnTom: "¿Ya estás en TOM? Inicia sesión",
+    newHereCreate: "¿Nuevo aquí? Crea una cuenta",
+    publicPlacesFooter: "Lugares públicos. En igualdad de condiciones. Siempre $0.",
+
+    // ===== Profile builder =====
     yourName: "Tu Nombre",
     yourAge: "Tu Edad",
     gender: "Género",
@@ -190,15 +811,39 @@ export const translations = {
     about: "Acerca de",
     completingProfile: "Completa Tu Perfil",
     uploadPhotos: "Sube hasta 5 fotos",
-    
-    // Navigation
+    showYourFace: "Muestra tu cara",
+    photoFormats: "JPEG, PNG, WebP o HEIC. Hasta 5 MB cada una.",
+    profilePicRequired: "Foto de perfil (obligatoria)",
+    changePhoto: "Cambiar foto",
+    uploadPhotoBtn: "Subir foto",
+    galleryLabel: "Galería (hasta {max} más) — {count}/{max}",
+    aboutYou: "Sobre ti",
+    height: "Altura",
+    cityLabel: "Ciudad",
+    cityPlaceholder: "Dónde tienes tus citas",
+    iAmA: "Soy",
+    orientationLabel: "Orientación",
+    showMe: "Muéstrame",
+    myHours: "Mis horarios",
+    whatDoYouLove: "¿Qué te encanta hacer?",
+    freeDatesUpFor: "Citas gratis que me apetecen (elige al menos 1)",
+    hobbiesLabel: "Pasatiempos",
+    lastOneBio: "Última cosa: tu biografía",
+    bioPrompt: "¿Qué debería saber alguien antes de pasar tiempo contigo?",
+    bioPlaceholder: "Le pongo nota a cada banco en el que me siento...",
+    back: "Atrás",
+    saving: "Guardando...",
+    continueBtn: "Continuar",
+    saveChanges: "Guardar cambios",
+    startSpendingTime: "Empieza a pasar tiempo",
+    galleryFull: "La galería está llena (máximo {max} fotos). Elimina una primero.",
+
+    // ===== Discover / swipe =====
     discover: "Descubrir",
     matches: "Coincidencias",
     messages: "Mensajes",
     you: "Tú",
     missions: "Misiones",
-    
-    // Buttons & Actions
     spend: "Pasar Tiempo",
     pass: "Pasar",
     message: "Enviar Mensaje",
@@ -207,21 +852,281 @@ export const translations = {
     report: "Reportar",
     logout: "Cerrar Sesión",
     delete: "Eliminar Cuenta",
-    
-    // Messages & Status
     findingPeople: "Encontrando personas cerca de ti...",
     noMoreProfiles: "Viste a todos cerca de ti. ¡Vuelve pronto!",
     itsAMatch: "¡Es un Emparejamiento!",
     newMessage: "Nuevo mensaje",
-    
-    // Settings
+    outOfLikesTitle: "Se te acabaron los likes de hoy",
+    outOfLikesSub: "Tus likes se reinician mañana. Pasar siempre es ilimitado.",
+    getUnlimited: "Consigue likes ilimitados con TOM+",
+    findingPeopleNear: "Encontrando personas cerca de ti",
+    seenEveryoneNearby: "Viste a todos cerca de ti",
+    newPeopleJoin: "Cada día se une gente nueva a TOM. Vuelve pronto.",
+    closestLabel: "MÁS CERCA",
+    mostInCommon: "MÁS EN COMÚN PRIMERO",
+    locationOffWarning: "La ubicación está desactivada, así que las distancias están ocultas. Actívala en la configuración de tu navegador o teléfono para ver quién está cerca.",
+    passLabel: "PASAR",
+    goldenHourLabel: "HORA DORADA",
+    spendTimeLabel: "PASAR TIEMPO",
+
+    // ===== Swipe card =====
+    worthMyTime: "VALE MI TIEMPO",
+    notThisTime: "ESTA VEZ NO",
+    viewProfile: "Ver perfil",
+    closeEnoughToday: "Lo bastante cerca para verse hoy",
+    youBothLove: "A ambos les encanta: {items}",
+    freeDateIdea: "Idea de cita gratis: {idea}",
+    timeWellSpentPct: "{pct}% tiempo bien invertido",
+    spendTimeWith: "Pasar tiempo con {name}",
+    messageWithName: "Enviar mensaje a {name}",
+
+    // ===== Match modal =====
+    timeWellMatched: "¡Tiempo bien emparejado!",
+    bothChoseTime: "Tú y {name} eligieron el tiempo sobre el dinero.",
+    distanceUnavailable: "Distancia no disponible",
+    apartDistance: "Están a {distance} de distancia",
+    suggestFreeDate: "Sugiere una primera cita gratis (solo lugares públicos)",
+    sendingDots: "Enviando...",
+    sendThisIdea: "Enviar esta idea",
+    keepSwiping: "Seguir deslizando",
+
+    // ===== Golden Hour =====
+    goldenHourTitle: "Hora Dorada",
+    goldenHourDesc: "Dile a {name} al instante que vale tu mejor hora. Lo verán antes que nadie.",
+    goldenLeftToday: "Te quedan {n} hoy.",
+    goldenOutToday: "Ya usaste las de hoy.",
+    sendGoldenHour: "Enviar Hora Dorada",
+    notNow: "Ahora no",
+
+    // ===== Report modal =====
+    thanksForKeepingSafe: "Gracias por mantener TOM seguro",
+    blockedAndRemoved: "{name} ha sido bloqueado y eliminado. Nuestro equipo de seguridad revisará este reporte. No sabrán que vino de ti.",
+    doneLabel: "Listo",
+    reportName: "Reportar a {name}",
+    reportsAnonymous: "Los reportes son anónimos. Reportar también bloquea.",
+    reportReasonFake: "Perfil o fotos falsas",
+    reportReasonInappropriate: "Contenido inapropiado",
+    reportReasonHarassment: "Acoso o amenazas",
+    reportReasonUnder18: "Menor de 18 años",
+    reportReasonMoney: "Pidió dinero",
+    reportReasonOther: "Otra cosa",
+    reportAndBlock: "Reportar y bloquear",
+
+    // ===== Verify modal =====
+    verifyTitle: "Verifica que eres tú de verdad",
+    verifyDesc1: "Tómate una selfie con un pulgar arriba junto a tu cara. Nuestro equipo de seguridad la compara con tus fotos de perfil.",
+    verifyDesc2: "La selfie nunca se muestra en tu perfil.",
+    takeSelfie: "Tomar selfie",
+    submitForReview: "Enviar para revisión",
+
+    // ===== Chat =====
+    planADate: "Planear una cita",
+    proposeAZeroDate: "Proponer una cita de $0",
+    whatsThePlan: "¿Cuál es el plan?",
+    ideasBtn: "Ideas",
+    allIdeasCount: "Todas {count}",
+    addingTimeHint: "Agregar una hora permite que TOM pregunte después cómo fue. Puedes omitirlo.",
+    propose: "Proponer",
+    loadingDots: "Cargando...",
+    youMatchedWith: "Hiciste match con {name}",
+    sayHiPlan: "Saluda y planea algo gratis.",
+    messagePlaceholder: "Mensaje",
+    sendBtn: "Enviar",
+    waitingForConfirm: "Esperando a que {name} confirme",
+    confirmTheDate: "Confirmar la cita",
+    weMetUp: "Nos vimos",
+    tomWillCheckIn: "TOM preguntará después cómo te fue",
+    itsAPlan: "Es un plan",
+    dateProposal: "Propuesta de cita",
+
+    // ===== Outcome / review =====
+    thanks: "Gracias",
+    onceBothConfirm: "Cuando {name} también confirme, ambos podrán calificar el tiempo que pasaron.",
+    gotIt: "Entendido",
+    howDidItGo: "¿Cómo te fue?",
+    yourPlanWith: "Tu plan con {name}",
+    weRescheduled: "Lo reprogramamos o lo cancelamos",
+    theyDidntShowUp: "No se presentó",
+    askMeLater: "Pregúntame después",
+    rateYourDate: "Califica tu cita de TOM",
+    aboutTimeNeverLooks: "Con {name}. Sobre el tiempo, nunca sobre el físico.",
+    timeWellSpentQ: "¿Fue tiempo bien invertido?",
+    yes: "Sí",
+    notReally: "La verdad, no",
+    whatWereTheyLike: "¿Cómo era? (elige hasta 3)",
+    anythingToFlag: "¿Algo que reportar? (opcional, privado)",
+    submitReview: "Enviar calificación",
+    skipForNow: "Omitir por ahora",
+    traitOnTime: "Puntual",
+    traitGreatListener: "Buen oyente",
+    traitMadeMeLaugh: "Me hizo reír",
+    traitFeltSafe: "Me sentí segura/o",
+    traitGenuine: "Genuino",
+    traitGoodEnergy: "Buena energía",
+    traitPlannedWell: "Lo planeó bien",
+    traitRespectful: "Respetuoso",
+    traitEasyToTalk: "Fácil de hablar con él/ella",
+    traitAdventurous: "Aventurero",
+    flagPaid: "Pagó o insistió en pagar",
+    flagNoShow: "No se presentó",
+    flagUncomfortable: "Me hizo sentir incómodo/a",
+
+    // ===== Guest prompt =====
+    joinToSpendTime: "Únete para pasar tiempo",
+    guestPromptDesc: "Estas son personas reales. Crea tu perfil gratis y podrán responderte que sí.",
+    createMyProfile: "Crear mi perfil",
+    keepLooking: "Seguir mirando",
+
+    // ===== Matches list =====
+    peopleThinkWorth: "{count} {personOrPeople} creen que vales su tiempo",
+    personThinks: "persona cree",
+    peopleThink: "personas creen",
+    seeWhoLikes: "Mira quién te da like con TOM+ →",
+    noDatesPlanned: "Aún no hay citas planeadas",
+    swipeRightHint: "Desliza a la derecha en alguien que valga tu tiempo.",
+    tapToMessage: "Toca para enviar mensaje",
+    tomPerk: "Ventaja TOM",
+    perkDesc: "Después de tu cita: Kafe Luna, cerca de ti, da 20% de descuento a parejas de TOM.",
+    perkNote: "Solo si tú eliges. La cita en sí sigue siendo $0.",
+
+    // ===== Profile / settings (You) =====
+    browsingAsGuest: "Estás navegando como invitado",
+    createProfileHint: "Crea tu perfil gratis para hacer match y planear citas.",
+    signUpFreeBtn: "Regístrate gratis",
+    termsShort: "Términos",
+    privacyShort: "Privacidad",
+    managePhotosBtn: "Administrar fotos",
+    editProfileBtn: "Editar perfil",
+    searchPreferencesBtn: "Preferencias de búsqueda",
+    myBio: "Mi biografía",
+    freeDatesUpForLabel: "Citas gratis que me apetecen",
+    everyDateCosts: "Cada cita en TOM está diseñada para costar",
+    noBillsJustTime: "Sin cuentas. Sin pagos. Solo tiempo juntos.",
+    verificationInReview: "Verificación en revisión",
+    verifyYourProfile: "Verifica tu perfil",
+    usuallyDone24h: "Normalmente se completa en 24 horas",
+    getBadgeConfidence: "Obtén la insignia verde. Empareja con más confianza.",
+    getTomPlusBtn: "Obtener TOM+",
+    tomPlusFeatures: "Horas Doradas, Prime Time, Zonas Horarias y más",
+    weeklyPrimeTime: "Prime Time Semanal",
+    riseToTop7Days: "Sube a lo más alto de las listas cercanas por 7 días",
+    offTheClockLabel: "Fuera de Servicio",
+    offClockOnSuffix: " · ACTIVADO",
+    youAreInvisible: "Ahora mismo eres invisible",
+    goInvisible: "Vuélvete invisible sin eliminar nada",
+    aboutAndPrivacy: "Acerca de y privacidad",
+    deleteMyAccountBtn: "Eliminar mi cuenta",
+    appLanguage: "Idioma de la app",
+
+    // ===== Photo manager =====
+    managePhotosTitle: "Administrar fotos",
+    managePhotosDesc: "Tu primera foto es tu foto de perfil principal. Usa las flechas para reordenar, o toca Hacer principal.",
+    mainPhoto: "Foto principal",
+    photoN: "Foto {n}",
+    makeMain: "Hacer principal",
+    addPhoto: "+ Agregar foto",
+    addAtLeastOne: "Agrega al menos una foto",
+    upToPhotosTotal: "Puedes tener hasta {max} fotos en total. Elimina una primero.",
+
+    // ===== Search preferences =====
+    searchPreferencesTitle: "Preferencias de búsqueda",
+    chooseUnitsDesc: "Elige tus unidades y qué tan lejos estás dispuesto/a a quedar.",
+    units: "Unidades",
+    kilometers: "Kilómetros",
+    miles: "Millas",
+    maxDistance: "Distancia máxima",
+
+    // ===== Admirers panel =====
+    backToDiscover: "Volver a Descubrir",
+    worthTheirTime: "Que valen su tiempo",
+    admirersDesc: "Estas personas ya dijeron que sí a pasar tiempo contigo.",
+    noAdmirersYet: "Aún no tienes admiradores",
+    admirersEmptyDesc: "Cuando a alguien le gustes, aparecerá primero aquí.",
+    spendTimeBtn: "Pasar tiempo",
+
+    // ===== Filters modal =====
+    fineTuneTitle: "Ajusta tu tiempo",
+    ageRange: "Rango de edad",
+    toLabel: "a",
+    maxDistanceKm: "Distancia máxima: {km} km",
+    onlyShowInto: "Mostrar solo personas interesadas en",
+    applyFilters: "Aplicar filtros",
+    resetAll: "Restablecer todo",
+
+    // ===== Off the Clock =====
+    offClockActiveDesc: "Ahora mismo eres invisible. Nadie nuevo puede ver tu tarjeta. Tus matches aún pueden escribirte.",
+    offClockInactiveDesc: "Tómate un descanso sin eliminar nada. Tu tarjeta desaparece de todas las listas hasta que vuelvas.",
+    punchBackIn: "Volver a activar",
+    goOffTheClockBtn: "Ponerme fuera de servicio",
+
+    // ===== Time zones =====
+    timeZonesTitle: "Zonas Horarias",
+    spendTimeElsewhere: "Pasa tiempo en otra ciudad antes incluso de llegar.",
+    myCurrentArea: "Mi área actual",
+
+    // ===== Prime time =====
+    primeTimeTitle: "Prime Time Semanal",
+    primeActiveDesc: "Estás en Prime Time. Tu tarjeta sube a lo más alto de las listas cercanas por {days} {dayOrDays} más.",
+    dayLabel: "día",
+    daysLabel: "días",
+    nice: "Genial",
+    primeInactiveDesc: "Sube a lo más alto de las listas cercanas por 7 días. Más ojos en tu tarjeta, más ofertas de tiempo.",
+    startMyPrimeTime: "Iniciar mi Prime Time",
+
+    // ===== Plus gates =====
+    plusGateOffClockTitle: "Fuera de Servicio",
+    plusGateOffClockBlurb: "Vuélvete invisible sin eliminar nada. Un beneficio de TOM+.",
+    plusGatePrimeTitle: "Prime Time Semanal",
+    plusGatePrimeBlurb: "Sube a lo más alto de las listas cercanas por 7 días. Un beneficio de TOM+.",
+    plusGateTimeZonesTitle: "Zonas Horarias",
+    plusGateTimeZonesBlurb: "Explora y empareja en otras ciudades antes de viajar. Un beneficio de TOM+.",
+
+    // ===== Missions =====
+    missionDatesTitle: "Citas Misión",
+    missionDatesDesc: "Citas de $0 seleccionadas. Elige una y envíasela a un match. Siempre opcional.",
+    matchFirstHint: "Primero haz match con alguien, luego envíale una misión.",
+    sendThisMissionTo: "Enviar esta misión a",
+
+    // ===== Delete account =====
+    deleteAccountTitle: "¿Eliminar tu cuenta?",
+    deleteAccountDesc: "Esto elimina permanentemente tu perfil, fotos, matches y Horas Doradas. Los reportes de seguridad se conservan como se describe en la Política de Privacidad. Esto no se puede deshacer.",
+    keepMyAccount: "Conservar mi cuenta",
+
+    // ===== Paywall =====
+    tomPlusTagline: "Más tiempo, mejor emparejado.",
+    featUnlimitedLikes: "Likes ilimitados",
+    featUnlimitedLikesSub: "Nunca te quedes sin tiempo por dar",
+    featSeeWhoLikes: "Ve quién te da like",
+    featSeeWhoLikesSub: "Ve directo al match mutuo",
+    featTimeZones: "Zonas Horarias",
+    featTimeZonesSub: "Empareja en otras ciudades antes de viajar",
+    featOffClock: "Fuera de Servicio",
+    featOffClockSub: "Navega de forma invisible",
+    featAdvancedFilters: "Filtros avanzados",
+    featAdvancedFiltersSub: "Horarios, altura, estilos de cita",
+    featPrimeTime: "Prime Time Semanal",
+    featPrimeTimeSub: "30 minutos en lo más alto, cada semana",
+    featDateGuides: "Guías de Citas Gratis",
+    featDateGuidesSub: "Citas de $0 seleccionadas en tu ciudad",
+    getTomPlusPrice: "Obtener TOM+ · $9.99/mes",
+    goldenHoursPrice: "5 Horas Doradas · $4.99",
+    primeTimePrice: "Prime Time · $2.99",
+    neverChargeForDate: "TOM nunca te cobrará por salir en una cita.",
+    datesAreZeroAlways: "Las citas son $0. Siempre.",
+
+    // ===== Header pill =====
+    dontSpendMoneySpendTime: "No gastes dinero.",
+    spendTimePill: "Pasa tiempo.",
+    navDates: "Citas",
+
+    // ===== Settings / language / privacy =====
     language: "Idioma",
     privacy: "Privacidad",
     termsOfService: "Términos de Servicio",
     privacyPolicy: "Política de Privacidad",
     settings: "Configuración",
-    
-    // Errors & Validation
+
+    // ===== Errors & validation =====
     emailRequired: "Se requiere correo electrónico",
     passwordRequired: "Se requiere contraseña",
     passwordTooShort: "La contraseña debe tener al menos 6 caracteres",
@@ -229,8 +1134,8 @@ export const translations = {
     invalidEmail: "Por favor ingresa un correo válido",
     signUpError: "Error al crear la cuenta. Por favor, intenta de nuevo.",
     signInError: "Error al iniciar sesión. Por favor, verifica tus credenciales.",
-    
-    // Modals & Confirmations
+
+    // ===== Modals & confirmations (generic) =====
     areYouSure: "¿Estás seguro?",
     cancel: "Cancelar",
     confirm: "Confirmar",
