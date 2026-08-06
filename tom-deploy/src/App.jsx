@@ -1,7 +1,5 @@
 import React, { useState, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { LanguageProvider, useLanguage } from "./LanguageContext.jsx";
-import { LanguageSelector } from "./LanguageSelector.jsx";
 
 // ================= Supabase =================
 const SUPABASE_URL = "https://adanpwwxovponnluoztd.supabase.co";
@@ -97,6 +95,9 @@ function rowToUser(row, email) {
     verified: Boolean(row.verified),
     searchRadiusKm: row.search_radius_km ?? 50,
     distanceUnit: row.distance_unit || "km",
+    emailOnMatch: row.email_on_match !== false,
+    emailOnMessage: row.email_on_message !== false,
+    emailOnDate: row.email_on_date !== false,
     isPlus: Boolean(row.is_plus) && (!row.plus_until || new Date(row.plus_until) > new Date()),
     plusUntil: row.plus_until || null,
     offTheClock: Boolean(row.off_the_clock),
@@ -200,6 +201,9 @@ const api = {
       interests: u.interests, hobbies: u.hobbies, things_i_like_to_do: u.thingsILikeToDo,
       avatar_url: u.profilePhoto, gallery_photos: u.photos,
       search_radius_km: u.searchRadiusKm, distance_unit: u.distanceUnit,
+      email_on_match: u.emailOnMatch !== false,
+      email_on_message: u.emailOnMessage !== false,
+      email_on_date: u.emailOnDate !== false,
       off_the_clock: Boolean(u.offTheClock),
       filter_min_age: u.filterMinAge ?? 18, filter_max_age: u.filterMaxAge ?? 99,
       filter_interests: u.filterInterests || [],
@@ -720,35 +724,33 @@ function PhotoThumb({ src, size = 76, onRemove, round }) {
 
 // ================= Batch 2: TOM+ features =================
 function PlusGate({ title, blurb, onClose, onUpgrade }) {
-  const { t } = useLanguage();
   return (
     <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 24 }}>
       <div style={{ width: "100%", background: T.white, borderRadius: 24, padding: 22, textAlign: "center", animation: "popIn .25s ease" }}>
         <Ic.Sun s={34} c={T.sun} />
         <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>{title}</h2>
         <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>{blurb}</p>
-        <PrimaryBtn onClick={onUpgrade}>{t('getTomPlusBtn')}</PrimaryBtn>
-        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{t('notNow')}</button>
+        <PrimaryBtn onClick={onUpgrade}>Get TOM<span style={{ color: T.sun }}>+</span></PrimaryBtn>
+        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Not now</button>
       </div>
     </div>
   );
 }
 
 function AdmirersPanel({ admirers, myLoc, onLikeBack, onBack, onReport }) {
-  const { t } = useLanguage();
   const [viewing, setViewing] = useState(null);
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "6px 16px 16px" }}>
       <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, border: "none", background: "none", cursor: "pointer", padding: "4px 0 10px", ...nu(800, 13, T.royal) }}>
-        <span style={{ transform: "rotate(180deg)", display: "inline-flex" }}><Ic.Chevron s={14} c={T.royal} /></span> {t('backToDiscover')}
+        <span style={{ transform: "rotate(180deg)", display: "inline-flex" }}><Ic.Chevron s={14} c={T.royal} /></span> Back to Discover
       </button>
-      <h2 style={{ ...fr(700, 21, T.ink), margin: "0 0 3px" }}>{t('worthTheirTime')}</h2>
-      <p style={{ ...nu(700, 13, T.soft), margin: "0 0 14px" }}>{t('admirersDesc')}</p>
+      <h2 style={{ ...fr(700, 21, T.ink), margin: "0 0 3px" }}>Worth their time</h2>
+      <p style={{ ...nu(700, 13, T.soft), margin: "0 0 14px" }}>These people already said yes to spending time with you.</p>
       {admirers.length === 0 ? (
         <div style={{ textAlign: "center", paddingTop: 60 }}>
           <Ic.Eye s={44} c={T.royal} />
-          <h3 style={{ ...fr(600, 19, T.ink), margin: "10px 0 4px" }}>{t('noAdmirersYet')}</h3>
-          <p style={{ ...nu(600, 13.5, T.soft), margin: 0 }}>{t('admirersEmptyDesc')}</p>
+          <h3 style={{ ...fr(600, 19, T.ink), margin: "10px 0 4px" }}>No admirers yet</h3>
+          <p style={{ ...nu(600, 13.5, T.soft), margin: 0 }}>When someone likes you, they show up here first.</p>
         </div>
       ) : admirers.map((p) => (
         <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, background: T.white, borderRadius: 18, padding: 12, marginBottom: 10, boxShadow: "0 4px 14px rgba(42,27,74,.08)", animation: "floatUp .3s ease" }}>
@@ -760,7 +762,7 @@ function AdmirersPanel({ admirers, myLoc, onLikeBack, onBack, onReport }) {
             </div>
           </button>
           <button onClick={() => onReport(p)} aria-label="Report" style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Flag s={15} c={T.lilacDeep} /></button>
-          <button onClick={() => onLikeBack(p)} style={{ border: "none", borderRadius: 999, padding: "9px 14px", background: T.royal, cursor: "pointer", ...fr(600, 13, T.white) }}>{t('spendTimeBtn')}</button>
+          <button onClick={() => onLikeBack(p)} style={{ border: "none", borderRadius: 999, padding: "9px 14px", background: T.royal, cursor: "pointer", ...fr(600, 13, T.white) }}>Spend time</button>
         </div>
       ))}
       {viewing && (
@@ -776,7 +778,6 @@ function AdmirersPanel({ admirers, myLoc, onLikeBack, onBack, onReport }) {
 }
 
 function FiltersModal({ onClose, onApply }) {
-  const { t } = useLanguage();
   const u = api.user || {};
   const [minAge, setMinAge] = useState(u.filterMinAge ?? 18);
   const [maxAge, setMaxAge] = useState(u.filterMaxAge ?? 99);
@@ -789,44 +790,45 @@ function FiltersModal({ onClose, onApply }) {
     <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
       <div style={{ width: "100%", background: T.white, borderRadius: "26px 26px 0 0", padding: "20px 20px 24px", maxHeight: "82%", overflowY: "auto", animation: "floatUp .25s ease" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <h2 style={{ ...fr(700, 20, T.royal), margin: 0, display: "flex", alignItems: "center", gap: 8 }}><Ic.Sliders s={20} c={T.royal} />{t('fineTuneTitle')}</h2>
+          <h2 style={{ ...fr(700, 20, T.royal), margin: 0, display: "flex", alignItems: "center", gap: 8 }}><Ic.Sliders s={20} c={T.royal} />Fine-tune your time</h2>
           <button onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Cross s={18} /></button>
         </div>
-        <Field label={t('ageRange')}>
+        <Field label="Age range">
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <input type="number" min="18" max="99" value={minAge} onChange={(e) => setMinAge(e.target.value)} style={{ ...inputStyle, textAlign: "center" }} />
-            <span style={nu(800, 14, T.soft)}>{t('toLabel')}</span>
+            <span style={nu(800, 14, T.soft)}>to</span>
             <input type="number" min="18" max="99" value={maxAge} onChange={(e) => setMaxAge(e.target.value)} style={{ ...inputStyle, textAlign: "center" }} />
           </div>
         </Field>
-        <Field label={t('maxDistanceKm', { km: radius })}>
+        <Field label={`Max distance: ${radius} km`}>
           <input type="range" min="1" max="300" value={radius} onChange={(e) => setRadius(Number(e.target.value))} style={{ width: "100%", accentColor: T.royal }} />
         </Field>
-        <Field label={t('onlyShowInto')}>
+        <Field label="Only show people into">
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {INTEREST_POOL.map((i) => <Chip key={i} label={i} active={picked.includes(i)} onClick={() => toggle(i)} />)}
           </div>
         </Field>
-        <PrimaryBtn onClick={() => onApply({ minAge: lo, maxAge: hi, radius, interests: picked })}>{t('applyFilters')}</PrimaryBtn>
-        <button onClick={() => onApply({ minAge: 18, maxAge: 99, radius: 50, interests: [] })} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{t('resetAll')}</button>
+        <PrimaryBtn onClick={() => onApply({ minAge: lo, maxAge: hi, radius, interests: picked })}>Apply filters</PrimaryBtn>
+        <button onClick={() => onApply({ minAge: 18, maxAge: 99, radius: 50, interests: [] })} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Reset all</button>
       </div>
     </div>
   );
 }
 
 function OffTheClockModal({ onClose, onToggle }) {
-  const { t } = useLanguage();
   const active = Boolean(api.user && api.user.offTheClock);
   return (
     <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 24 }}>
       <div style={{ width: "100%", background: T.white, borderRadius: 24, padding: 22, textAlign: "center", animation: "popIn .25s ease" }}>
         <Ic.Moon s={34} c={T.royal} />
-        <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>{t('offTheClockLabel')}</h2>
+        <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>Off the Clock</h2>
         <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>
-          {active ? t('offClockActiveDesc') : t('offClockInactiveDesc')}
+          {active
+            ? "You're invisible right now. Nobody new can see your card. Your matches can still message you."
+            : "Take a break without deleting anything. Your card disappears from every deck until you come back."}
         </p>
-        <PrimaryBtn onClick={onToggle}>{active ? t('punchBackIn') : t('goOffTheClockBtn')}</PrimaryBtn>
-        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{t('cancel')}</button>
+        <PrimaryBtn onClick={onToggle}>{active ? "Punch back in" : "Go off the clock"}</PrimaryBtn>
+        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Cancel</button>
       </div>
     </div>
   );
@@ -845,17 +847,16 @@ const TIME_ZONE_CITIES = [
 ];
 
 function TimeZonesModal({ current, onPick, onClose }) {
-  const { t } = useLanguage();
   return (
     <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
       <div style={{ width: "100%", background: T.white, borderRadius: "26px 26px 0 0", padding: "20px 20px 24px", maxHeight: "82%", overflowY: "auto", animation: "floatUp .25s ease" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-          <h2 style={{ ...fr(700, 20, T.royal), margin: 0, display: "flex", alignItems: "center", gap: 8 }}><Ic.Globe s={20} c={T.royal} />{t('timeZonesTitle')}</h2>
+          <h2 style={{ ...fr(700, 20, T.royal), margin: 0, display: "flex", alignItems: "center", gap: 8 }}><Ic.Globe s={20} c={T.royal} />Time Zones</h2>
           <button onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Cross s={18} /></button>
         </div>
-        <p style={{ ...nu(700, 13, T.soft), margin: "0 0 14px" }}>{t('spendTimeElsewhere')}</p>
+        <p style={{ ...nu(700, 13, T.soft), margin: "0 0 14px" }}>Spend time in another city before you even get there.</p>
         <button onClick={() => { onPick(null); }} style={{ width: "100%", background: !current ? T.lilac : T.white, border: `2px solid ${!current ? T.royal : T.lilacDeep}`, borderRadius: 16, padding: "13px 15px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ ...nu(800, 14.5, T.ink) }}>{t('myCurrentArea')}</span>
+          <span style={{ ...nu(800, 14.5, T.ink) }}>My current area</span>
           <Ic.Pin s={14} c={T.royal} />
         </button>
         {TIME_ZONE_CITIES.map((c) => (
@@ -870,24 +871,23 @@ function TimeZonesModal({ current, onPick, onClose }) {
 }
 
 function PrimeTimeModal({ onClose, onActivate, boostUntil }) {
-  const { t } = useLanguage();
   const active = boostUntil && new Date(boostUntil) > new Date();
   const daysLeft = active ? Math.max(1, Math.ceil((new Date(boostUntil) - new Date()) / 86400000)) : 0;
   return (
     <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 24 }}>
       <div style={{ width: "100%", background: T.white, borderRadius: 24, padding: 22, textAlign: "center", animation: "popIn .25s ease" }}>
         <Ic.Rise s={34} c={T.royal} />
-        <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>{t('primeTimeTitle')}</h2>
+        <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>Weekly Prime Time</h2>
         {active ? (
           <>
-            <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>{t('primeActiveDesc', { days: daysLeft, dayOrDays: daysLeft === 1 ? t('dayLabel') : t('daysLabel') })}</p>
-            <PrimaryBtn onClick={onClose}>{t('nice')}</PrimaryBtn>
+            <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>You're in Prime Time. Your card rises to the top of nearby decks for {daysLeft} more {daysLeft === 1 ? "day" : "days"}.</p>
+            <PrimaryBtn onClick={onClose}>Nice</PrimaryBtn>
           </>
         ) : (
           <>
-            <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>{t('primeInactiveDesc')}</p>
-            <PrimaryBtn onClick={onActivate}>{t('startMyPrimeTime')}</PrimaryBtn>
-            <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{t('notNow')}</button>
+            <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>Rise to the top of nearby decks for 7 days. More eyes on your card, more time offers.</p>
+            <PrimaryBtn onClick={onActivate}>Start my Prime Time</PrimaryBtn>
+            <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Not now</button>
           </>
         )}
       </div>
@@ -1022,17 +1022,17 @@ const MISSIONS = [
 // Flat list for the date proposal picker
 const ALL_IDEAS = MISSIONS.flatMap((m) => m.ideas.map((idea) => ({ idea, cat: m.id, label: m.label, icon: m.icon })));
 
-
+const REVIEW_TRAITS = ["On time", "Great listener", "Made me laugh", "Felt safe", "Genuine", "Good energy", "Planned it well", "Respectful", "Easy to talk to", "Adventurous"];
+const REVIEW_FLAGS = ["They paid or insisted on paying", "Didn't show up", "Made me uncomfortable"];
 
 function Missions({ matches, onSend }) {
-  const { t } = useLanguage();
   const [cat, setCat] = useState(MISSIONS[0].id);
   const active = MISSIONS.find((m) => m.id === cat);
   const CatIcon = Ic[active.icon];
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "6px 16px 16px" }}>
-      <h2 style={{ ...fr(700, 21, T.ink), margin: "0 0 3px" }}>{t('missionDatesTitle')}</h2>
-      <p style={{ ...nu(700, 13, T.soft), margin: "0 0 12px" }}>{t('missionDatesDesc')}</p>
+      <h2 style={{ ...fr(700, 21, T.ink), margin: "0 0 3px" }}>Mission Dates</h2>
+      <p style={{ ...nu(700, 13, T.soft), margin: "0 0 12px" }}>Curated $0 dates. Pick one, send it to a match. Always optional.</p>
       <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 10, marginBottom: 6 }}>
         {MISSIONS.map((m) => {
           const MIcon = Ic[m.icon];
@@ -1048,20 +1048,19 @@ function Missions({ matches, onSend }) {
         <div key={idea} style={{ background: T.white, borderRadius: 16, padding: "13px 15px", marginBottom: 9, boxShadow: "0 3px 10px rgba(42,27,74,.06)", display: "flex", alignItems: "center", gap: 10 }}>
           <CatIcon s={18} c={T.royal} />
           <span style={{ flex: 1, ...nu(700, 13.5, T.ink) }}>{idea}</span>
-          <button onClick={() => onSend(idea)} style={{ border: "none", borderRadius: 999, padding: "8px 12px", background: matches.length ? T.royal : T.lilacDeep, cursor: matches.length ? "pointer" : "default", ...fr(600, 12, T.white) }} disabled={!matches.length}>{t('sendBtn')}</button>
+          <button onClick={() => onSend(idea)} style={{ border: "none", borderRadius: 999, padding: "8px 12px", background: matches.length ? T.royal : T.lilacDeep, cursor: matches.length ? "pointer" : "default", ...fr(600, 12, T.white) }} disabled={!matches.length}>Send</button>
         </div>
       ))}
-      {!matches.length && <p style={{ ...nu(600, 12.5, T.soft), textAlign: "center", marginTop: 8 }}>{t('matchFirstHint')}</p>}
+      {!matches.length && <p style={{ ...nu(600, 12.5, T.soft), textAlign: "center", marginTop: 8 }}>Match with someone first, then send them a mission.</p>}
     </div>
   );
 }
 
 function SendMissionModal({ idea, matches, onPick, onClose }) {
-  const { t } = useLanguage();
   return (
     <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
       <div style={{ width: "100%", background: T.white, borderRadius: "26px 26px 0 0", padding: "20px 20px 24px", maxHeight: "70%", overflowY: "auto", animation: "floatUp .25s ease" }}>
-        <h2 style={{ ...fr(700, 18, T.royal), margin: "0 0 4px" }}>{t('sendThisMissionTo')}</h2>
+        <h2 style={{ ...fr(700, 18, T.royal), margin: "0 0 4px" }}>Send this mission to</h2>
         <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 14px" }}>{idea}</p>
         {matches.map((p) => (
           <button key={p.id} onClick={() => onPick(p)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, background: T.white, border: `2px solid ${T.lilacDeep}`, borderRadius: 16, padding: 12, marginBottom: 8, cursor: "pointer" }}>
@@ -1069,7 +1068,7 @@ function SendMissionModal({ idea, matches, onPick, onClose }) {
             <span style={{ ...fr(600, 15, T.ink) }}>{p.name}</span>
           </button>
         ))}
-        <button onClick={onClose} style={{ width: "100%", marginTop: 4, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{t('cancel')}</button>
+        <button onClick={onClose} style={{ width: "100%", marginTop: 4, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Cancel</button>
       </div>
     </div>
   );
@@ -1089,7 +1088,6 @@ function whenLabel(iso) {
 }
 
 function PlanBanner({ plan, myId, profileName, onConfirm, onComplete }) {
-  const { t } = useLanguage();
   if (!plan) return null;
   const mine = plan.proposed_by === myId;
   const when = whenLabel(plan.scheduled_at);
@@ -1097,22 +1095,22 @@ function PlanBanner({ plan, myId, profileName, onConfirm, onComplete }) {
   return (
     <div style={{ margin: "10px 16px 0", background: plan.status === "confirmed" ? "#F0FBF5" : T.lilac, border: `2px solid ${plan.status === "confirmed" ? T.green : T.lilacDeep}`, borderRadius: 16, padding: "11px 13px" }}>
       <div style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".5px", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 5 }}>
-        <Ic.Hourglass s={13} c={T.royal} />{plan.status === "confirmed" ? t('itsAPlan') : t('dateProposal')}
+        <Ic.Hourglass s={13} c={T.royal} />{plan.status === "confirmed" ? "It's a plan" : "Date proposal"}
       </div>
       <div style={{ ...nu(700, 13.5, T.ink), margin: "3px 0 2px" }}>{plan.idea}</div>
       {when && <div style={{ ...nu(800, 12, T.royal), marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}><Ic.Hourglass s={11} c={T.royal} />{when}</div>}
       {!when && <div style={{ marginBottom: 8 }} />}
-      {plan.status === "proposed" && mine && <div style={{ ...nu(700, 12, T.soft) }}>{t('waitingForConfirm', { name: profileName })}</div>}
+      {plan.status === "proposed" && mine && <div style={{ ...nu(700, 12, T.soft) }}>Waiting for {profileName} to confirm</div>}
       {plan.status === "proposed" && !mine && (
-        <button onClick={onConfirm} style={{ border: "none", borderRadius: 999, padding: "8px 14px", background: T.royal, cursor: "pointer", ...fr(600, 12.5, T.white) }}>{t('confirmTheDate')}</button>
+        <button onClick={onConfirm} style={{ border: "none", borderRadius: 999, padding: "8px 14px", background: T.royal, cursor: "pointer", ...fr(600, 12.5, T.white) }}>Confirm the date</button>
       )}
       {plan.status === "confirmed" && (!when || past) && (
         <button onClick={onComplete} style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "none", borderRadius: 999, padding: "8px 14px", background: T.green, cursor: "pointer", ...fr(600, 12.5, T.white) }}>
-          <Ic.Check s={13} c={T.white} />{t('weMetUp')}
+          <Ic.Check s={13} c={T.white} />We met up
         </button>
       )}
       {plan.status === "confirmed" && when && !past && (
-        <div style={{ ...nu(700, 12, T.soft) }}>{t('tomWillCheckIn')}</div>
+        <div style={{ ...nu(700, 12, T.soft) }}>TOM will check in after to see how it went</div>
       )}
     </div>
   );
@@ -1120,7 +1118,6 @@ function PlanBanner({ plan, myId, profileName, onConfirm, onComplete }) {
 
 // Asked of BOTH people a few hours after a scheduled date
 function OutcomeModal({ pending, onAnswer, onLater }) {
-  const { t } = useLanguage();
   const [saving, setSaving] = useState(false);
   const [waiting, setWaiting] = useState(false);
   const answer = async (a) => {
@@ -1136,9 +1133,9 @@ function OutcomeModal({ pending, onAnswer, onLater }) {
       <div style={{ position: "absolute", inset: 0, zIndex: 30, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
         <div style={{ background: T.white, borderRadius: 26, padding: "22px 20px", width: "100%", maxWidth: 330, textAlign: "center", animation: "popIn .3s ease" }}>
           <Ic.Hourglass s={34} c={T.royal} />
-          <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>{t('thanks')}</h2>
-          <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>{t('onceBothConfirm', { name: pending.other_name })}</p>
-          <PrimaryBtn onClick={() => onAnswer("met", { status: "waiting" })}>{t('gotIt')}</PrimaryBtn>
+          <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>Thanks</h2>
+          <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>Once {pending.other_name} confirms too, you'll both get to rate the time you spent.</p>
+          <PrimaryBtn onClick={() => onAnswer("met", { status: "waiting" })}>Got it</PrimaryBtn>
         </div>
       </div>
     );
@@ -1146,29 +1143,26 @@ function OutcomeModal({ pending, onAnswer, onLater }) {
   return (
     <div style={{ position: "absolute", inset: 0, zIndex: 30, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div style={{ background: T.white, borderRadius: 26, padding: "22px 20px", width: "100%", maxWidth: 330, animation: "popIn .3s ease" }}>
-        <h2 style={{ ...fr(700, 21, T.royal), margin: "0 0 2px", textAlign: "center" }}>{t('howDidItGo')}</h2>
-        <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 4px", textAlign: "center" }}>{t('yourPlanWith', { name: pending.other_name })}</p>
+        <h2 style={{ ...fr(700, 21, T.royal), margin: "0 0 2px", textAlign: "center" }}>How did it go?</h2>
+        <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 4px", textAlign: "center" }}>Your plan with {pending.other_name}</p>
         <div style={{ background: T.lilac, borderRadius: 14, padding: "9px 12px", margin: "0 0 16px", ...nu(700, 13, T.royal), textAlign: "center" }}>
           {pending.idea}{pending.scheduled_at ? ` · ${whenLabel(pending.scheduled_at)}` : ""}
         </div>
-        <button onClick={() => answer("met")} disabled={saving} style={{ width: "100%", padding: "13px 0", marginBottom: 8, borderRadius: 14, border: `2px solid ${T.green}`, background: "#F0FBF5", cursor: "pointer", ...fr(600, 15, T.green) }}>{t('weMetUp')}</button>
-        <button onClick={() => answer("cancelled")} disabled={saving} style={{ width: "100%", padding: "12px 0", marginBottom: 8, borderRadius: 14, border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", ...fr(600, 14, T.ink) }}>{t('weRescheduled')}</button>
-        <button onClick={() => answer("no_show")} disabled={saving} style={{ width: "100%", padding: "12px 0", borderRadius: 14, border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", ...fr(600, 14, T.ink) }}>{t('theyDidntShowUp')}</button>
-        <button onClick={onLater} style={{ width: "100%", marginTop: 10, padding: "8px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{t('askMeLater')}</button>
+        <button onClick={() => answer("met")} disabled={saving} style={{ width: "100%", padding: "13px 0", marginBottom: 8, borderRadius: 14, border: `2px solid ${T.green}`, background: "#F0FBF5", cursor: "pointer", ...fr(600, 15, T.green) }}>We met up</button>
+        <button onClick={() => answer("cancelled")} disabled={saving} style={{ width: "100%", padding: "12px 0", marginBottom: 8, borderRadius: 14, border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", ...fr(600, 14, T.ink) }}>We rescheduled or called it off</button>
+        <button onClick={() => answer("no_show")} disabled={saving} style={{ width: "100%", padding: "12px 0", borderRadius: 14, border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", ...fr(600, 14, T.ink) }}>They didn't show up</button>
+        <button onClick={onLater} style={{ width: "100%", marginTop: 10, padding: "8px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Ask me later</button>
       </div>
     </div>
   );
 }
 
 function ReviewModal({ pending, onDone, onSkip }) {
-  const { t } = useLanguage();
-  const REVIEW_TRAITS = [t('traitOnTime'), t('traitGreatListener'), t('traitMadeMeLaugh'), t('traitFeltSafe'), t('traitGenuine'), t('traitGoodEnergy'), t('traitPlannedWell'), t('traitRespectful'), t('traitEasyToTalk'), t('traitAdventurous')];
-  const REVIEW_FLAGS = [t('flagPaid'), t('flagNoShow'), t('flagUncomfortable')];
   const [well, setWell] = useState(null); // true | false
   const [traits, setTraits] = useState([]);
   const [flag, setFlag] = useState(null);
   const [saving, setSaving] = useState(false);
-  const toggle = (tr) => setTraits((prev) => prev.includes(tr) ? prev.filter((x) => x !== tr) : prev.length < 3 ? [...prev, tr] : prev);
+  const toggle = (t) => setTraits((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : prev.length < 3 ? [...prev, t] : prev);
   const submit = async () => {
     if (well === null || saving) return;
     setSaving(true);
@@ -1179,40 +1173,83 @@ function ReviewModal({ pending, onDone, onSkip }) {
   return (
     <div style={{ position: "absolute", inset: 0, zIndex: 30, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div style={{ background: T.white, borderRadius: 26, padding: "22px 20px", width: "100%", maxWidth: 330, animation: "popIn .3s ease", maxHeight: "88%", overflowY: "auto" }}>
-        <h2 style={{ ...fr(700, 21, T.royal), margin: "0 0 2px", textAlign: "center" }}>{t('rateYourDate')}</h2>
-        <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 14px", textAlign: "center" }}>{t('aboutTimeNeverLooks', { name: pending.other_name })}</p>
-        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 7 }}>{t('timeWellSpentQ')}</div>
+        <h2 style={{ ...fr(700, 21, T.royal), margin: "0 0 2px", textAlign: "center" }}>Rate your TOM date</h2>
+        <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 14px", textAlign: "center" }}>With {pending.other_name}. About the time, never the looks.</p>
+        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 7 }}>Was it time well spent?</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-          <button onClick={() => setWell(true)} style={{ flex: 1, padding: "11px 0", borderRadius: 14, border: `2px solid ${well === true ? T.green : T.lilacDeep}`, background: well === true ? "#F0FBF5" : T.white, cursor: "pointer", ...fr(600, 14, well === true ? T.green : T.ink) }}>{t('yes')}</button>
-          <button onClick={() => setWell(false)} style={{ flex: 1, padding: "11px 0", borderRadius: 14, border: `2px solid ${well === false ? T.ink : T.lilacDeep}`, background: well === false ? T.lilac : T.white, cursor: "pointer", ...fr(600, 14, T.ink) }}>{t('notReally')}</button>
+          <button onClick={() => setWell(true)} style={{ flex: 1, padding: "11px 0", borderRadius: 14, border: `2px solid ${well === true ? T.green : T.lilacDeep}`, background: well === true ? "#F0FBF5" : T.white, cursor: "pointer", ...fr(600, 14, well === true ? T.green : T.ink) }}>Yes</button>
+          <button onClick={() => setWell(false)} style={{ flex: 1, padding: "11px 0", borderRadius: 14, border: `2px solid ${well === false ? T.ink : T.lilacDeep}`, background: well === false ? T.lilac : T.white, cursor: "pointer", ...fr(600, 14, T.ink) }}>Not really</button>
         </div>
-        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 7 }}>{t('whatWereTheyLike')}</div>
+        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 7 }}>What were they like? (pick up to 3)</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 14 }}>
-          {REVIEW_TRAITS.map((tr) => <Chip key={tr} label={tr} active={traits.includes(tr)} onClick={() => toggle(tr)} />)}
+          {REVIEW_TRAITS.map((t) => <Chip key={t} label={t} active={traits.includes(t)} onClick={() => toggle(t)} />)}
         </div>
-        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 7 }}>{t('anythingToFlag')}</div>
+        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 7 }}>Anything to flag? (optional, private)</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 16 }}>
           {REVIEW_FLAGS.map((f) => (
             <button key={f} onClick={() => setFlag(flag === f ? null : f)} style={{ textAlign: "left", padding: "9px 12px", borderRadius: 12, border: `2px solid ${flag === f ? T.royal : T.lilacDeep}`, background: flag === f ? T.lilac : T.white, cursor: "pointer", ...nu(700, 12.5, T.ink) }}>{f}</button>
           ))}
         </div>
-        <PrimaryBtn disabled={well === null || saving} onClick={submit}>{saving ? t('sendingDots') : t('submitReview')}</PrimaryBtn>
-        <button onClick={onSkip} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{t('skipForNow')}</button>
+        <PrimaryBtn disabled={well === null || saving} onClick={submit}>{saving ? "Sending..." : "Submit review"}</PrimaryBtn>
+        <button onClick={onSkip} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Skip for now</button>
+      </div>
+    </div>
+  );
+}
+
+function EmailSettingsModal({ onClose }) {
+  const u = api.user || {};
+  const [match, setMatch] = useState(u.emailOnMatch !== false);
+  const [message, setMessage] = useState(u.emailOnMessage !== false);
+  const [date, setDate] = useState(u.emailOnDate !== false);
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    if (saving) return;
+    setSaving(true);
+    api.user.emailOnMatch = match;
+    api.user.emailOnMessage = message;
+    api.user.emailOnDate = date;
+    await api.saveProfile();
+    setSaving(false);
+    onClose();
+  };
+  const Row = ({ label, blurb, on, set }) => (
+    <button onClick={() => set(!on)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, background: T.white, border: `2px solid ${on ? T.royal : T.lilacDeep}`, borderRadius: 16, padding: "12px 14px", marginBottom: 9, cursor: "pointer", textAlign: "left" }}>
+      <span style={{ flex: 1 }}>
+        <span style={{ ...fr(600, 15, T.ink), display: "block" }}>{label}</span>
+        <span style={{ ...nu(700, 12, T.soft) }}>{blurb}</span>
+      </span>
+      <span style={{ width: 44, height: 26, borderRadius: 999, background: on ? T.royal : T.lilacDeep, position: "relative", flexShrink: 0, transition: "background .15s" }}>
+        <span style={{ position: "absolute", top: 3, left: on ? 21 : 3, width: 20, height: 20, borderRadius: "50%", background: T.white, transition: "left .15s" }} />
+      </span>
+    </button>
+  );
+  return (
+    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
+      <div style={{ width: "100%", background: T.white, borderRadius: "26px 26px 0 0", padding: "20px 20px 24px", maxHeight: "82%", overflowY: "auto", animation: "floatUp .25s ease" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+          <h2 style={{ ...fr(700, 20, T.royal), margin: 0 }}>Email me when</h2>
+          <button onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Cross s={18} /></button>
+        </div>
+        <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 16px" }}>TOM has no push notifications yet, so email is how you hear about things.</p>
+        <Row label="Someone matches with me" blurb="Both of you said yes" on={match} set={setMatch} />
+        <Row label="I get a message" blurb="At most once an hour per conversation" on={message} set={setMessage} />
+        <Row label="Date plans and check ins" blurb="Proposals, and how did it go" on={date} set={setDate} />
+        <PrimaryBtn onClick={save}>{saving ? "Saving..." : "Save"}</PrimaryBtn>
       </div>
     </div>
   );
 }
 
 function GuestPrompt({ onSignUp, onClose }) {
-  const { t } = useLanguage();
   return (
     <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 24 }}>
       <div style={{ width: "100%", background: T.white, borderRadius: 24, padding: 22, textAlign: "center", animation: "popIn .25s ease" }}>
         <Ic.Hourglass s={34} c={T.royal} />
-        <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>{t('joinToSpendTime')}</h2>
-        <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>{t('guestPromptDesc')}</p>
-        <PrimaryBtn onClick={onSignUp}>{t('createMyProfile')}</PrimaryBtn>
-        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{t('keepLooking')}</button>
+        <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>Join to spend time</h2>
+        <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>These are real people. Create your free profile and they can say yes back.</p>
+        <PrimaryBtn onClick={onSignUp}>Create my profile</PrimaryBtn>
+        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Keep looking</button>
       </div>
     </div>
   );
@@ -1220,7 +1257,6 @@ function GuestPrompt({ onSignUp, onClose }) {
 
 // ================= Full profile view (before or after matching) =================
 function ProfileDetailModal({ profile, myLoc, onClose, onSwipe, onMessage, onLikeBack }) {
-  const { t } = useLanguage();
   const [idx, setIdx] = useState(0);
   if (!profile) return null;
   const gallery = [profile.photo, ...(profile.photos || [])].filter(Boolean);
@@ -1251,8 +1287,8 @@ function ProfileDetailModal({ profile, myLoc, onClose, onSwipe, onMessage, onLik
           </div>
           {profile.rep && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <span style={{ ...fr(700, 12, T.green), background: "#E8F8EF", borderRadius: 999, padding: "4px 10px", display: "inline-flex", alignItems: "center", gap: 4 }}><Ic.Hourglass s={12} c={T.green} />{t('timeWellSpentPct', { pct: profile.rep.pct })}</span>
-              {(profile.rep.traits || []).map((tr) => <Pill key={tr}>{tr}</Pill>)}
+              <span style={{ ...fr(700, 12, T.green), background: "#E8F8EF", borderRadius: 999, padding: "4px 10px", display: "inline-flex", alignItems: "center", gap: 4 }}><Ic.Hourglass s={12} c={T.green} />{profile.rep.pct}% time well spent</span>
+              {(profile.rep.traits || []).map((t) => <Pill key={t}>{t}</Pill>)}
             </div>
           )}
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -1261,10 +1297,10 @@ function ProfileDetailModal({ profile, myLoc, onClose, onSwipe, onMessage, onLik
           </div>
           {shared.length > 0 && (
             <div style={{ background: "#FFF4D6", borderRadius: 14, padding: "10px 12px", ...nu(700, 13, "#8A6400"), display: "flex", alignItems: "center", gap: 6 }}>
-              <Ic.Spark s={14} c={T.sun} />{t('youBothLove', { items: shared.join(", ") })}
+              <Ic.Spark s={14} c={T.sun} />You both love: {shared.join(", ")}
             </div>
           )}
-          <div style={{ background: T.lilac, borderRadius: 14, padding: "11px 13px", ...nu(700, 13.5, T.royal), display: "flex", alignItems: "center", gap: 6 }}><Ic.Bulb s={14} c={T.royal} />{t('freeDateIdea', { idea: profile.idea })}</div>
+          <div style={{ background: T.lilac, borderRadius: 14, padding: "11px 13px", ...nu(700, 13.5, T.royal), display: "flex", alignItems: "center", gap: 6 }}><Ic.Bulb s={14} c={T.royal} />Free date idea: {profile.idea}</div>
           {profile.bio && <p style={{ margin: 0, ...nu(600, 14, T.ink), lineHeight: 1.5 }}>{profile.bio}</p>}
 
           {onSwipe && (
@@ -1273,8 +1309,8 @@ function ProfileDetailModal({ profile, myLoc, onClose, onSwipe, onMessage, onLik
               <button onClick={() => onSwipe("right")} aria-label="Spend time" style={{ width: 64, height: 64, borderRadius: "50%", border: "none", background: T.royal, cursor: "pointer", boxShadow: "0 6px 18px rgba(91,33,182,.35)", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Hourglass s={26} c={T.white} /></button>
             </div>
           )}
-          {onLikeBack && <PrimaryBtn onClick={() => onLikeBack(profile)}>{t('spendTimeWith', { name: profile.name })}</PrimaryBtn>}
-          {onMessage && <PrimaryBtn onClick={() => onMessage(profile)}>{t('messageWithName', { name: profile.name })}</PrimaryBtn>}
+          {onLikeBack && <PrimaryBtn onClick={() => onLikeBack(profile)}>Spend time with {profile.name}</PrimaryBtn>}
+          {onMessage && <PrimaryBtn onClick={() => onMessage(profile)}>Message {profile.name}</PrimaryBtn>}
         </div>
       </div>
     </div>
@@ -1283,7 +1319,6 @@ function ProfileDetailModal({ profile, myLoc, onClose, onSwipe, onMessage, onLik
 
 // ================= Swipe card =================
 function Card({ profile, onSwipe, isTop, myLoc, onReport, onView }) {
-  const { t } = useLanguage();
   const [drag, setDrag] = useState({ x: 0, y: 0, active: false });
   const start = useRef({ x: 0, y: 0 });
   const onDown = (e) => { if (!isTop) return; const p = e.touches ? e.touches[0] : e; start.current = { x: p.clientX, y: p.clientY }; setDrag((d) => ({ ...d, active: true })); };
@@ -1297,10 +1332,10 @@ function Card({ profile, onSwipe, isTop, myLoc, onReport, onView }) {
         <div style={{ flex: "0 0 44%", position: "relative", background: profile.photo ? `url(${profile.photo}) center/cover no-repeat, linear-gradient(135deg, ${profile.grad[0]}, ${profile.grad[1]})` : `linear-gradient(135deg, ${profile.grad[0]}, ${profile.grad[1]})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
           {!profile.photo && <span style={{ ...fr(700, 92, "rgba(255,255,255,.95)"), filter: "drop-shadow(0 6px 12px rgba(0,0,0,.2))", lineHeight: 1 }}>{profile.name[0]}</span>}
           <div style={{ position: "absolute", top: 14, right: 14 }}><ZeroStamp /></div>
-          <div style={{ position: "absolute", top: 18, left: 16, opacity: likeOp, ...fr(700, 24, T.white), border: `3px solid ${T.white}`, borderRadius: 12, padding: "2px 12px", transform: "rotate(-10deg)", background: "rgba(47,191,113,.85)" }}>{t('worthMyTime')}</div>
-          <div style={{ position: "absolute", top: 18, right: 76, opacity: nopeOp, ...fr(700, 24, T.white), border: `3px solid ${T.white}`, borderRadius: 12, padding: "2px 12px", transform: "rotate(10deg)", background: "rgba(42,27,74,.6)" }}>{t('notThisTime')}</div>
+          <div style={{ position: "absolute", top: 18, left: 16, opacity: likeOp, ...fr(700, 24, T.white), border: `3px solid ${T.white}`, borderRadius: 12, padding: "2px 12px", transform: "rotate(-10deg)", background: "rgba(47,191,113,.85)" }}>WORTH MY TIME</div>
+          <div style={{ position: "absolute", top: 18, right: 76, opacity: nopeOp, ...fr(700, 24, T.white), border: `3px solid ${T.white}`, borderRadius: 12, padding: "2px 12px", transform: "rotate(10deg)", background: "rgba(42,27,74,.6)" }}>NOT THIS TIME</div>
           <button onClick={() => onView(profile)} onPointerDown={(e) => e.stopPropagation()} aria-label="View full profile" style={{ position: "absolute", bottom: 14, right: 14, display: "flex", alignItems: "center", gap: 5, border: "none", borderRadius: 999, padding: "7px 12px", background: "rgba(0,0,0,.35)", cursor: "pointer", ...nu(700, 12, T.white) }}>
-            <Ic.Eye s={14} c={T.white} />{t('viewProfile')}
+            <Ic.Eye s={14} c={T.white} />View profile
           </button>
         </div>
         <div style={{ flex: 1, padding: "16px 18px 14px", display: "flex", flexDirection: "column", gap: 10, overflow: "hidden" }}>
@@ -1312,23 +1347,23 @@ function Card({ profile, onSwipe, isTop, myLoc, onReport, onView }) {
           </div>
           {profile.rep && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <span style={{ ...fr(700, 12, T.green), background: "#E8F8EF", borderRadius: 999, padding: "4px 10px", display: "inline-flex", alignItems: "center", gap: 4 }}><Ic.Hourglass s={12} c={T.green} />{t('timeWellSpentPct', { pct: profile.rep.pct })}</span>
-              {(profile.rep.traits || []).slice(0, 2).map((tr) => <Pill key={tr}>{tr}</Pill>)}
+              <span style={{ ...fr(700, 12, T.green), background: "#E8F8EF", borderRadius: 999, padding: "4px 10px", display: "inline-flex", alignItems: "center", gap: 4 }}><Ic.Hourglass s={12} c={T.green} />{profile.rep.pct}% time well spent</span>
+              {(profile.rep.traits || []).slice(0, 2).map((t) => <Pill key={t}>{t}</Pill>)}
             </div>
           )}
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {haversineKm(myLoc, profile.loc) !== null && haversineKm(myLoc, profile.loc) < 3 && (
-              <span style={{ ...nu(800, 11.5, "#177245"), background: "#E8F8EF", padding: "5px 11px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 5 }}><Ic.Bolt s={12} c="#177245" />{t('closeEnoughToday')}</span>
+              <span style={{ ...nu(800, 11.5, "#177245"), background: "#E8F8EF", padding: "5px 11px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 5 }}><Ic.Bolt s={12} c="#177245" />Close enough to meet today</span>
             )}
             <Pill filled>{profile.vibe}</Pill>
-            {profile.tags.map((tg) => <Pill key={tg}>{tg}</Pill>)}
+            {profile.tags.map((t) => <Pill key={t}>{t}</Pill>)}
           </div>
           {sharedLikes(profile).length > 0 && (
             <div style={{ background: "#FFF4D6", borderRadius: 14, padding: "8px 12px", ...nu(700, 12.5, "#8A6400"), display: "flex", alignItems: "center", gap: 6 }}>
-              <Ic.Spark s={14} c={T.sun} />{t('youBothLove', { items: sharedLikes(profile).slice(0, 3).join(", ") })}
+              <Ic.Spark s={14} c={T.sun} />You both love: {sharedLikes(profile).slice(0, 3).join(", ")}
             </div>
           )}
-          <div style={{ background: T.lilac, borderRadius: 14, padding: "10px 12px", ...nu(700, 13.5, T.royal), display: "flex", alignItems: "center", gap: 6 }}><Ic.Bulb s={14} c={T.royal} />{t('freeDateIdea', { idea: profile.idea })}</div>
+          <div style={{ background: T.lilac, borderRadius: 14, padding: "10px 12px", ...nu(700, 13.5, T.royal), display: "flex", alignItems: "center", gap: 6 }}><Ic.Bulb s={14} c={T.royal} />Free date idea: {profile.idea}</div>
           <p style={{ margin: 0, ...nu(600, 13.5, T.ink), lineHeight: 1.45 }}>{profile.bio}</p>
         </div>
       </div>
@@ -1337,22 +1372,21 @@ function Card({ profile, onSwipe, isTop, myLoc, onReport, onView }) {
 }
 
 function Paywall({ onClose }) {
-  const { t } = useLanguage();
   const feats = [
-    [Ic.Infinity, t('featUnlimitedLikes'), t('featUnlimitedLikesSub')],
-    [Ic.Eye, t('featSeeWhoLikes'), t('featSeeWhoLikesSub')],
-    [Ic.Globe, t('featTimeZones'), t('featTimeZonesSub')],
-    [Ic.Moon, t('featOffClock'), t('featOffClockSub')],
-    [Ic.Sliders, t('featAdvancedFilters'), t('featAdvancedFiltersSub')],
-    [Ic.Rise, t('featPrimeTime'), t('featPrimeTimeSub')],
-    [Ic.Compass, t('featDateGuides'), t('featDateGuidesSub')],
+    [Ic.Infinity, "Unlimited likes", "Never run out of time to give"],
+    [Ic.Eye, "See who likes you", "Skip straight to mutual"],
+    [Ic.Globe, "Time Zones", "Match in other cities before you travel"],
+    [Ic.Moon, "Off the Clock", "Browse invisibly"],
+    [Ic.Sliders, "Advanced filters", "Hours, height, date styles"],
+    [Ic.Rise, "Weekly Prime Time", "30 minutes at the top, every week"],
+    [Ic.Compass, "Free Date Guides", "Curated $0 dates in your city"],
   ];
   return (
     <div style={{ position: "absolute", inset: 0, zIndex: 30, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
       <div style={{ background: T.white, borderRadius: "26px 26px 0 0", padding: "22px 20px 20px", width: "100%", maxHeight: "88%", overflowY: "auto", animation: "floatUp .3s ease" }}>
         <div style={{ textAlign: "center", marginBottom: 14 }}>
           <h2 style={{ ...fr(700, 28, T.royal), margin: 0 }}>TOM<span style={{ color: T.sun }}>+</span></h2>
-          <p style={{ ...nu(700, 13.5, T.ink), margin: "4px 0 0" }}>{t('tomPlusTagline')}</p>
+          <p style={{ ...nu(700, 13.5, T.ink), margin: "4px 0 0" }}>More time, better matched.</p>
         </div>
         {feats.map(([icon, title, sub]) => (
           <div key={title} style={{ display: "flex", gap: 12, alignItems: "center", padding: "9px 4px" }}>
@@ -1364,15 +1398,15 @@ function Paywall({ onClose }) {
           </div>
         ))}
         <div style={{ marginTop: 12 }}>
-          <PrimaryBtn onClick={onClose}>{t('getTomPlusPrice')}</PrimaryBtn>
+          <PrimaryBtn onClick={onClose}>Get TOM+ · $9.99/month</PrimaryBtn>
         </div>
         <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: "11px 0", borderRadius: 14, border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", ...nu(800, 12.5, T.royal), display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Ic.Sun s={14} c={T.sun} />{t('goldenHoursPrice')}</button>
-          <button onClick={onClose} style={{ flex: 1, padding: "11px 0", borderRadius: 14, border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", ...nu(800, 12.5, T.royal), display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Ic.Rise s={14} c={T.royal} />{t('primeTimePrice')}</button>
+          <button onClick={onClose} style={{ flex: 1, padding: "11px 0", borderRadius: 14, border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", ...nu(800, 12.5, T.royal), display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Ic.Sun s={14} c={T.sun} />5 Golden Hours · $4.99</button>
+          <button onClick={onClose} style={{ flex: 1, padding: "11px 0", borderRadius: 14, border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", ...nu(800, 12.5, T.royal), display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Ic.Rise s={14} c={T.royal} />Prime Time · $2.99</button>
         </div>
-        <button onClick={onClose} style={{ width: "100%", marginTop: 10, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{t('notNow')}</button>
+        <button onClick={onClose} style={{ width: "100%", marginTop: 10, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Not now</button>
         <p style={{ ...nu(700, 12, T.royal), textAlign: "center", margin: "8px 0 0", background: T.lilac, borderRadius: 12, padding: "10px 12px" }}>
-          {t('neverChargeForDate')}<br />{t('datesAreZeroAlways')}
+          TOM will never charge you to go on a date.<br />Dates are $0. Always.
         </p>
       </div>
     </div>
@@ -1439,21 +1473,19 @@ function LegalModal({ doc, onClose }) {
 }
 
 function DeleteModal({ onCancel, onConfirm }) {
-  const { t } = useLanguage();
   return (
     <div style={{ position: "absolute", inset: 0, zIndex: 40, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: T.white, borderRadius: 26, padding: "24px 22px 20px", width: "100%", maxWidth: 320, textAlign: "center", animation: "popIn .3s ease", boxShadow: "0 20px 50px rgba(0,0,0,.3)" }}>
-        <h2 style={{ ...fr(700, 22, T.ink), margin: "0 0 8px" }}>{t('deleteAccountTitle')}</h2>
-        <p style={{ ...nu(600, 13.5, T.soft), margin: "0 0 16px", lineHeight: 1.55 }}>{t('deleteAccountDesc')}</p>
-        <button onClick={onConfirm} style={{ width: "100%", padding: "14px 0", borderRadius: 16, border: "none", background: T.red, color: T.white, cursor: "pointer", ...fr(600, 16, T.white) }}>{t('deleteMyAccountBtn')}</button>
-        <button onClick={onCancel} style={{ width: "100%", marginTop: 10, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{t('keepMyAccount')}</button>
+        <h2 style={{ ...fr(700, 22, T.ink), margin: "0 0 8px" }}>Delete your account?</h2>
+        <p style={{ ...nu(600, 13.5, T.soft), margin: "0 0 16px", lineHeight: 1.55 }}>This permanently removes your profile, photos, matches, and Golden Hours. Safety reports are kept as described in the Privacy Policy. This cannot be undone.</p>
+        <button onClick={onConfirm} style={{ width: "100%", padding: "14px 0", borderRadius: 16, border: "none", background: T.red, color: T.white, cursor: "pointer", ...fr(600, 16, T.white) }}>Delete my account</button>
+        <button onClick={onCancel} style={{ width: "100%", marginTop: 10, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Keep my account</button>
       </div>
     </div>
   );
 }
 
 function Home({ onPick, onLegal }) {
-  const { t } = useLanguage();
   return (
     <div style={{ flex: 1, background: T.white, display: "flex", flexDirection: "column", padding: "0 28px 26px", textAlign: "center" }}>
       <div style={{ flex: 1.2, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end" }}>
@@ -1461,30 +1493,29 @@ function Home({ onPick, onLegal }) {
           TOM<span style={{ color: T.sun }}>.</span>
         </h1>
         <p style={{ ...nu(800, 15, T.soft), margin: "12px 0 0", letterSpacing: "4px" }}>TIME OVER MONEY</p>
-        <p style={{ ...fr(600, 23, T.royal), margin: "30px 0 0" }}>{t('tagline')}</p>
+        <p style={{ ...fr(600, 23, T.royal), margin: "30px 0 0" }}>Dating without the bill.</p>
       </div>
       <div style={{ flex: 1 }} />
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <button onClick={() => onPick("signup")} style={{ ...fr(600, 18, T.white), background: T.royal, border: "none", borderRadius: 16, padding: "16px 0", cursor: "pointer", boxShadow: "0 6px 16px rgba(91,33,182,.25)" }}>
-          {t('signUp')}
+          Sign Up
         </button>
         <button onClick={() => onPick("signin")} style={{ ...fr(600, 18, T.royal), background: T.white, border: `2px solid ${T.royal}`, borderRadius: 16, padding: "14px 0", cursor: "pointer" }}>
-          {t('logIn')}
+          Log In
         </button>
         <button onClick={() => onPick("guest")} style={{ ...fr(600, 16, T.royal), background: "none", border: "none", cursor: "pointer", padding: "10px 0", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
-          {t('continueAsGuest')} <Ic.Chevron s={13} c={T.royal} />
+          Continue as Guest <Ic.Chevron s={13} c={T.royal} />
         </button>
       </div>
       <p style={{ ...nu(600, 12, T.soft), margin: "14px 0 0", lineHeight: 1.6 }}>
-        {t('agreeContinue')}<br />
-        <button onClick={() => onLegal("terms")} style={{ ...nu(800, 12, T.soft), border: "none", background: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>{t('termsOfService')}</button>&nbsp;&nbsp;{t('and')}&nbsp;&nbsp;<button onClick={() => onLegal("privacy")} style={{ ...nu(800, 12, T.soft), border: "none", background: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>{t('privacyPolicy')}</button>
+        By continuing, you agree to our<br />
+        <button onClick={() => onLegal("terms")} style={{ ...nu(800, 12, T.soft), border: "none", background: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>Terms of Service</button>&nbsp;&nbsp;and&nbsp;&nbsp;<button onClick={() => onLegal("privacy")} style={{ ...nu(800, 12, T.soft), border: "none", background: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>Privacy Policy</button>
       </p>
     </div>
   );
 }
 
 function Welcome({ onDone, initialMode }) {
-  const { t } = useLanguage();
   const [mode, setMode] = useState(initialMode || "signup"); // signup | signin
   const [form, setForm] = useState({ name: "", email: "", password: "", age: "" });
   const [error, setError] = useState(null);
@@ -1508,29 +1539,28 @@ function Welcome({ onDone, initialMode }) {
       <div style={{ textAlign: "center", margin: "16px 0 20px" }}>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}><ZeroStamp size={70} /></div>
         <h2 style={{ ...fr(700, 26, T.ink), margin: 0 }}>
-          {mode === "signup" ? t('welcomeHeadlineSignup') : t('welcomeHeadlineSignin')}
+          {mode === "signup" ? "Dating costs $200 to $500 now." : "Welcome back"}
         </h2>
         <p style={{ ...nu(700, 15, T.royal), margin: "6px 0 0" }}>
-          {mode === "signup" ? t('welcomeSubSignup') : t('welcomeSubSignin')}
+          {mode === "signup" ? "On TOM it costs nothing. Don't spend money. Spend time." : "Your time is waiting."}
         </p>
       </div>
-      {mode === "signup" && <Field label={t('yourName')}><input style={inputStyle} value={form.name} onChange={set("name")} placeholder={t('yourNamePlaceholder')} /></Field>}
-      <Field label={t('email')}><input style={inputStyle} type="email" value={form.email} onChange={set("email")} placeholder={t('emailPlaceholder')} /></Field>
-      <Field label={t('password')}><input style={inputStyle} type="password" value={form.password} onChange={set("password")} placeholder={mode === "signup" ? t('passwordPlaceholderSignup') : t('passwordPlaceholderSignin')} /></Field>
-      {mode === "signup" && <Field label={t('yourAge')}><input style={inputStyle} type="number" value={form.age} onChange={set("age")} placeholder={t('agePlaceholder')} /></Field>}
+      {mode === "signup" && <Field label="Your name"><input style={inputStyle} value={form.name} onChange={set("name")} placeholder="What should we call you?" /></Field>}
+      <Field label="Email"><input style={inputStyle} type="email" value={form.email} onChange={set("email")} placeholder="you@example.com" /></Field>
+      <Field label="Password"><input style={inputStyle} type="password" value={form.password} onChange={set("password")} placeholder={mode === "signup" ? "8+ characters" : "Your password"} /></Field>
+      {mode === "signup" && <Field label="Age"><input style={inputStyle} type="number" value={form.age} onChange={set("age")} placeholder="18+" /></Field>}
       {error && <p style={{ ...nu(700, 13, T.red), margin: "0 0 12px" }}>{error}</p>}
-      <PrimaryBtn disabled={busy} onClick={submit}>{busy ? t('pleaseWait') : (mode === "signup" ? t('createMyAccount') : t('signIn'))}</PrimaryBtn>
+      <PrimaryBtn disabled={busy} onClick={submit}>{busy ? "Please wait..." : (mode === "signup" ? "Create my account" : "Sign in")}</PrimaryBtn>
       <button onClick={() => { setMode(mode === "signup" ? "signin" : "signup"); setError(null); }}
         style={{ width: "100%", marginTop: 12, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13.5, T.royal) }}>
-        {mode === "signup" ? t('alreadyOnTom') : t('newHereCreate')}
+        {mode === "signup" ? "Already on TOM? Sign in" : "New here? Create an account"}
       </button>
-      <p style={{ ...nu(600, 11.5, T.soft), textAlign: "center", marginTop: 8 }}>{t('publicPlacesFooter')}</p>
+      <p style={{ ...nu(600, 11.5, T.soft), textAlign: "center", marginTop: 8 }}>Public places. Equal basis. $0 always.</p>
     </div>
   );
 }
 
 function Builder({ onDone, editMode }) {
-  const { t } = useLanguage();
   const [step, setStep] = useState(0);
   const [, force] = useState(0);
   const rerender = () => force((n) => n + 1);
@@ -1561,7 +1591,7 @@ function Builder({ onDone, editMode }) {
       const err = api.validatePhoto(file);
       if (err) { setPhotoError(err); continue; }
       if (!asProfile && u.photos.length >= MAX_PHOTOS) {
-        setPhotoError(t('galleryFull', { max: MAX_PHOTOS }));
+        setPhotoError(`Gallery is full (max ${MAX_PHOTOS} photos). Delete one first.`);
         break;
       }
       const reader = new FileReader();
@@ -1592,20 +1622,20 @@ function Builder({ onDone, editMode }) {
   const steps = [
     // ---- Step 1: photos ----
     <div key="p">
-      <h3 style={{ ...fr(600, 21, T.ink), margin: "0 0 4px" }}>{t('showYourFace')}</h3>
-      <p style={{ ...nu(600, 13.5, T.soft), margin: "0 0 16px" }}>{t('photoFormats')}</p>
-      <Field label={t('profilePicRequired')}>
+      <h3 style={{ ...fr(600, 21, T.ink), margin: "0 0 4px" }}>Show your face</h3>
+      <p style={{ ...nu(600, 13.5, T.soft), margin: "0 0 16px" }}>JPEG, PNG, WebP, or HEIC. Up to 5 MB each.</p>
+      <Field label="Profile picture (required)">
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           {u.profilePhoto ? <PhotoThumb src={u.profilePhoto} size={84} round /> : (
             <div style={{ width: 84, height: 84, borderRadius: "50%", background: T.lilac, display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Person s={34} c={T.royal} /></div>
           )}
           <label style={{ ...nu(800, 13, T.royal), background: T.lilac, borderRadius: 999, padding: "10px 16px", cursor: "pointer" }}>
-            {u.profilePhoto ? t('changePhoto') : t('uploadPhotoBtn')}
+            {u.profilePhoto ? "Change photo" : "Upload photo"}
             <input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" style={{ display: "none" }} onChange={(e) => handleFiles(e.target.files, true)} />
           </label>
         </div>
       </Field>
-      <Field label={t('galleryLabel', { max: MAX_PHOTOS, count: u.photos.length })}>
+      <Field label={`Gallery (up to ${MAX_PHOTOS} more) — ${u.photos.length}/${MAX_PHOTOS}`}>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           {u.photos.map((src, i) => (
             <PhotoThumb key={i} src={src} onRemove={() => { u.photos = u.photos.filter((_, j) => j !== i); rerender(); }} />
@@ -1623,8 +1653,8 @@ function Builder({ onDone, editMode }) {
 
     // ---- Step 2: about you ----
     <div key="a">
-      <h3 style={{ ...fr(600, 21, T.ink), margin: "0 0 16px" }}>{t('aboutYou')}</h3>
-      <Field label={t('height')}>
+      <h3 style={{ ...fr(600, 21, T.ink), margin: "0 0 16px" }}>About you</h3>
+      <Field label="Height">
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ display: "flex", borderRadius: 999, background: T.lilac, padding: 3 }}>
             {["cm", "ft"].map((unit) => (
@@ -1644,26 +1674,26 @@ function Builder({ onDone, editMode }) {
         </div>
         {heightUnit === "ft" && u.heightCm && <div style={{ ...nu(700, 12, T.soft), marginTop: 6 }}>= {u.heightCm} cm</div>}
       </Field>
-      <Field label={t('cityLabel')}><input style={inputStyle} placeholder={t('cityPlaceholder')} value={u.city} onChange={(e) => { u.city = e.target.value; rerender(); }} /></Field>
-      <Field label={t('iAmA')}><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{GENDERS.map(([v, l]) => <Chip key={v} label={l} active={u.gender === v} onClick={() => { u.gender = v; rerender(); }} />)}</div></Field>
-      <Field label={t('orientationLabel')}><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{ORIENTATIONS.map(([v, l]) => <Chip key={v} label={l} active={u.orientation === v} onClick={() => { u.orientation = v; rerender(); }} />)}</div></Field>
-      <Field label={t('showMe')}><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{INTERESTED_IN.map(([v, l]) => <Chip key={v} label={l} active={u.interestedIn === v} onClick={() => { u.interestedIn = v; rerender(); }} />)}</div></Field>
-      <Field label={t('myHours')}><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{CHRONO.map(([v, l]) => <Chip key={v} label={l} active={u.chronotype === v} onClick={() => { u.chronotype = v; rerender(); }} />)}</div></Field>
+      <Field label="City"><input style={inputStyle} placeholder="Where you date" value={u.city} onChange={(e) => { u.city = e.target.value; rerender(); }} /></Field>
+      <Field label="I am a"><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{GENDERS.map(([v, l]) => <Chip key={v} label={l} active={u.gender === v} onClick={() => { u.gender = v; rerender(); }} />)}</div></Field>
+      <Field label="Orientation"><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{ORIENTATIONS.map(([v, l]) => <Chip key={v} label={l} active={u.orientation === v} onClick={() => { u.orientation = v; rerender(); }} />)}</div></Field>
+      <Field label="Show me"><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{INTERESTED_IN.map(([v, l]) => <Chip key={v} label={l} active={u.interestedIn === v} onClick={() => { u.interestedIn = v; rerender(); }} />)}</div></Field>
+      <Field label="My hours"><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{CHRONO.map(([v, l]) => <Chip key={v} label={l} active={u.chronotype === v} onClick={() => { u.chronotype = v; rerender(); }} />)}</div></Field>
     </div>,
 
     // ---- Step 3: what you love ----
     <div key="t">
-      <h3 style={{ ...fr(600, 21, T.ink), margin: "0 0 16px" }}>{t('whatDoYouLove')}</h3>
-      <Field label={t('freeDatesUpFor')}><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{ACTIVITY_POOL.map((a) => <Chip key={a} label={a} active={u.thingsILikeToDo.includes(a)} onClick={() => toggle("thingsILikeToDo", a)} />)}</div></Field>
-      <Field label={t('interests')}><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{INTEREST_POOL.map((a) => <Chip key={a} label={a} active={u.interests.includes(a)} onClick={() => toggle("interests", a)} />)}</div></Field>
-      <Field label={t('hobbiesLabel')}><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{HOBBY_POOL.map((a) => <Chip key={a} label={a} active={u.hobbies.includes(a)} onClick={() => toggle("hobbies", a)} />)}</div></Field>
+      <h3 style={{ ...fr(600, 21, T.ink), margin: "0 0 16px" }}>What do you love doing?</h3>
+      <Field label="Free dates I'm up for (pick at least 1)"><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{ACTIVITY_POOL.map((a) => <Chip key={a} label={a} active={u.thingsILikeToDo.includes(a)} onClick={() => toggle("thingsILikeToDo", a)} />)}</div></Field>
+      <Field label="Interests"><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{INTEREST_POOL.map((a) => <Chip key={a} label={a} active={u.interests.includes(a)} onClick={() => toggle("interests", a)} />)}</div></Field>
+      <Field label="Hobbies"><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{HOBBY_POOL.map((a) => <Chip key={a} label={a} active={u.hobbies.includes(a)} onClick={() => toggle("hobbies", a)} />)}</div></Field>
     </div>,
 
     // ---- Step 4: bio ----
     <div key="b">
-      <h3 style={{ ...fr(600, 21, T.ink), margin: "0 0 4px" }}>{t('lastOneBio')}</h3>
-      <p style={{ ...nu(600, 13.5, T.soft), margin: "0 0 14px" }}>{t('bioPrompt')}</p>
-      <textarea rows={5} maxLength={600} placeholder={t('bioPlaceholder')} value={u.bio} onChange={(e) => { u.bio = e.target.value; rerender(); }} style={{ ...inputStyle, resize: "none", lineHeight: 1.5 }} />
+      <h3 style={{ ...fr(600, 21, T.ink), margin: "0 0 4px" }}>Last one: your bio</h3>
+      <p style={{ ...nu(600, 13.5, T.soft), margin: "0 0 14px" }}>What should someone know before they spend time with you?</p>
+      <textarea rows={5} maxLength={600} placeholder="I rate every bench I sit on..." value={u.bio} onChange={(e) => { u.bio = e.target.value; rerender(); }} style={{ ...inputStyle, resize: "none", lineHeight: 1.5 }} />
       <div style={{ ...nu(700, 11.5, T.soft), textAlign: "right", marginTop: 4 }}>{u.bio.length}/600</div>
     </div>,
   ];
@@ -1676,7 +1706,7 @@ function Builder({ onDone, editMode }) {
       <div style={{ flex: 1, overflowY: "auto", padding: "0 22px" }}>{steps[step]}</div>
       <div style={{ display: "flex", gap: 10, padding: "14px 22px 20px" }}>
         {step > 0 && (
-          <button onClick={() => setStep(step - 1)} style={{ padding: "14px 18px", borderRadius: 16, border: `2px solid ${T.lilacDeep}`, background: T.white, ...fr(600, 15, T.royal), cursor: "pointer" }}>{t('back')}</button>
+          <button onClick={() => setStep(step - 1)} style={{ padding: "14px 18px", borderRadius: 16, border: `2px solid ${T.lilacDeep}`, background: T.white, ...fr(600, 15, T.royal), cursor: "pointer" }}>Back</button>
         )}
         <div style={{ flex: 1 }}>
           <PrimaryBtn disabled={!canNext || saving} onClick={async () => {
@@ -1687,7 +1717,7 @@ function Builder({ onDone, editMode }) {
             if (r.error) { setPhotoError(r.error); return; }
             onDone();
           }}>
-            {saving ? t('saving') : (step < 3 ? t('continueBtn') : (editMode ? t('saveChanges') : t('startSpendingTime')))}
+            {saving ? "Saving..." : (step < 3 ? "Continue" : (editMode ? "Save changes" : "Start spending time"))}
           </PrimaryBtn>
         </div>
       </div>
@@ -1696,17 +1726,16 @@ function Builder({ onDone, editMode }) {
 }
 
 function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlus, onUpgrade, onReport, locDenied, loading }) {
-  const { t } = useLanguage();
   const [viewing, setViewing] = useState(null);
   const outOfLikes = !isPlus && likesLeft !== undefined && likesLeft <= 0;
   if (outOfLikes) {
     return (
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 32, textAlign: "center" }}>
         <Ic.Hourglass s={54} c={T.royal} />
-        <h2 style={{ ...fr(600, 22, T.ink), margin: 0 }}>{t('outOfLikesTitle')}</h2>
-        <p style={{ ...nu(600, 14, T.soft), margin: 0 }}>{t('outOfLikesSub')}</p>
+        <h2 style={{ ...fr(600, 22, T.ink), margin: 0 }}>You're out of likes for today</h2>
+        <p style={{ ...nu(600, 14, T.soft), margin: 0 }}>Your likes reset tomorrow. Passing is always unlimited.</p>
         <div style={{ width: "100%", maxWidth: 240, marginTop: 6 }}>
-          <PrimaryBtn onClick={onUpgrade}>{t('getUnlimited')}</PrimaryBtn>
+          <PrimaryBtn onClick={onUpgrade}>Get unlimited with TOM+</PrimaryBtn>
         </div>
       </div>
     );
@@ -1715,7 +1744,7 @@ function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlu
     return (
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: 32, textAlign: "center" }}>
         <Ic.Hourglass s={44} c={T.lilacDeep} />
-        <p style={{ ...nu(700, 14, T.soft), margin: 0 }}>{t('findingPeopleNear')}</p>
+        <p style={{ ...nu(700, 14, T.soft), margin: 0 }}>Finding people near you</p>
       </div>
     );
   }
@@ -1723,18 +1752,18 @@ function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlu
     return (
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: 32, textAlign: "center" }}>
         <Ic.Hourglass s={54} c={T.royal} />
-        <h2 style={{ ...fr(600, 22, T.ink), margin: 0 }}>{t('seenEveryoneNearby')}</h2>
-        <p style={{ ...nu(600, 14, T.soft), margin: 0 }}>{t('newPeopleJoin')}</p>
+        <h2 style={{ ...fr(600, 22, T.ink), margin: 0 }}>You've seen everyone nearby</h2>
+        <p style={{ ...nu(600, 14, T.soft), margin: 0 }}>New people join TOM every day. Check back soon.</p>
       </div>
     );
   }
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "6px 16px 0" }}>
-      <div style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".6px", paddingBottom: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}><Ic.Pin s={11} c={T.soft} />{t('closestLabel')} · <Ic.Spark s={11} c={T.sun} />{t('mostInCommon')}</div>
+      <div style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".6px", paddingBottom: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}><Ic.Pin s={11} c={T.soft} />CLOSEST · <Ic.Spark s={11} c={T.sun} />MOST IN COMMON FIRST</div>
       {locDenied && (
         <div style={{ background: "#FFF4D6", borderRadius: 14, padding: "9px 12px", marginBottom: 8, display: "flex", alignItems: "center", gap: 7, ...nu(700, 12, "#8A6400") }}>
           <Ic.Pin s={13} c="#8A6400" />
-          {t('locationOffWarning')}
+          Location is off, so distances are hidden. Turn it on in your browser or phone settings to see who's nearby.
         </div>
       )}
       <div style={{ position: "relative", flex: 1, marginBottom: 12 }}>
@@ -1751,18 +1780,18 @@ function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlu
       <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-start", gap: 22, padding: "4px 0 12px" }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
           <button onClick={() => onSwipe("left")} aria-label="Pass" style={{ width: 56, height: 56, borderRadius: "50%", border: "none", background: T.white, cursor: "pointer", boxShadow: "0 6px 16px rgba(42,27,74,.18)", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Cross s={20} c={T.ink} /></button>
-          <span style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".4px" }}>{t('passLabel')}</span>
+          <span style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".4px" }}>PASS</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
           <button onClick={onGolden} aria-label="Golden Hour" style={{ position: "relative", width: 50, height: 50, borderRadius: "50%", border: "none", background: T.sun, cursor: "pointer", boxShadow: "0 6px 16px rgba(255,197,61,.5)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Ic.Sun s={24} c={T.white} />
             <span style={{ position: "absolute", top: -4, right: -4, background: T.royal, color: T.white, borderRadius: 999, minWidth: 18, height: 18, ...nu(800, 11, T.white), display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{goldenLeft}</span>
           </button>
-          <span style={{ ...nu(800, 10.5, "#B8860B"), letterSpacing: ".4px" }}>{t('goldenHourLabel')}</span>
+          <span style={{ ...nu(800, 10.5, "#B8860B"), letterSpacing: ".4px" }}>GOLDEN HOUR</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
           <button onClick={() => onSwipe("right")} aria-label="Spend time" style={{ width: 64, height: 64, borderRadius: "50%", border: "none", background: T.royal, cursor: "pointer", boxShadow: "0 6px 18px rgba(91,33,182,.4)", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Hourglass s={26} c={T.white} /></button>
-          <span style={{ ...nu(800, 10.5, T.royal), letterSpacing: ".4px" }}>{t('spendTimeLabel')}</span>
+          <span style={{ ...nu(800, 10.5, T.royal), letterSpacing: ".4px" }}>SPEND TIME</span>
         </div>
       </div>
     </div>
@@ -1770,7 +1799,6 @@ function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlu
 }
 
 function MatchModal({ profile, onClose, myLoc, onMessage }) {
-  const { t } = useLanguage();
   const [idea, setIdea] = useState(null);
   const [sending, setSending] = useState(false);
   const go = async () => {
@@ -1785,67 +1813,65 @@ function MatchModal({ profile, onClose, myLoc, onMessage }) {
     <div style={{ position: "absolute", inset: 0, zIndex: 20, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: T.white, borderRadius: 26, padding: "26px 22px 22px", width: "100%", maxWidth: 320, textAlign: "center", animation: "popIn .35s ease", boxShadow: "0 20px 50px rgba(0,0,0,.3)" }}>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}><ZeroStamp size={64} /></div>
-        <h2 style={{ ...fr(700, 27, T.royal), margin: "0 0 4px" }}>{t('timeWellMatched')}</h2>
-        <p style={{ ...nu(700, 14, T.ink), margin: "0 0 6px" }}>{t('bothChoseTime', { name: profile.name })}</p>
-        <p style={{ ...nu(800, 13, T.royal), margin: "0 0 14px", background: T.lilac, borderRadius: 999, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 5 }}><Ic.Pin s={12} c={T.royal} />{haversineKm(myLoc, profile.loc) === null ? t('distanceUnavailable') : t('apartDistance', { distance: distLabel(myLoc, profile) })}</p>
-        <p style={{ ...nu(800, 12, T.soft), margin: "0 0 8px", letterSpacing: ".5px", textTransform: "uppercase" }}>{t('suggestFreeDate')}</p>
+        <h2 style={{ ...fr(700, 27, T.royal), margin: "0 0 4px" }}>Time well matched!</h2>
+        <p style={{ ...nu(700, 14, T.ink), margin: "0 0 6px" }}>You and {profile.name} both chose time over money.</p>
+        <p style={{ ...nu(800, 13, T.royal), margin: "0 0 14px", background: T.lilac, borderRadius: 999, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 5 }}><Ic.Pin s={12} c={T.royal} />{haversineKm(myLoc, profile.loc) === null ? "Distance unavailable" : `You're ${distLabel(myLoc, profile)} apart`}</p>
+        <p style={{ ...nu(800, 12, T.soft), margin: "0 0 8px", letterSpacing: ".5px", textTransform: "uppercase" }}>Suggest a free first date (public places only)</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18, maxHeight: 190, overflowY: "auto" }}>
           {DATE_IDEAS.map((s) => (
             <button key={s} onClick={() => setIdea(s)} style={{ ...nu(700, 13.5, idea === s ? T.royal : T.ink), padding: "11px 12px", borderRadius: 14, cursor: "pointer", border: `2px solid ${idea === s ? T.royal : T.lilacDeep}`, background: idea === s ? T.lilac : T.white, textAlign: "left" }}>{s}</button>
           ))}
         </div>
-        <PrimaryBtn disabled={sending} onClick={go}>{sending ? t('sendingDots') : (idea ? t('sendThisIdea') : t('keepSwiping'))}</PrimaryBtn>
+        <PrimaryBtn disabled={sending} onClick={go}>{sending ? "Sending..." : (idea ? "Send this idea" : "Keep swiping")}</PrimaryBtn>
       </div>
     </div>
   );
 }
 
 function GoldenIntro({ profileName, goldenLeft, onSend, onClose }) {
-  const { t } = useLanguage();
   return (
     <div style={{ position: "absolute", inset: 0, zIndex: 25, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: T.white, borderRadius: 26, padding: "26px 22px 22px", width: "100%", maxWidth: 320, textAlign: "center", animation: "popIn .35s ease", boxShadow: "0 20px 50px rgba(0,0,0,.3)" }}>
         <div style={{ width: 72, height: 72, borderRadius: "50%", background: T.sun, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", boxShadow: "0 8px 22px rgba(255,197,61,.5)" }}>
           <Ic.Sun s={38} c={T.white} />
         </div>
-        <h2 style={{ ...fr(700, 26, T.royal), margin: "0 0 8px" }}>{t('goldenHourTitle')}</h2>
+        <h2 style={{ ...fr(700, 26, T.royal), margin: "0 0 8px" }}>Golden Hour</h2>
         <p style={{ ...nu(700, 14.5, T.ink), margin: "0 0 6px", lineHeight: 1.5 }}>
-          {t('goldenHourDesc', { name: profileName })}
+          Instantly tell {profileName} they're worth your best hour. They see it before anyone else.
         </p>
-        <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 18px" }}>{goldenLeft > 0 ? t('goldenLeftToday', { n: goldenLeft }) : t('goldenOutToday')}</p>
-        <PrimaryBtn onClick={onSend} disabled={goldenLeft <= 0}>{t('sendGoldenHour')}</PrimaryBtn>
-        <button onClick={onClose} style={{ width: "100%", marginTop: 10, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{t('notNow')}</button>
+        <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 18px" }}>{goldenLeft > 0 ? `You have ${goldenLeft} left today.` : "You're out for today."}</p>
+        <PrimaryBtn onClick={onSend} disabled={goldenLeft <= 0}>Send Golden Hour</PrimaryBtn>
+        <button onClick={onClose} style={{ width: "100%", marginTop: 10, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Not now</button>
       </div>
     </div>
   );
 }
 
 function ReportModal({ profile, onCancel, onConfirm }) {
-  const { t } = useLanguage();
   const [reason, setReason] = useState(null);
   const [done, setDone] = useState(false);
-  const REASONS = [t('reportReasonFake'), t('reportReasonInappropriate'), t('reportReasonHarassment'), t('reportReasonUnder18'), t('reportReasonMoney'), t('reportReasonOther')];
+  const REASONS = ["Fake profile or photos", "Inappropriate content", "Harassment or threats", "Under 18", "Asked for money", "Something else"];
   return (
     <div style={{ position: "absolute", inset: 0, zIndex: 26, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: T.white, borderRadius: 26, padding: "24px 22px 20px", width: "100%", maxWidth: 320, animation: "popIn .3s ease", boxShadow: "0 20px 50px rgba(0,0,0,.3)" }}>
         {done ? (
           <div style={{ textAlign: "center" }}>
             <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}><Ic.ShieldCheck s={44} c={T.green} /></div>
-            <h2 style={{ ...fr(700, 22, T.ink), margin: "0 0 8px" }}>{t('thanksForKeepingSafe')}</h2>
-            <p style={{ ...nu(600, 13.5, T.soft), margin: "0 0 16px", lineHeight: 1.5 }}>{t('blockedAndRemoved', { name: profile.name })}</p>
-            <PrimaryBtn onClick={() => onConfirm(reason)}>{t('doneLabel')}</PrimaryBtn>
+            <h2 style={{ ...fr(700, 22, T.ink), margin: "0 0 8px" }}>Thanks for keeping TOM safe</h2>
+            <p style={{ ...nu(600, 13.5, T.soft), margin: "0 0 16px", lineHeight: 1.5 }}>{profile.name} has been blocked and removed. Our safety team will review this report. They won't know it came from you.</p>
+            <PrimaryBtn onClick={() => onConfirm(reason)}>Done</PrimaryBtn>
           </div>
         ) : (
           <>
-            <h2 style={{ ...fr(700, 22, T.ink), margin: "0 0 4px", textAlign: "center" }}>{t('reportName', { name: profile.name })}</h2>
-            <p style={{ ...nu(600, 12.5, T.soft), margin: "0 0 14px", textAlign: "center" }}>{t('reportsAnonymous')}</p>
+            <h2 style={{ ...fr(700, 22, T.ink), margin: "0 0 4px", textAlign: "center" }}>Report {profile.name}</h2>
+            <p style={{ ...nu(600, 12.5, T.soft), margin: "0 0 14px", textAlign: "center" }}>Reports are anonymous. Reporting also blocks them.</p>
             <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 16 }}>
               {REASONS.map((r) => (
                 <button key={r} onClick={() => setReason(r)} style={{ ...nu(700, 13.5, reason === r ? T.royal : T.ink), padding: "11px 12px", borderRadius: 14, cursor: "pointer", border: `2px solid ${reason === r ? T.royal : T.lilacDeep}`, background: reason === r ? T.lilac : T.white, textAlign: "left" }}>{r}</button>
               ))}
             </div>
-            <PrimaryBtn disabled={!reason} onClick={() => setDone(true)}>{t('reportAndBlock')}</PrimaryBtn>
-            <button onClick={onCancel} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{t('cancel')}</button>
+            <PrimaryBtn disabled={!reason} onClick={() => setDone(true)}>Report and block</PrimaryBtn>
+            <button onClick={onCancel} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Cancel</button>
           </>
         )}
       </div>
@@ -1854,7 +1880,6 @@ function ReportModal({ profile, onCancel, onConfirm }) {
 }
 
 function VerifyModal({ onClose, onSubmit }) {
-  const { t } = useLanguage();
   const [selfie, setSelfie] = useState(null);
   const takeSelfie = (e) => {
     const file = e.target.files[0];
@@ -1867,27 +1892,26 @@ function VerifyModal({ onClose, onSubmit }) {
     <div style={{ position: "absolute", inset: 0, zIndex: 26, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: T.white, borderRadius: 26, padding: "24px 22px 20px", width: "100%", maxWidth: 320, textAlign: "center", animation: "popIn .3s ease", boxShadow: "0 20px 50px rgba(0,0,0,.3)" }}>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}><Ic.ShieldCheck s={48} c={T.green} /></div>
-        <h2 style={{ ...fr(700, 23, T.ink), margin: "0 0 8px" }}>{t('verifyTitle')}</h2>
-        <p style={{ ...nu(600, 13.5, T.soft), margin: "0 0 4px", lineHeight: 1.5 }}>{t('verifyDesc1')}</p>
-        <p style={{ ...nu(700, 12, T.soft), margin: "0 0 16px" }}>{t('verifyDesc2')}</p>
+        <h2 style={{ ...fr(700, 23, T.ink), margin: "0 0 8px" }}>Verify it's really you</h2>
+        <p style={{ ...nu(600, 13.5, T.soft), margin: "0 0 4px", lineHeight: 1.5 }}>Take a selfie with a thumbs up next to your face. Our safety team compares it with your profile photos.</p>
+        <p style={{ ...nu(700, 12, T.soft), margin: "0 0 16px" }}>The selfie is never shown on your profile.</p>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
           {selfie ? <PhotoThumb src={selfie} size={92} round /> : (
             <label style={{ width: 92, height: 92, borderRadius: "50%", border: `2px dashed ${T.lilacDeep}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, cursor: "pointer", background: T.lilac }}>
               <Ic.Camera s={26} c={T.royal} />
-              <span style={{ ...nu(800, 10.5, T.royal) }}>{t('takeSelfie')}</span>
+              <span style={{ ...nu(800, 10.5, T.royal) }}>Take selfie</span>
               <input type="file" accept="image/*" capture="user" style={{ display: "none" }} onChange={takeSelfie} />
             </label>
           )}
         </div>
-        <PrimaryBtn disabled={!selfie} onClick={onSubmit}>{t('submitForReview')}</PrimaryBtn>
-        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{t('notNow')}</button>
+        <PrimaryBtn disabled={!selfie} onClick={onSubmit}>Submit for review</PrimaryBtn>
+        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Not now</button>
       </div>
     </div>
   );
 }
 
 function Chat({ profile, onBack, onDateCompleted, myLoc }) {
-  const { t } = useLanguage();
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(true);
@@ -1989,24 +2013,24 @@ function Chat({ profile, onBack, onDateCompleted, myLoc }) {
         </button>
         {!plan && profile.matchId && (
           <button onClick={() => { setPlanDraft(profile.idea || ""); setPlanning(true); }} style={{ border: "none", borderRadius: 999, padding: "7px 12px", background: T.lilac, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, ...fr(600, 12, T.royal) }}>
-          <Ic.Hourglass s={13} c={T.royal} />{t('planADate')}
+          <Ic.Hourglass s={13} c={T.royal} />Plan a date
           </button>
         )}
       </div>
       <PlanBanner plan={plan} myId={myId} profileName={profile.name} onConfirm={confirmPlan} onComplete={completePlan} />
       {planning && (
         <div style={{ margin: "10px 16px 0", background: T.white, border: `2px solid ${T.lilacDeep}`, borderRadius: 16, padding: "11px 13px" }}>
-          <div style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 6 }}>{t('proposeAZeroDate')}</div>
+          <div style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 6 }}>Propose a $0 date</div>
           <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-            <input value={planDraft} onChange={(e) => setPlanDraft(e.target.value)} placeholder={t('whatsThePlan')} style={{ ...inputStyle, flex: 1 }} />
+            <input value={planDraft} onChange={(e) => setPlanDraft(e.target.value)} placeholder="What's the plan?" style={{ ...inputStyle, flex: 1 }} />
             <button onClick={() => setIdeaPicker((v) => !v)} style={{ border: `2px solid ${ideaPicker ? T.royal : T.lilacDeep}`, borderRadius: 14, padding: "0 12px", background: ideaPicker ? T.lilac : T.white, cursor: "pointer", whiteSpace: "nowrap", ...fr(600, 12.5, T.royal) }}>
-              {t('ideasBtn')}
+              Ideas
             </button>
           </div>
           {ideaPicker && (
             <div style={{ border: `2px solid ${T.lilacDeep}`, borderRadius: 14, padding: 10, marginBottom: 8, background: "#FBFAFE" }}>
               <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 8 }}>
-                <button onClick={() => setIdeaCat("all")} style={{ whiteSpace: "nowrap", padding: "5px 10px", borderRadius: 999, border: `2px solid ${ideaCat === "all" ? T.royal : T.lilacDeep}`, background: ideaCat === "all" ? T.royal : T.white, cursor: "pointer", ...nu(700, 11.5, ideaCat === "all" ? T.white : T.royal) }}>{t('allIdeasCount', { count: ALL_IDEAS.length })}</button>
+                <button onClick={() => setIdeaCat("all")} style={{ whiteSpace: "nowrap", padding: "5px 10px", borderRadius: 999, border: `2px solid ${ideaCat === "all" ? T.royal : T.lilacDeep}`, background: ideaCat === "all" ? T.royal : T.white, cursor: "pointer", ...nu(700, 11.5, ideaCat === "all" ? T.white : T.royal) }}>All {ALL_IDEAS.length}</button>
                 {MISSIONS.map((m) => {
                   const on = ideaCat === m.id;
                   const MIcon = Ic[m.icon];
@@ -2030,22 +2054,22 @@ function Chat({ profile, onBack, onDateCompleted, myLoc }) {
             <input type="date" value={planDate} onChange={(e) => setPlanDate(e.target.value)} style={{ ...inputStyle, flex: 1.3 }} />
             <input type="time" value={planTime} onChange={(e) => setPlanTime(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
           </div>
-          <div style={{ ...nu(700, 11, T.soft), marginBottom: 8 }}>{t('addingTimeHint')}</div>
+          <div style={{ ...nu(700, 11, T.soft), marginBottom: 8 }}>Adding a time lets TOM check in afterwards. You can skip it.</div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={propose} style={{ flex: 1, border: "none", borderRadius: 999, padding: "9px 0", background: T.royal, cursor: "pointer", ...fr(600, 13, T.white) }}>{t('propose')}</button>
-            <button onClick={() => setPlanning(false)} style={{ flex: 1, border: `2px solid ${T.lilacDeep}`, borderRadius: 999, padding: "9px 0", background: T.white, cursor: "pointer", ...fr(600, 13, T.soft) }}>{t('cancel')}</button>
+            <button onClick={propose} style={{ flex: 1, border: "none", borderRadius: 999, padding: "9px 0", background: T.royal, cursor: "pointer", ...fr(600, 13, T.white) }}>Propose</button>
+            <button onClick={() => setPlanning(false)} style={{ flex: 1, border: `2px solid ${T.lilacDeep}`, borderRadius: 999, padding: "9px 0", background: T.white, cursor: "pointer", ...fr(600, 13, T.soft) }}>Cancel</button>
           </div>
         </div>
       )}
 
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
         {loading ? (
-          <p style={{ ...nu(600, 13, T.soft), textAlign: "center" }}>{t('loadingDots')}</p>
+          <p style={{ ...nu(600, 13, T.soft), textAlign: "center" }}>Loading...</p>
         ) : messages.length === 0 ? (
           <div style={{ textAlign: "center", paddingTop: 40 }}>
             <Ic.Hourglass s={40} c={T.royal} />
-            <p style={{ ...fr(600, 16, T.ink), margin: "10px 0 4px" }}>{t('youMatchedWith', { name: profile.name })}</p>
-            <p style={{ ...nu(600, 13, T.soft), margin: 0 }}>{t('sayHiPlan')}</p>
+            <p style={{ ...fr(600, 16, T.ink), margin: "10px 0 4px" }}>You matched with {profile.name}</p>
+            <p style={{ ...nu(600, 13, T.soft), margin: 0 }}>Say hi and plan something free.</p>
           </div>
         ) : messages.map((m) => {
           const mine = m.sender_id === myId;
@@ -2064,11 +2088,11 @@ function Chat({ profile, onBack, onDateCompleted, myLoc }) {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") send(); }}
-          placeholder={t('messagePlaceholder')}
+          placeholder="Message"
           style={{ flex: 1, padding: "11px 14px", borderRadius: 999, border: `2px solid ${T.lilacDeep}`, outline: "none", ...nu(600, 14, T.ink) }}
         />
         <button onClick={send} disabled={sending || !draft.trim()} style={{ padding: "0 18px", borderRadius: 999, border: "none", cursor: draft.trim() ? "pointer" : "default", background: draft.trim() ? T.royal : T.lilacDeep, ...nu(800, 13.5, T.white) }}>
-          {sending ? "..." : t('sendBtn')}
+          {sending ? "..." : "Send"}
         </button>
       </div>
       {viewing && (
@@ -2083,7 +2107,6 @@ function Chat({ profile, onBack, onDateCompleted, myLoc }) {
 }
 
 function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat }) {
-  const { t } = useLanguage();
   const [viewing, setViewing] = useState(null);
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "6px 16px 16px" }}>
@@ -2095,16 +2118,16 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
           ))}
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ ...nu(800, 14, T.white) }}>{t('peopleThinkWorth', { count: admirerCount, personOrPeople: admirerCount === 1 ? t('personThinks') : t('peopleThink') })}</div>
-          <div style={{ ...nu(700, 12, "#D9CCF5") }}>{t('seeWhoLikes')}</div>
+          <div style={{ ...nu(800, 14, T.white) }}>{admirerCount} {admirerCount === 1 ? "person thinks" : "people think"} you're worth their time</div>
+          <div style={{ ...nu(700, 12, "#D9CCF5") }}>See who likes you with TOM+ →</div>
         </div>
       </button>
       )}
       {matches.length === 0 ? (
         <div style={{ textAlign: "center", paddingTop: 70 }}>
           <Ic.Hourglass s={48} c={T.royal} />
-          <h2 style={{ ...fr(600, 22, T.ink), margin: "10px 0 6px" }}>{t('noDatesPlanned')}</h2>
-          <p style={{ ...nu(600, 14, T.soft), margin: 0 }}>{t('swipeRightHint')}</p>
+          <h2 style={{ ...fr(600, 22, T.ink), margin: "10px 0 6px" }}>No dates planned yet</h2>
+          <p style={{ ...nu(600, 14, T.soft), margin: 0 }}>Swipe right on someone worth your time.</p>
         </div>
       ) : (
         <>
@@ -2116,7 +2139,7 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
               <button onClick={() => onOpenChat && onOpenChat(p)} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, border: "none", background: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={fr(600, 17, T.ink)}>{p.name} <span style={{ ...nu(700, 12, T.soft), display: "inline-flex", alignItems: "center", gap: 3 }}>· <Ic.Pin s={11} c={T.soft} />{distLabel(myLoc, p)}</span></div>
-                  <div style={{ ...nu(700, 12.5, T.royal), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t('tapToMessage')}</div>
+                  <div style={{ ...nu(700, 12.5, T.royal), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Tap to message</div>
                 </div>
               </button>
               <button onClick={() => onReport(p)} aria-label="Report or unmatch" style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Flag s={15} c={T.lilacDeep} /></button>
@@ -2124,9 +2147,9 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
             </div>
           ))}
           <div style={{ background: "#FFF4D6", borderRadius: 18, padding: "13px 15px", marginTop: 4 }}>
-            <div style={{ ...nu(800, 11, "#8A6400"), letterSpacing: ".6px", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 5 }}><Ic.Gift s={13} c="#8A6400" />{t('tomPerk')}</div>
-            <div style={{ ...nu(700, 13.5, T.ink), marginTop: 3 }}>{t('perkDesc')}</div>
-            <div style={{ ...nu(600, 11.5, T.soft), marginTop: 3 }}>{t('perkNote')}</div>
+            <div style={{ ...nu(800, 11, "#8A6400"), letterSpacing: ".6px", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 5 }}><Ic.Gift s={13} c="#8A6400" />TOM Perk</div>
+            <div style={{ ...nu(700, 13.5, T.ink), marginTop: 3 }}>After your date: Kafe Luna nearby gives TOM couples 20% off.</div>
+            <div style={{ ...nu(600, 11.5, T.soft), marginTop: 3 }}>Only if you choose. The date itself stays $0.</div>
           </div>
         </>
       )}
@@ -2142,8 +2165,7 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
   );
 }
 
-function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, onEditProfile, onLogout, onOffClock, onPrimeTime }) {
-  const { t, language, changeLanguage } = useLanguage();
+function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, onEditProfile, onLogout, onOffClock, onPrimeTime, onEmailSettings }) {
   const u = api.user;
   const [, force] = useState(0);
   const rerender = () => force((n) => n + 1);
@@ -2156,12 +2178,12 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
     return (
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, textAlign: "center", gap: 14 }}>
         <Ic.Person s={48} c={T.royal} />
-        <h2 style={{ ...fr(600, 22, T.ink), margin: 0 }}>{t('browsingAsGuest')}</h2>
-        <p style={{ ...nu(600, 14, T.soft), margin: 0 }}>{t('createProfileHint')}</p>
-        <div style={{ width: "100%", maxWidth: 240 }}><PrimaryBtn onClick={onSignUp}>{t('signUpFreeBtn')}</PrimaryBtn></div>
+        <h2 style={{ ...fr(600, 22, T.ink), margin: 0 }}>You're browsing as a guest</h2>
+        <p style={{ ...nu(600, 14, T.soft), margin: 0 }}>Create your free profile to match and plan dates.</p>
+        <div style={{ width: "100%", maxWidth: 240 }}><PrimaryBtn onClick={onSignUp}>Sign up free</PrimaryBtn></div>
         <div style={{ display: "flex", gap: 18, marginTop: 4 }}>
-          <button onClick={() => onLegal("terms")} style={{ ...nu(800, 12, T.soft), border: "none", background: "none", cursor: "pointer", textDecoration: "underline" }}>{t('termsShort')}</button>
-          <button onClick={() => onLegal("privacy")} style={{ ...nu(800, 12, T.soft), border: "none", background: "none", cursor: "pointer", textDecoration: "underline" }}>{t('privacyShort')}</button>
+          <button onClick={() => onLegal("terms")} style={{ ...nu(800, 12, T.soft), border: "none", background: "none", cursor: "pointer", textDecoration: "underline" }}>Terms</button>
+          <button onClick={() => onLegal("privacy")} style={{ ...nu(800, 12, T.soft), border: "none", background: "none", cursor: "pointer", textDecoration: "underline" }}>Privacy</button>
         </div>
       </div>
     );
@@ -2176,9 +2198,9 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
         </div>
         <h2 style={{ ...fr(600, 24, T.ink), margin: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>{u.name}, {u.age}{verifyStatus === "verified" && <Ic.ShieldCheck s={21} c={T.green} />}</h2>
         <p style={{ ...nu(700, 13, T.soft), margin: "4px 0 0" }}>{[u.city, heightLabel, chronoLabel].filter(Boolean).join(" · ")}</p>
-        <button onClick={() => setManagingPhotos(true)} style={{ marginTop: 8, marginRight: 8, border: `2px solid ${T.lilacDeep}`, background: T.white, borderRadius: 999, padding: "7px 14px", cursor: "pointer", ...nu(800, 12.5, T.royal) }}>{t('managePhotosBtn')}</button>
-        <button onClick={onEditProfile} style={{ marginTop: 8, marginRight: 8, border: `2px solid ${T.lilacDeep}`, background: T.white, borderRadius: 999, padding: "7px 14px", cursor: "pointer", ...nu(800, 12.5, T.royal) }}>{t('editProfileBtn')}</button>
-        <button onClick={() => setManagingSearch(true)} style={{ marginTop: 8, border: `2px solid ${T.lilacDeep}`, background: T.white, borderRadius: 999, padding: "7px 14px", cursor: "pointer", ...nu(800, 12.5, T.royal) }}>{t('searchPreferencesBtn')}</button>
+        <button onClick={() => setManagingPhotos(true)} style={{ marginTop: 8, marginRight: 8, border: `2px solid ${T.lilacDeep}`, background: T.white, borderRadius: 999, padding: "7px 14px", cursor: "pointer", ...nu(800, 12.5, T.royal) }}>Manage photos</button>
+        <button onClick={onEditProfile} style={{ marginTop: 8, marginRight: 8, border: `2px solid ${T.lilacDeep}`, background: T.white, borderRadius: 999, padding: "7px 14px", cursor: "pointer", ...nu(800, 12.5, T.royal) }}>Edit profile</button>
+        <button onClick={() => setManagingSearch(true)} style={{ marginTop: 8, border: `2px solid ${T.lilacDeep}`, background: T.white, borderRadius: 999, padding: "7px 14px", cursor: "pointer", ...nu(800, 12.5, T.royal) }}>Search preferences</button>
       </div>
       {u.photos.length > 0 && (
         <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 12 }}>
@@ -2186,10 +2208,10 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
         </div>
       )}
       {[
-        [t('myBio'), u.bio],
-        [t('freeDatesUpForLabel'), u.thingsILikeToDo.join(", ")],
-        [t('interests'), u.interests.join(", ")],
-        [t('hobbiesLabel'), u.hobbies.join(", ")],
+        ["My bio", u.bio],
+        ["Free dates I'm up for", u.thingsILikeToDo.join(", ")],
+        ["Interests", u.interests.join(", ")],
+        ["Hobbies", u.hobbies.join(", ")],
       ].filter(([, v]) => v).map(([label, value]) => (
         <div key={label} style={{ background: T.white, borderRadius: 16, padding: "13px 15px", marginBottom: 9, boxShadow: "0 3px 10px rgba(42,27,74,.06)" }}>
           <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".6px", textTransform: "uppercase" }}>{label}</div>
@@ -2197,16 +2219,16 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
         </div>
       ))}
       <div style={{ marginTop: 14, borderRadius: 18, padding: 16, background: `linear-gradient(135deg, ${T.royal}, ${T.violet})`, color: T.white, textAlign: "center" }}>
-        <div style={fr(700, 18, T.white)}>{t('everyDateCosts')}</div>
+        <div style={fr(700, 18, T.white)}>Every TOM date is designed to cost</div>
         <div style={{ ...fr(700, 40, T.sun), margin: "4px 0" }}>$0.00</div>
-        <div style={{ ...nu(700, 12.5, T.white), opacity: 0.9 }}>{t('noBillsJustTime')}</div>
+        <div style={{ ...nu(700, 12.5, T.white), opacity: 0.9 }}>No bills. No paying. Just time together.</div>
       </div>
       {verifyStatus !== "verified" && (
         <button onClick={onVerify} disabled={verifyStatus === "review"} style={{ width: "100%", marginTop: 10, borderRadius: 18, padding: "14px 16px", border: `2px solid ${verifyStatus === "review" ? T.lilacDeep : T.green}`, background: verifyStatus === "review" ? "#F7F5FC" : "#F0FBF5", cursor: verifyStatus === "review" ? "default" : "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
           <Ic.ShieldCheck s={26} c={verifyStatus === "review" ? T.soft : T.green} />
           <span style={{ flex: 1 }}>
-            <span style={{ ...fr(700, 16, T.ink), display: "block" }}>{verifyStatus === "review" ? t('verificationInReview') : t('verifyYourProfile')}</span>
-            <span style={{ ...nu(700, 12.5, T.soft) }}>{verifyStatus === "review" ? t('usuallyDone24h') : t('getBadgeConfidence')}</span>
+            <span style={{ ...fr(700, 16, T.ink), display: "block" }}>{verifyStatus === "review" ? "Verification in review" : "Verify your profile"}</span>
+            <span style={{ ...nu(700, 12.5, T.soft) }}>{verifyStatus === "review" ? "Usually done within 24 hours" : "Get the green badge. Match with more confidence."}</span>
           </span>
           {verifyStatus !== "review" && <Ic.Chevron s={16} c={T.green} />}
         </button>
@@ -2214,40 +2236,40 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
       <button onClick={onUpgrade} style={{ width: "100%", marginTop: 10, borderRadius: 18, padding: "14px 16px", border: `2px solid ${T.sun}`, background: "#FFFBEF", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
         <Ic.Sun s={26} c={T.sun} />
         <span style={{ flex: 1 }}>
-          <span style={{ ...fr(700, 16, T.royal), display: "block" }}>{t('getTomPlusBtn')}</span>
-          <span style={{ ...nu(700, 12.5, T.soft) }}>{t('tomPlusFeatures')}</span>
+          <span style={{ ...fr(700, 16, T.royal), display: "block" }}>Get TOM<span style={{ color: T.sun }}>+</span></span>
+          <span style={{ ...nu(700, 12.5, T.soft) }}>Golden Hours, Prime Time, Time Zones and more</span>
         </span>
         <Ic.Chevron s={16} c={T.royal} />
       </button>
       <button onClick={onPrimeTime} style={{ width: "100%", marginTop: 10, borderRadius: 18, padding: "14px 16px", border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
         <Ic.Rise s={26} c={T.royal} />
         <span style={{ flex: 1 }}>
-          <span style={{ ...fr(700, 16, T.ink), display: "block" }}>{t('weeklyPrimeTime')}</span>
-          <span style={{ ...nu(700, 12.5, T.soft) }}>{t('riseToTop7Days')}</span>
+          <span style={{ ...fr(700, 16, T.ink), display: "block" }}>Weekly Prime Time</span>
+          <span style={{ ...nu(700, 12.5, T.soft) }}>Rise to the top of nearby decks for 7 days</span>
+        </span>
+        <Ic.Chevron s={16} c={T.royal} />
+      </button>
+      <button onClick={onEmailSettings} style={{ width: "100%", marginTop: 10, borderRadius: 18, padding: "14px 16px", border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
+        <Ic.Bubble s={26} c={T.royal} />
+        <span style={{ flex: 1 }}>
+          <span style={{ ...fr(700, 16, T.ink), display: "block" }}>Email notifications</span>
+          <span style={{ ...nu(700, 12.5, T.soft) }}>Matches, messages, and date check ins</span>
         </span>
         <Ic.Chevron s={16} c={T.royal} />
       </button>
       <button onClick={onOffClock} style={{ width: "100%", marginTop: 10, borderRadius: 18, padding: "14px 16px", border: `2px solid ${T.lilacDeep}`, background: u.offTheClock ? T.lilac : T.white, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
         <Ic.Moon s={26} c={T.royal} />
         <span style={{ flex: 1 }}>
-          <span style={{ ...fr(700, 16, T.ink), display: "block" }}>{t('offTheClockLabel')}{u.offTheClock ? t('offClockOnSuffix') : ""}</span>
-          <span style={{ ...nu(700, 12.5, T.soft) }}>{u.offTheClock ? t('youAreInvisible') : t('goInvisible')}</span>
+          <span style={{ ...fr(700, 16, T.ink), display: "block" }}>Off the Clock{u.offTheClock ? " · ON" : ""}</span>
+          <span style={{ ...nu(700, 12.5, T.soft) }}>{u.offTheClock ? "You're invisible right now" : "Go invisible without deleting anything"}</span>
         </span>
         <Ic.Chevron s={16} c={T.royal} />
       </button>
       <div style={{ marginTop: 16 }}>
-        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".6px", textTransform: "uppercase", margin: "0 2px 8px" }}>{t('appLanguage')}</div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-          {[["en", "EN"], ["tr", "TR"], ["es", "ES"]].map(([code, label]) => (
-            <button key={code} onClick={() => changeLanguage(code)} style={{ flex: 1, padding: "10px 0", borderRadius: 14, cursor: "pointer", border: `2px solid ${language === code ? T.royal : T.lilacDeep}`, background: language === code ? T.lilac : T.white, ...nu(800, 13, language === code ? T.royal : T.ink) }}>{label}</button>
-          ))}
-        </div>
-      </div>
-      <div style={{ marginTop: 16 }}>
-        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".6px", textTransform: "uppercase", margin: "0 2px 8px" }}>{t('aboutAndPrivacy')}</div>
+        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".6px", textTransform: "uppercase", margin: "0 2px 8px" }}>About and privacy</div>
         {[
-          [t('privacyPolicy'), () => onLegal("privacy")],
-          [t('termsOfService'), () => onLegal("terms")],
+          ["Privacy Policy", () => onLegal("privacy")],
+          ["Terms of Service", () => onLegal("terms")],
         ].map(([label, fn]) => (
           <button key={label} onClick={fn} style={{ width: "100%", background: T.white, border: "none", borderRadius: 16, padding: "13px 15px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 3px 10px rgba(42,27,74,.06)" }}>
             <span style={{ ...nu(700, 14.5, T.ink) }}>{label}</span>
@@ -2255,11 +2277,11 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
           </button>
         ))}
         <button onClick={onLogout} style={{ width: "100%", background: T.white, border: "none", borderRadius: 16, padding: "13px 15px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 3px 10px rgba(42,27,74,.06)" }}>
-          <span style={{ ...nu(700, 14.5, T.royal) }}>{t('logout')}</span>
+          <span style={{ ...nu(700, 14.5, T.royal) }}>Log out</span>
           <Ic.Chevron s={14} c={T.royal} />
         </button>
         <button onClick={onDelete} style={{ width: "100%", background: T.white, border: "none", borderRadius: 16, padding: "13px 15px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 3px 10px rgba(42,27,74,.06)" }}>
-          <span style={{ ...nu(700, 14.5, T.red) }}>{t('deleteMyAccountBtn')}</span>
+          <span style={{ ...nu(700, 14.5, T.red) }}>Delete my account</span>
           <Ic.Chevron s={14} c={T.red} />
         </button>
       </div>
@@ -2280,7 +2302,6 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
 }
 
 function PhotoManagerModal({ onClose, onSaved }) {
-  const { t } = useLanguage();
   const u = api.user;
   const [order, setOrder] = useState([u.profilePhoto, ...u.photos].filter(Boolean));
   const [error, setError] = useState(null);
@@ -2305,14 +2326,14 @@ function PhotoManagerModal({ onClose, onSaved }) {
     for (const file of Array.from(files)) {
       const err = api.validatePhoto(file);
       if (err) { setError(err); continue; }
-      if (order.length >= MAX_TOTAL) { setError(t('upToPhotosTotal', { max: MAX_TOTAL })); break; }
+      if (order.length >= MAX_TOTAL) { setError(`You can have up to ${MAX_TOTAL} photos total. Remove one first.`); break; }
       const reader = new FileReader();
       reader.onload = () => setOrder((o) => [...o, reader.result]);
       reader.readAsDataURL(file);
     }
   };
   const save = async () => {
-    if (order.length === 0) { setError(t('addAtLeastOne')); return; }
+    if (order.length === 0) { setError("Add at least one photo"); return; }
     setSaving(true);
     u.profilePhoto = order[0];
     u.photos = order.slice(1);
@@ -2325,16 +2346,16 @@ function PhotoManagerModal({ onClose, onSaved }) {
   return (
     <div style={{ position: "absolute", inset: 0, zIndex: 30, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: T.white, borderRadius: 26, padding: "22px 20px", width: "100%", maxWidth: 340, maxHeight: "82vh", overflowY: "auto", animation: "popIn .3s ease", boxShadow: "0 20px 50px rgba(0,0,0,.3)" }}>
-        <h2 style={{ ...fr(700, 21, T.ink), margin: "0 0 4px" }}>{t('managePhotosTitle')}</h2>
-        <p style={{ ...nu(600, 12.5, T.soft), margin: "0 0 14px" }}>{t('managePhotosDesc')}</p>
+        <h2 style={{ ...fr(700, 21, T.ink), margin: "0 0 4px" }}>Manage photos</h2>
+        <p style={{ ...nu(600, 12.5, T.soft), margin: "0 0 14px" }}>Your first photo is your main profile photo. Use the arrows to reorder, or tap Make main.</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
           {order.map((src, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, background: T.lilac, borderRadius: 14, padding: 8 }}>
               <PhotoThumb src={src} size={56} round={i === 0} />
               <div style={{ flex: 1 }}>
-                <div style={{ ...nu(800, 12, T.royal) }}>{i === 0 ? t('mainPhoto') : t('photoN', { n: i + 1 })}</div>
+                <div style={{ ...nu(800, 12, T.royal) }}>{i === 0 ? "Main photo" : `Photo ${i + 1}`}</div>
                 {i !== 0 && (
-                  <button onClick={() => makeMain(i)} style={{ border: "none", background: "none", cursor: "pointer", padding: 0, ...nu(700, 11.5, T.soft), textDecoration: "underline" }}>{t('makeMain')}</button>
+                  <button onClick={() => makeMain(i)} style={{ border: "none", background: "none", cursor: "pointer", padding: 0, ...nu(700, 11.5, T.soft), textDecoration: "underline" }}>Make main</button>
                 )}
               </div>
               <button onClick={() => moveLeft(i)} disabled={i === 0} aria-label="Move earlier" style={{ border: "none", background: "none", cursor: i === 0 ? "default" : "pointer", opacity: i === 0 ? 0.3 : 1, padding: 4 }}><span style={{ display: "inline-flex", transform: "rotate(180deg)" }}><Ic.Chevron s={16} c={T.royal} /></span></button>
@@ -2344,21 +2365,20 @@ function PhotoManagerModal({ onClose, onSaved }) {
           ))}
           {order.length < MAX_TOTAL && (
             <label style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, border: `2px dashed ${T.lilacDeep}`, borderRadius: 14, padding: 14, cursor: "pointer", ...fr(600, 15, T.royal) }}>
-              {t('addPhoto')}
+              + Add photo
               <input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" multiple style={{ display: "none" }} onChange={(e) => addFiles(e.target.files)} />
             </label>
           )}
         </div>
         {error && <p style={{ ...nu(700, 13, T.red), margin: "0 0 12px" }}>{error}</p>}
-        <PrimaryBtn disabled={saving} onClick={save}>{saving ? t('saving') : t('saveChanges')}</PrimaryBtn>
-        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{t('cancel')}</button>
+        <PrimaryBtn disabled={saving} onClick={save}>{saving ? "Saving..." : "Save changes"}</PrimaryBtn>
+        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Cancel</button>
       </div>
     </div>
   );
 }
 
 function SearchPrefsModal({ onClose, onSaved }) {
-  const { t } = useLanguage();
   const u = api.user;
   const [unit, setUnit] = useState(u.distanceUnit || "km");
   const [radiusKm, setRadiusKm] = useState(u.searchRadiusKm ?? 50);
@@ -2381,36 +2401,46 @@ function SearchPrefsModal({ onClose, onSaved }) {
   return (
     <div style={{ position: "absolute", inset: 0, zIndex: 30, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: T.white, borderRadius: 26, padding: "22px 20px", width: "100%", maxWidth: 340, maxHeight: "82vh", overflowY: "auto", animation: "popIn .3s ease", boxShadow: "0 20px 50px rgba(0,0,0,.3)" }}>
-        <h2 style={{ ...fr(700, 21, T.ink), margin: "0 0 4px" }}>{t('searchPreferencesTitle')}</h2>
-        <p style={{ ...nu(600, 12.5, T.soft), margin: "0 0 14px" }}>{t('chooseUnitsDesc')}</p>
-        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".6px", textTransform: "uppercase", marginBottom: 8 }}>{t('units')}</div>
+        <h2 style={{ ...fr(700, 21, T.ink), margin: "0 0 4px" }}>Search preferences</h2>
+        <p style={{ ...nu(600, 12.5, T.soft), margin: "0 0 14px" }}>Choose your units and how far you're willing to meet.</p>
+        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".6px", textTransform: "uppercase", marginBottom: 8 }}>Units</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
-          {[["km", t('kilometers')], ["mi", t('miles')]].map(([v, label]) => (
+          {[["km", "Kilometers"], ["mi", "Miles"]].map(([v, label]) => (
             <button key={v} onClick={() => setUnit(v)} style={{ flex: 1, padding: "10px 0", borderRadius: 14, cursor: "pointer", border: `2px solid ${unit === v ? T.royal : T.lilacDeep}`, background: unit === v ? T.lilac : T.white, ...nu(700, 13.5, unit === v ? T.royal : T.ink) }}>{label}</button>
           ))}
         </div>
-        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".6px", textTransform: "uppercase", marginBottom: 8 }}>{t('maxDistance')}</div>
+        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".6px", textTransform: "uppercase", marginBottom: 8 }}>Maximum distance</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
           {KM_PRESETS.map((km) => (
             <button key={km} onClick={() => setRadiusKm(km)} style={{ padding: "9px 14px", borderRadius: 999, cursor: "pointer", border: `2px solid ${radiusKm === km ? T.royal : T.lilacDeep}`, background: radiusKm === km ? T.lilac : T.white, ...nu(700, 13, radiusKm === km ? T.royal : T.ink) }}>{presetLabel(km)}</button>
           ))}
         </div>
         {error && <p style={{ ...nu(700, 13, T.red), margin: "0 0 12px" }}>{error}</p>}
-        <PrimaryBtn disabled={saving} onClick={save}>{saving ? t('saving') : t('saveChanges')}</PrimaryBtn>
-        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{t('cancel')}</button>
+        <PrimaryBtn disabled={saving} onClick={save}>{saving ? "Saving..." : "Save changes"}</PrimaryBtn>
+        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Cancel</button>
       </div>
     </div>
   );
 }
 
 // ================= App =================
-function TomApp() {
-  const { t } = useLanguage();
+export default function TomApp() {
   const [screen, setScreen] = useState("home"); // home -> welcome -> builder -> main
   const [booting, setBooting] = useState(true);
 
+  const [unsubDone, setUnsubDone] = useState(null);
+
   React.useEffect(() => {
     (async () => {
+      // Unsubscribe links from emails land here. Handled first, because an
+      // unsubscribe has to work without being logged in.
+      const params = new URLSearchParams(window.location.search);
+      const unsub = params.get("unsub");
+      if (unsub) {
+        const { data } = await supabase.rpc("unsubscribe_by_token", { p_token: unsub });
+        window.history.replaceState({}, "", window.location.pathname);
+        setUnsubDone(data ? "done" : "failed");
+      }
       const r = await api.restoreSession();
       if (r.ok) setScreen(r.complete ? "main" : "builder");
       setBooting(false);
@@ -2421,7 +2451,7 @@ function TomApp() {
   const [deck, setDeck] = useState([]);
   const [deckLoading, setDeckLoading] = useState(true);
   const [matches, setMatches] = useState([]);
-  const [admirerCount, setAdmirerCount] = useState(3);
+  const [admirerCount, setAdmirerCount] = useState(0);
   const [tab, setTab] = useState("discover");
   const [matched, setMatched] = useState(null);
   const [paywall, setPaywall] = useState(false);
@@ -2459,6 +2489,7 @@ function TomApp() {
   const [pendingReview, setPendingReview] = useState(null);
   const [pendingOutcome, setPendingOutcome] = useState(null);
   const [guestPrompt, setGuestPrompt] = useState(false);
+  const [emailSettings, setEmailSettings] = useState(false);
 
   const logout = async () => {
     await api.logout();
@@ -2717,10 +2748,10 @@ function TomApp() {
   };
 
   const tabs = [
-    { id: "discover", icon: Ic.Hourglass, label: t('discover') },
-    { id: "missions", icon: Ic.Compass, label: t('missions') },
-    { id: "matches", icon: Ic.Heart, label: t('navDates') },
-    { id: "profile", icon: Ic.Person, label: t('you') },
+    { id: "discover", icon: Ic.Hourglass, label: "Discover" },
+    { id: "missions", icon: Ic.Compass, label: "Missions" },
+    { id: "matches", icon: Ic.Heart, label: "Dates" },
+    { id: "profile", icon: Ic.Person, label: "You" },
   ];
 
   if (booting) {
@@ -2751,13 +2782,13 @@ function TomApp() {
                 <button onClick={() => setFiltersOpen(true)} aria-label="Filters" style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: T.lilac, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Ic.Sliders s={19} c={T.royal} />
                 </button>
-                <button onClick={() => requirePlus(t('plusGateTimeZonesTitle'), t('plusGateTimeZonesBlurb'), () => setTimeZonesOpen(true))} aria-label="Time Zones" style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: travelCity ? T.royal : T.lilac, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <button onClick={() => requirePlus("Time Zones", "Browse and match in other cities before you travel. A TOM+ perk.", () => setTimeZonesOpen(true))} aria-label="Time Zones" style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: travelCity ? T.royal : T.lilac, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Ic.Globe s={19} c={travelCity ? T.white : T.royal} />
                 </button>
               </div>
             )}
             {screen === "main" && (tab !== "discover" || showAdmirers) && (
-              <span style={{ ...fr(700, 12.5, T.royal), background: T.lilac, borderRadius: 999, padding: "6px 12px", textAlign: "center", lineHeight: 1.25 }}>{t('dontSpendMoneySpendTime')}<br />{t('spendTimePill')}</span>
+              <span style={{ ...fr(700, 12.5, T.royal), background: T.lilac, borderRadius: 999, padding: "6px 12px", textAlign: "center", lineHeight: 1.25 }}>Don't spend money.<br />Spend time.</span>
             )}
           </header>
         )}
@@ -2771,7 +2802,6 @@ function TomApp() {
             setScreen("welcome");
           }
         }} />}
-        {screen === "home" && <LanguageSelector />}
         {screen === "welcome" && <Welcome initialMode={authMode} onDone={(target) => setScreen(target)} />}
         {screen === "builder" && <Builder editMode={editingProfile} onDone={() => { setEditingProfile(false); setScreen("main"); }} />}
         {screen === "main" && (
@@ -2783,7 +2813,7 @@ function TomApp() {
               ? <Chat profile={chatWith} onBack={() => setChatWith(null)} onDateCompleted={onDateCompleted} myLoc={myLoc} />
               : <Matches matches={matches} myLoc={myLoc} admirerCount={admirerCount} onUpgrade={openAdmirers} onReport={(p) => setReporting({ profile: p, from: "matches" })} onOpenChat={(p) => setChatWith(p)} />
             )}
-            {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} onLogout={logout} onOffClock={() => requirePlus(t('plusGateOffClockTitle'), t('plusGateOffClockBlurb'), () => setOffClockOpen(true))} onPrimeTime={() => requirePlus(t('plusGatePrimeTitle'), t('plusGatePrimeBlurb'), () => setPrimeTimeOpen(true))} />}
+            {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} onLogout={logout} onOffClock={() => requirePlus("Off the Clock", "Go invisible without deleting anything. A TOM+ perk.", () => setOffClockOpen(true))} onEmailSettings={() => setEmailSettings(true)} onPrimeTime={() => requirePlus("Weekly Prime Time", "Rise to the top of nearby decks for 7 days. A TOM+ perk.", () => setPrimeTimeOpen(true))} />}
             <nav style={{ display: "flex", justifyContent: "space-around", padding: "10px 8px 16px", background: T.white, borderTop: `1px solid ${T.lilac}` }}>
               {tabs.map((t) => (
                 <button key={t.id} onClick={() => { setTab(t.id); setChatWith(null); }} style={{ border: "none", background: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, opacity: tab === t.id ? 1 : 0.45, padding: "4px 14px" }}>
@@ -2813,6 +2843,21 @@ function TomApp() {
         {offClockOpen && <OffTheClockModal onClose={() => setOffClockOpen(false)} onToggle={toggleOffClock} />}
         {timeZonesOpen && <TimeZonesModal current={travelCity} onPick={(c) => { setTravelCity(c); setTimeZonesOpen(false); }} onClose={() => setTimeZonesOpen(false)} />}
         {primeTimeOpen && <PrimeTimeModal onClose={() => setPrimeTimeOpen(false)} onActivate={startPrimeTime} boostUntil={boostUntil} />}
+        {emailSettings && <EmailSettingsModal onClose={() => setEmailSettings(false)} />}
+        {unsubDone && (
+          <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 70, padding: 24 }}>
+            <div style={{ width: "100%", background: T.white, borderRadius: 24, padding: 22, textAlign: "center", animation: "popIn .25s ease" }}>
+              <Ic.Check s={34} c={unsubDone === "done" ? T.green : T.soft} />
+              <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>{unsubDone === "done" ? "Emails turned off" : "Link expired"}</h2>
+              <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>
+                {unsubDone === "done"
+                  ? "You won't get emails from TOM anymore. You can turn them back on any time under You."
+                  : "We couldn't find that unsubscribe link. You can change email settings under You."}
+              </p>
+              <PrimaryBtn onClick={() => setUnsubDone(null)}>Got it</PrimaryBtn>
+            </div>
+          </div>
+        )}
         {guestPrompt && <GuestPrompt onSignUp={() => { setGuestPrompt(false); setAuthMode("signup"); setScreen("welcome"); }} onClose={() => setGuestPrompt(false)} />}
         {plusGate && <PlusGate title={plusGate.title} blurb={plusGate.blurb} onClose={() => setPlusGate(null)} onUpgrade={() => { setPlusGate(null); setPaywall(true); }} />}
         {missionToSend && <SendMissionModal idea={missionToSend} matches={matches} onPick={(p) => sendMissionTo(p, missionToSend)} onClose={() => setMissionToSend(null)} />}
@@ -2820,13 +2865,5 @@ function TomApp() {
         {pendingReview && <ReviewModal pending={pendingReview} onDone={() => { setPendingReview(null); onDateCompleted(); }} onSkip={() => setPendingReview(null)} />}
       </div>
     </div>
-  );
-}
-
-export default function App() {
-  return (
-    <LanguageProvider>
-      <TomApp />
-    </LanguageProvider>
   );
 }
