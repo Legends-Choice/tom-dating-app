@@ -108,6 +108,10 @@ function rowToUser(row, email) {
 }
 
 // Free-tier daily limits. TOM+ lifts these.
+// A pass is not forever. After this many days they can come back around.
+// Set low (10) while the user base is small, so decks never dead-end.
+// Raise this as TOM grows: 20-30 once there are plenty of people nearby.
+const PASS_EXPIRY_DAYS = 10;
 const FREE_DAILY_LIKES = 50;
 const FREE_DAILY_GOLDEN = 1;
 const PLUS_DAILY_GOLDEN = 5;
@@ -237,23 +241,70 @@ const api = {
       return guestCards.map((c) => ({ ...c, rep: guestReps[c.id] || null }));
     }
     const myId = this.user.id;
-    const [{ data: allProfiles }, { data: myLikes }, { data: myBlocks }] = await Promise.all([
+    const [{ data: allProfiles }, { data: myLikes }, { data: myBlocks }, { data: likedMe }] = await Promise.all([
       supabase.from("profiles").select("*").neq("id", myId).eq("is_deleted", false),
-      supabase.from("likes").select("liked_user_id").eq("user_id", myId),
+      supabase.from("likes").select("liked_user_id, action, created_at").eq("user_id", myId),
       supabase.from("blocks").select("blocked_user_id").eq("user_id", myId),
+      // People who gave me their time; used for second chances after a pass
+      supabase.from("likes").select("user_id").eq("liked_user_id", myId).in("action", ["spend_time", "golden_hour"]),
     ]);
-    const seen = new Set([
-      ...(myLikes || []).map((l) => l.liked_user_id),
-      ...(myBlocks || []).map((b) => b.blocked_user_id),
-    ]);
+
+    // Blocks are permanent. They never expire and never resurface.
+    const blocked = new Set((myBlocks || []).map((b) => b.blocked_user_id));
+    const likedMeSet = new Set((likedMe || []).map((l) => l.user_id));
+
+    const hidden = new Set();      // people who should not appear at all
+    const secondChance = new Set(); // passed on, but they like me: bring back
+    const cutoff = Date.now() - PASS_EXPIRY_DAYS * 86400000;
+
+    (myLikes || []).forEach((l) => {
+      if (l.action === "pass") {
+        const passedAt = l.created_at ? new Date(l.created_at).getTime() : 0;
+        // A pass fades after a while, so decks don't dead-end forever
+        const expired = passedAt > 0 && passedAt < cutoff;
+        if (likedMeSet.has(l.liked_user_id)) {
+          secondChance.add(l.liked_user_id);
+        } else if (!expired) {
+          hidden.add(l.liked_user_id);
+        }
+      } else {
+        // Already liked or golden-houred: don't show again
+        hidden.add(l.liked_user_id);
+      }
+    });
+
     let cards = (allProfiles || [])
       // A row with no name is a half finished signup, not a person to show
-      .filter((p) => !seen.has(p.id) && !p.off_the_clock && p.name)
-      .map(dbRowToCard);
+      .filter((p) => !blocked.has(p.id) && !hidden.has(p.id) && !p.off_the_clock && p.name)
+      .map(dbRowToCard)
+      .map((c) => ({ ...c, secondChance: secondChance.has(c.id) }));
+
     // Batch 3: attach Time Reputation to each card (only 3+ reviews come back)
     const reps = await this.loadReputations(cards.map((c) => c.id));
     cards = cards.map((c) => ({ ...c, rep: reps[c.id] || null }));
     return cards;
+  },
+  // Undo the last swipe. TOM+ only. Blocks are never undone here.
+  async undoLastSwipe() {
+    if (!this.user || !this.user.id) return { error: "Not signed in" };
+    const myId = this.user.id;
+    const { data: last } = await supabase.from("likes")
+      .select("id, liked_user_id, action, created_at")
+      .eq("user_id", myId)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    const row = last && last[0];
+    if (!row) return { error: "Nothing to undo" };
+    // If that swipe already produced a match, leave it alone
+    const u1 = myId < row.liked_user_id ? myId : row.liked_user_id;
+    const u2 = myId < row.liked_user_id ? row.liked_user_id : myId;
+    const { data: existing } = await supabase.from("matches").select("id")
+      .eq("user_id_1", u1).eq("user_id_2", u2).eq("is_active", true).maybeSingle();
+    if (existing) return { error: "That one turned into a match already" };
+    const { error } = await supabase.from("likes").delete().eq("id", row.id);
+    if (error) return { error: error.message };
+    const { data: prof } = await supabase.from("profiles").select("*").eq("id", row.liked_user_id).single();
+    return { ok: true, action: row.action, profile: prof ? dbRowToCard(prof) : null };
   },
   async loadMatches() {
     if (!this.user || !this.user.id) return [];
@@ -489,7 +540,10 @@ const sharedLikes = (p) => { const mine = myLikes(); return (p.likes || []).filt
 const rankScore = (from, p) => {
   const km = haversineKm(from, p.loc);
   const base = km === null ? 100000 : km;
-  return base - sharedLikes(p).length * BOOST_KM;
+  // Someone you passed on who then chose you rises to the top, so real
+  // mutual interest is never lost to a careless swipe.
+  const secondChanceBoost = p.secondChance ? 100000 : 0;
+  return base - sharedLikes(p).length * BOOST_KM - secondChanceBoost;
 };
 
 // ================= Demo profiles for the deck =================
@@ -658,6 +712,12 @@ const Ic = {
   Check: ({ s = 16, c = "#2FBF71" }) => (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M4.5 12.5l5 5L19.5 7" stroke={c} strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  Undo: ({ s = 20, c = "#5B21B6" }) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 9h9.5a5.5 5.5 0 0 1 0 11H8" stroke={c} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M7.5 4.5L3.5 9l4 4.5" stroke={c} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
   Camera: ({ s = 20, c = "#5B21B6" }) => (
@@ -1323,6 +1383,7 @@ function ProfileDetailModal({ profile, myLoc, onClose, onSwipe, onMessage, onLik
 
 // ================= Swipe card =================
 function Card({ profile, onSwipe, isTop, myLoc, onReport, onView }) {
+  const { t } = useLang();
   const [drag, setDrag] = useState({ x: 0, y: 0, active: false });
   const start = useRef({ x: 0, y: 0 });
   const onDown = (e) => { if (!isTop) return; const p = e.touches ? e.touches[0] : e; start.current = { x: p.clientX, y: p.clientY }; setDrag((d) => ({ ...d, active: true })); };
@@ -1338,8 +1399,13 @@ function Card({ profile, onSwipe, isTop, myLoc, onReport, onView }) {
           <div style={{ position: "absolute", top: 14, right: 14 }}><ZeroStamp /></div>
           <div style={{ position: "absolute", top: 18, left: 16, opacity: likeOp, ...fr(700, 24, T.white), border: `3px solid ${T.white}`, borderRadius: 12, padding: "2px 12px", transform: "rotate(-10deg)", background: "rgba(47,191,113,.85)" }}>WORTH MY TIME</div>
           <div style={{ position: "absolute", top: 18, right: 76, opacity: nopeOp, ...fr(700, 24, T.white), border: `3px solid ${T.white}`, borderRadius: 12, padding: "2px 12px", transform: "rotate(10deg)", background: "rgba(42,27,74,.6)" }}>NOT THIS TIME</div>
-          <button onClick={() => onView(profile)} onPointerDown={(e) => e.stopPropagation()} aria-label="View full profile" style={{ position: "absolute", bottom: 14, right: 14, display: "flex", alignItems: "center", gap: 5, border: "none", borderRadius: 999, padding: "7px 12px", background: "rgba(0,0,0,.35)", cursor: "pointer", ...nu(700, 12, T.white) }}>
-            <Ic.Eye s={14} c={T.white} />View profile
+          {profile.secondChance && (
+            <div style={{ position: "absolute", bottom: 14, left: 14, display: "flex", alignItems: "center", gap: 5, borderRadius: 999, padding: "6px 11px", background: T.sun, ...fr(600, 11.5, T.ink) }}>
+              <Ic.Hourglass s={12} c={T.ink} />{t("gaveYouTime")}
+            </div>
+          )}
+          <button onClick={() => onView(profile)} onPointerDown={(e) => e.stopPropagation()} aria-label={t("viewProfile")} style={{ position: "absolute", bottom: 14, right: 14, display: "flex", alignItems: "center", gap: 5, border: "none", borderRadius: 999, padding: "7px 12px", background: "rgba(0,0,0,.35)", cursor: "pointer", ...nu(700, 12, T.white) }}>
+            <Ic.Eye s={14} c={T.white} />{t("viewProfile")}
           </button>
         </div>
         <div style={{ flex: 1, padding: "16px 18px 14px", display: "flex", flexDirection: "column", gap: 10, overflow: "hidden" }}>
@@ -1499,6 +1565,7 @@ const LANGS = [
 
 const STRINGS = {
   en: {
+    undo: "UNDO", gaveYouTime: "Gave you their time",
     tagline: "TIME OVER MONEY", hook: "Dating without the bill.",
     signUp: "Sign Up", logIn: "Log In", guest: "Continue as Guest",
     agree: "By continuing, you agree to our", terms: "Terms of Service",
@@ -1569,6 +1636,7 @@ const STRINGS = {
     notNow: "Not now", close: "Close", gotIt: "Got it",
   },
   tr: {
+    undo: "GERİ AL", gaveYouTime: "Sana zaman ayırdı",
     tagline: "PARA DEĞİL ZAMAN", hook: "Hesap ödemeden flört.",
     signUp: "Kayıt Ol", logIn: "Giriş Yap", guest: "Misafir olarak devam et",
     agree: "Devam ederek şunları kabul edersiniz:", terms: "Kullanım Şartları",
@@ -1639,6 +1707,7 @@ const STRINGS = {
     notNow: "Şimdi değil", close: "Kapat", gotIt: "Anladım",
   },
   es: {
+    undo: "DESHACER", gaveYouTime: "Te dio su tiempo",
     tagline: "TIEMPO SOBRE DINERO", hook: "Citas sin la cuenta.",
     signUp: "Registrarse", logIn: "Iniciar sesión", guest: "Continuar como invitado",
     agree: "Al continuar, aceptas nuestros", terms: "Términos del Servicio",
@@ -2032,7 +2101,7 @@ function SearchClock({ size = 68 }) {
   );
 }
 
-function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlus, onUpgrade, onReport, locDenied, loading, onPrimeTime }) {
+function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlus, onUpgrade, onReport, locDenied, loading, onPrimeTime, onUndo, canUndo }) {
   const { t } = useLang();
   const [viewing, setViewing] = useState(null);
   const outOfLikes = !isPlus && likesLeft !== undefined && likesLeft <= 0;
@@ -2099,7 +2168,13 @@ function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlu
         <div style={{ position: "relative", flex: 1, marginBottom: 12 }}>
           {deck.slice(0, 2).map((p, i) => <Card key={p.id} profile={p} isTop={i === 0} onSwipe={onSwipe} myLoc={myLoc} onReport={onReport} onView={setViewing} />).reverse()}
         </div>
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-start", gap: 22, padding: "4px 0 12px" }}>
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-start", gap: 16, padding: "4px 0 12px" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+            <button onClick={onUndo} disabled={!canUndo} aria-label={t("undo")} style={{ width: 44, height: 44, borderRadius: "50%", border: "none", background: canUndo ? T.white : "rgba(255,255,255,.5)", cursor: canUndo ? "pointer" : "default", boxShadow: canUndo ? "0 4px 12px rgba(42,27,74,.14)" : "none", display: "flex", alignItems: "center", justifyContent: "center", opacity: canUndo ? 1 : 0.45 }}>
+              <Ic.Undo s={19} c={T.royal} />
+            </button>
+            <span style={{ ...nu(800, 10, T.soft), letterSpacing: ".4px" }}>{t("undo")}</span>
+          </div>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
             <button onClick={() => onSwipe("left")} aria-label={t("pass")} style={{ width: 56, height: 56, borderRadius: "50%", border: "none", background: T.white, cursor: "pointer", boxShadow: "0 6px 16px rgba(42,27,74,.18)", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Cross s={20} c={T.ink} /></button>
             <span style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".4px" }}>{t("pass")}</span>
@@ -2864,6 +2939,8 @@ function TomAppInner() {
   const [pendingOutcome, setPendingOutcome] = useState(null);
   const [guestPrompt, setGuestPrompt] = useState(false);
   const [languageOpen, setLanguageOpen] = useState(false);
+  const [lastSwipe, setLastSwipe] = useState(null); // enables undo
+  const [undoNote, setUndoNote] = useState(null);
   const [emailSettings, setEmailSettings] = useState(false);
 
   const logout = async () => {
@@ -2957,6 +3034,21 @@ function TomAppInner() {
     const [m, d] = await Promise.all([api.loadMatches(), api.loadDeck()]);
     setMatches(m);
     setDeck(d);
+  };
+
+  // Undo the last swipe. TOM+ perk: convenience, never the difference
+  // between finding someone and not.
+  const undoLastSwipe = async () => {
+    if (!lastSwipe) return;
+    if (!isPlus) {
+      setPlusGate({ title: "Take it back", blurb: "Undo a swipe you didn't mean. A TOM+ perk." });
+      return;
+    }
+    const r = await api.undoLastSwipe();
+    if (r.error) { setUndoNote(r.error); setTimeout(() => setUndoNote(null), 2600); return; }
+    if (lastSwipe.dir === "right") setLikesUsed((n) => Math.max(0, n - 1));
+    setDeck((d) => [lastSwipe.profile, ...d.filter((p) => p.id !== lastSwipe.profile.id)]);
+    setLastSwipe(null);
   };
 
   const likeBackAdmirer = (p) => {
@@ -3112,6 +3204,7 @@ function TomAppInner() {
     if (dir === "right" && likesLeft <= 0) { setPaywall(true); return; }
     const top = sortedDeck[0];
     setDeck((d) => d.filter((p) => p.id !== top.id));
+    setLastSwipe({ profile: top, dir });
     if (dir === "right") setLikesUsed((n) => n + 1);
     api.swipe(top.id, dir === "right" ? "spend_time" : "pass").then((r) => {
       if (r.matched) {
@@ -3182,7 +3275,7 @@ function TomAppInner() {
         {screen === "main" && (
           <>
             {tab === "discover" && showAdmirers && <AdmirersPanel admirers={admirers} myLoc={deckOrigin} onLikeBack={likeBackAdmirer} onBack={() => setShowAdmirers(false)} onReport={(p) => setReporting({ profile: p, from: "admirers" })} />}
-            {tab === "discover" && !showAdmirers && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={deckOrigin} onGolden={onGolden} goldenLeft={goldenLeft} likesLeft={likesLeft} isPlus={isPlus} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "deck" })} locDenied={locDenied && !travelCity} loading={deckLoading} onPrimeTime={() => requirePlus("Weekly Prime Time", "Rise to the top of nearby decks for 7 days. A TOM+ perk.", () => setPrimeTimeOpen(true))} />}
+            {tab === "discover" && !showAdmirers && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={deckOrigin} onGolden={onGolden} goldenLeft={goldenLeft} likesLeft={likesLeft} isPlus={isPlus} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "deck" })} locDenied={locDenied && !travelCity} loading={deckLoading} onPrimeTime={() => requirePlus("Weekly Prime Time", "Rise to the top of nearby decks for 7 days. A TOM+ perk.", () => setPrimeTimeOpen(true))} onUndo={undoLastSwipe} canUndo={Boolean(lastSwipe)} />}
             {tab === "missions" && <Missions matches={matches} onSend={(idea) => setMissionToSend(idea)} />}
             {tab === "matches" && (chatWith
               ? <Chat profile={chatWith} onBack={() => setChatWith(null)} onDateCompleted={onDateCompleted} myLoc={myLoc} />
@@ -3231,6 +3324,11 @@ function TomAppInner() {
               </p>
               <PrimaryBtn onClick={() => setUnsubDone(null)}>Got it</PrimaryBtn>
             </div>
+          </div>
+        )}
+        {undoNote && (
+          <div style={{ position: "absolute", left: 0, right: 0, bottom: 92, display: "flex", justifyContent: "center", zIndex: 70, pointerEvents: "none" }}>
+            <span style={{ background: T.ink, color: T.white, borderRadius: 999, padding: "9px 16px", ...nu(700, 12.5, T.white), boxShadow: "0 6px 18px rgba(42,27,74,.3)" }}>{undoNote}</span>
           </div>
         )}
         {languageOpen && <LanguageModal onClose={() => setLanguageOpen(false)} />}
