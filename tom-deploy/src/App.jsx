@@ -1634,6 +1634,7 @@ const LANGS = [
 
 const STRINGS = {
   en: {
+    loadingDates: "Loading your dates",
     aboutMe: "About me", thingsTheyDo: "Things they like to do",
     interestsLabel: "Interests", hobbiesLabel: "Hobbies",
     spendTimeWith: "Spend time with", messageBtn: "Message",
@@ -1710,6 +1711,7 @@ const STRINGS = {
     notNow: "Not now", close: "Close", gotIt: "Got it",
   },
   tr: {
+    loadingDates: "Bulu\u015fmalar\u0131n y\u00fckleniyor",
     aboutMe: "Hakk\u0131mda", thingsTheyDo: "Yapmay\u0131 sevdikleri",
     interestsLabel: "\u0130lgi alanlar\u0131", hobbiesLabel: "Hobiler",
     spendTimeWith: "Zaman ay\u0131r:", messageBtn: "Mesaj g\u00f6nder:",
@@ -1786,6 +1788,7 @@ const STRINGS = {
     notNow: "Şimdi değil", close: "Kapat", gotIt: "Anladım",
   },
   es: {
+    loadingDates: "Cargando tus citas",
     aboutMe: "Sobre m\u00ed", thingsTheyDo: "Lo que le gusta hacer",
     interestsLabel: "Intereses", hobbiesLabel: "Pasatiempos",
     spendTimeWith: "Dar tiempo a", messageBtn: "Enviar mensaje a",
@@ -2605,7 +2608,7 @@ function Chat({ profile, onBack, onDateCompleted, myLoc }) {
   );
 }
 
-function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat }) {
+function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat, loading }) {
   const { t } = useLang();
   const [viewing, setViewing] = useState(null);
   return (
@@ -2623,7 +2626,12 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
         </div>
       </button>
       )}
-      {matches.length === 0 ? (
+      {loading ? (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: "60px 24px", textAlign: "center" }}>
+          <SearchClock size={54} />
+          <p style={{ ...nu(700, 14, T.soft), margin: 0 }}>{t("loadingDates")}</p>
+        </div>
+      ) : matches.length === 0 ? (
         <div style={{ textAlign: "center", paddingTop: 70 }}>
           <Ic.Hourglass s={48} c={T.royal} />
           <h2 style={{ ...fr(600, 22, T.ink), margin: "10px 0 6px" }}>No dates planned yet</h2>
@@ -2646,11 +2654,6 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
               <span style={{ ...fr(700, 13, T.green), background: "#E8F8EF", borderRadius: 999, padding: "5px 10px" }}>$0</span>
             </div>
           ))}
-          <div style={{ background: "#FFF4D6", borderRadius: 18, padding: "13px 15px", marginTop: 4 }}>
-            <div style={{ ...nu(800, 11, "#8A6400"), letterSpacing: ".6px", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 5 }}><Ic.Gift s={13} c="#8A6400" />TOM Perk</div>
-            <div style={{ ...nu(700, 13.5, T.ink), marginTop: 3 }}>After your date: Kafe Luna nearby gives TOM couples 20% off.</div>
-            <div style={{ ...nu(600, 11.5, T.soft), marginTop: 3 }}>Only if you choose. The date itself stays $0.</div>
-          </div>
         </>
       )}
       {viewing && (
@@ -3030,6 +3033,7 @@ function TomAppInner() {
   const [editingProfile, setEditingProfile] = useState(false);
   const [deck, setDeck] = useState([]);
   const [deckLoading, setDeckLoading] = useState(true);
+  const [matchesLoading, setMatchesLoading] = useState(true);
   const [matches, setMatches] = useState([]);
   const [admirerCount, setAdmirerCount] = useState(0);
   const [tab, setTab] = useState("discover");
@@ -3258,17 +3262,20 @@ function TomAppInner() {
       return;
     }
     setDeckLoading(true);
-    (async () => {
-      const [d, m, c, usage, adm] = await Promise.all([
-        api.loadDeck(), api.loadMatches(), api.countAdmirers(), api.loadDailyUsage(), api.loadAdmirers(),
-      ]);
-      setDeck(d);
-      setDeckLoading(false);
-      setMatches(m);
-      setAdmirerCount(c);
-      setAdmirers(adm);
+    setMatchesLoading(true);
+    // Each query lands on its own. Waiting for all of them meant the Dates
+    // tab sat on its empty state until the slowest one finished.
+    api.loadMatches().then((m) => { setMatches(m); setMatchesLoading(false); });
+    api.countAdmirers().then(setAdmirerCount);
+    api.loadAdmirers().then(setAdmirers);
+    api.loadDailyUsage().then((usage) => {
       setLikesUsed(usage.likesUsed);
       setGoldenUsed(usage.goldenUsed);
+    });
+    (async () => {
+      const d = await api.loadDeck();
+      setDeck(d);
+      setDeckLoading(false);
       if (api.user) {
         setAgeFilter({ min: api.user.filterMinAge ?? 18, max: api.user.filterMaxAge ?? 99 });
         setInterestFilter(api.user.filterInterests || []);
@@ -3405,7 +3412,7 @@ function TomAppInner() {
             {tab === "missions" && <Missions matches={matches} onSend={(idea) => setMissionToSend(idea)} />}
             {tab === "matches" && (chatWith
               ? <Chat profile={chatWith} onBack={() => setChatWith(null)} onDateCompleted={onDateCompleted} myLoc={myLoc} />
-              : <Matches matches={matches} myLoc={myLoc} admirerCount={admirerCount} onUpgrade={openAdmirers} onReport={(p) => setReporting({ profile: p, from: "matches" })} onOpenChat={(p) => setChatWith(p)} />
+              : <Matches matches={matches} myLoc={myLoc} admirerCount={admirerCount} onUpgrade={openAdmirers} onReport={(p) => setReporting({ profile: p, from: "matches" })} onOpenChat={(p) => setChatWith(p)} loading={matchesLoading} />
             )}
             {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} onLogout={logout} onOffClock={() => requirePlus("Off the Clock", "Go invisible without deleting anything. A TOM+ perk.", () => setOffClockOpen(true))} onEmailSettings={() => setEmailSettings(true)} onLanguage={() => setLanguageOpen(true)} />}
             <nav style={{ display: "flex", justifyContent: "space-around", padding: "10px 8px 16px", background: T.white, borderTop: `1px solid ${T.lilac}` }}>
