@@ -1565,6 +1565,8 @@ const LANGS = [
 
 const STRINGS = {
   en: {
+    bootLead1: "The best dates are measured in moments\u2026", bootEmph1: "not money.",
+    bootLead2: "Share experiences.", bootEmph2: "Not expenses.",
     undo: "UNDO", gaveYouTime: "Gave you their time",
     tagline: "TIME OVER MONEY", hook: "Dating without the bill.",
     signUp: "Sign Up", logIn: "Log In", guest: "Continue as Guest",
@@ -1636,6 +1638,8 @@ const STRINGS = {
     notNow: "Not now", close: "Close", gotIt: "Got it",
   },
   tr: {
+    bootLead1: "En g\u00fczel bulu\u015fmalar anlarla \u00f6l\u00e7\u00fcl\u00fcr\u2026", bootEmph1: "parayla de\u011fil.",
+    bootLead2: "Deneyimleri payla\u015f\u0131n.", bootEmph2: "Masraflar\u0131 de\u011fil.",
     undo: "GERİ AL", gaveYouTime: "Sana zaman ayırdı",
     tagline: "PARA DEĞİL ZAMAN", hook: "Hesap ödemeden flört.",
     signUp: "Kayıt Ol", logIn: "Giriş Yap", guest: "Misafir olarak devam et",
@@ -1707,6 +1711,8 @@ const STRINGS = {
     notNow: "Şimdi değil", close: "Kapat", gotIt: "Anladım",
   },
   es: {
+    bootLead1: "Las mejores citas se miden en momentos\u2026", bootEmph1: "no en dinero.",
+    bootLead2: "Comparte experiencias.", bootEmph2: "No gastos.",
     undo: "DESHACER", gaveYouTime: "Te dio su tiempo",
     tagline: "TIEMPO SOBRE DINERO", hook: "Citas sin la cuenta.",
     signUp: "Registrarse", logIn: "Iniciar sesión", guest: "Continuar como invitado",
@@ -2864,6 +2870,53 @@ function SearchPrefsModal({ onClose, onSaved }) {
 }
 
 // ================= App =================
+// The TOM loading screen. Separate from the Discover deck clock on purpose.
+// Two brand lines, translated like the rest of the interface
+const BOOT_LINES = [
+  { lead: "bootLead1", emph: "bootEmph1" },
+  { lead: "bootLead2", emph: "bootEmph2" },
+];
+
+function BootScreen() {
+  const { t } = useLang();
+  // One line chosen per appearance, so it rotates between loads
+  const line = useRef(BOOT_LINES[Math.floor(Math.random() * BOOT_LINES.length)]).current;
+  return (
+    <div style={{ minHeight: "100vh", background: `linear-gradient(180deg, ${T.lilac} 0%, #F7F4FD 100%)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px 28px", fontFamily: "Nunito, sans-serif" }}>
+      {FONT}
+      <style>{`
+        @keyframes tomBreathe {
+          0%, 100% { transform: scale(1); opacity: .88 }
+          50%      { transform: scale(1.055); opacity: 1 }
+        }
+        @keyframes tomDot {
+          0%, 80%, 100% { opacity: .22 }
+          40%           { opacity: 1 }
+        }
+        @keyframes tomFadeUp {
+          from { opacity: 0; transform: translateY(6px) }
+          to   { opacity: 1; transform: translateY(0) }
+        }
+      `}</style>
+
+      <h1 style={{ ...fr(700, 40, T.royal), letterSpacing: "1px", margin: 0, animation: "tomBreathe 2.6s ease-in-out infinite", transformOrigin: "center" }}>
+        TOM<span style={{ color: T.sun }}>.</span>
+      </h1>
+
+      <p style={{ margin: "18px 0 0", maxWidth: 300, textAlign: "center", lineHeight: 1.5, animation: "tomFadeUp .6s ease .15s both" }}>
+        <span style={{ ...nu(600, 14.5, T.royal), opacity: .82 }}>{t(line.lead)} </span>
+        <span style={{ ...nu(800, 14.5, T.royal) }}>{t(line.emph)}</span>
+      </p>
+
+      <div style={{ display: "flex", gap: 7, marginTop: 22 }}>
+        {[0, 1, 2].map((i) => (
+          <span key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: T.royal, animation: `tomDot 1.4s ease-in-out ${i * 0.18}s infinite` }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function TomApp() {
   return (
     <LanguageProvider>
@@ -3223,12 +3276,7 @@ function TomAppInner() {
   ];
 
   if (booting) {
-    return (
-      <div style={{ minHeight: "100vh", background: `linear-gradient(180deg, ${T.lilac} 0%, #F7F4FD 100%)`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Nunito, sans-serif" }}>
-        {FONT}
-        <h1 style={{ ...fr(700, 32, T.royal), letterSpacing: "1px" }}>TOM<span style={{ color: T.sun }}>.</span></h1>
-      </div>
-    );
+    return <BootScreen />;
   }
 
   return (
