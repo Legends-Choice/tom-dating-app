@@ -78,6 +78,9 @@ function dbRowToCard(row) {
     interests: row.interests || [],
     hobbies: row.hobbies || [],
     activities: row.things_i_like_to_do || [],
+    availability: row.availability || [],
+    freeTonight: Boolean(row.free_tonight_until) && new Date(row.free_tonight_until) > new Date(),
+    openToDoubles: Boolean(row.open_to_doubles),
   };
 }
 
@@ -112,6 +115,9 @@ function rowToUser(row, email) {
     filterMinAge: row.filter_min_age ?? 18,
     filterMaxAge: row.filter_max_age ?? 99,
     filterInterests: row.filter_interests || [],
+    availability: row.availability || [],
+    freeTonightUntil: row.free_tonight_until || null,
+    openToDoubles: Boolean(row.open_to_doubles),
   };
 }
 
@@ -219,6 +225,9 @@ const api = {
       off_the_clock: Boolean(u.offTheClock),
       filter_min_age: u.filterMinAge ?? 18, filter_max_age: u.filterMaxAge ?? 99,
       filter_interests: u.filterInterests || [],
+      availability: u.availability || [],
+      free_tonight_until: u.freeTonightUntil || null,
+      open_to_doubles: Boolean(u.openToDoubles),
       orientation_consent_at: new Date().toISOString(),
     }).eq("id", u.id);
     if (error) return { error: error.message };
@@ -379,6 +388,20 @@ const api = {
     return (profs || []).map(dbRowToCard);
   },
   // Batch 2: Weekly Prime Time boost (7 days at the top of the deck)
+  async myReputation() {
+    if (!this.user || !this.user.id) return null;
+    const { data } = await supabase.rpc("my_time_reputation");
+    return data || null;
+  },
+  async setFreeTonight(on) {
+    if (!this.user || !this.user.id) return { error: "Not signed in" };
+    const until = on ? endOfToday() : null;
+    const { error } = await supabase.from("profiles")
+      .update({ free_tonight_until: until }).eq("id", this.user.id);
+    if (error) return { error: error.message };
+    this.user.freeTonightUntil = until;
+    return { ok: true };
+  },
   async saveLocation(lat, lng) {
     if (!this.user || !this.user.id || this.user.isGuest) return { ok: false };
     if (typeof lat !== "number" || typeof lng !== "number") return { ok: false };
@@ -408,9 +431,10 @@ const api = {
     if (error || !data) return null;
     return data;
   },
-  async proposeDate(matchId, idea, scheduledAt) {
+  async proposeDate(matchId, idea, scheduledAt, isDouble) {
     const { data, error } = await supabase.rpc("propose_date", {
       p_match_id: matchId, p_idea: idea, p_scheduled_at: scheduledAt || null,
+      p_is_double: Boolean(isDouble),
     });
     if (error) return { error: error.message };
     return { ok: true, date: data };
@@ -501,6 +525,119 @@ const api = {
 };
 
 // ================= Option pools =================
+
+// Display labels for stored option values. English is the stored key so that
+// shared interests still match across languages; only the label changes.
+const LABELS = {
+  "Weekday mornings": { tr: "Hafta i\u00e7i sabahlar\u0131", es: "Ma\u00f1anas entre semana" },
+  "Weekday evenings": { tr: "Hafta i\u00e7i ak\u015famlar\u0131", es: "Tardes entre semana" },
+  "Weekend days": { tr: "Hafta sonu g\u00fcnd\u00fcz", es: "D\u00edas de fin de semana" },
+  "Weekend nights": { tr: "Hafta sonu geceleri", es: "Noches de fin de semana" },
+  // Activities
+  "Stargazing": { tr: "Y\u0131ld\u0131z izleme", es: "Observar estrellas" },
+  "Board games": { tr: "Kutu oyunlar\u0131", es: "Juegos de mesa" },
+  "Park hangs": { tr: "Parkta tak\u0131lmak", es: "Ratos en el parque" },
+  "Walks": { tr: "Y\u00fcr\u00fcy\u00fcşler", es: "Paseos" },
+  "Free museums": { tr: "\u00dccretsiz m\u00fczeler", es: "Museos gratis" },
+  "Sunset spots": { tr: "G\u00fcn bat\u0131m\u0131 noktalar\u0131", es: "Miradores al atardecer" },
+  "Market browsing": { tr: "\u00c7ar\u015f\u0131 gezmek", es: "Recorrer mercados" },
+  "Beach days": { tr: "Sahil g\u00fcnleri", es: "D\u00edas de playa" },
+  "People watching": { tr: "\u0130nsan izlemek", es: "Observar a la gente" },
+  "Free concerts": { tr: "\u00dccretsiz konserler", es: "Conciertos gratis" },
+  "Picnics (bring your own)": { tr: "Piknik (kendi getirdi\u011fin)", es: "Picnic (trae lo tuyo)" },
+  "Photography strolls": { tr: "Foto\u011fraf y\u00fcr\u00fcy\u00fc\u015f\u00fc", es: "Paseos fotogr\u00e1ficos" },
+  // Interests
+  "Music": { tr: "M\u00fczik", es: "M\u00fasica" },
+  "Art": { tr: "Sanat", es: "Arte" },
+  "History": { tr: "Tarih", es: "Historia" },
+  "Film": { tr: "Sinema", es: "Cine" },
+  "Food": { tr: "Yemek", es: "Comida" },
+  "Travel": { tr: "Seyahat", es: "Viajes" },
+  "Books": { tr: "Kitaplar", es: "Libros" },
+  "Fitness": { tr: "Spor", es: "Fitness" },
+  "Tech": { tr: "Teknoloji", es: "Tecnolog\u00eda" },
+  "Nature": { tr: "Do\u011fa", es: "Naturaleza" },
+  "Fashion": { tr: "Moda", es: "Moda" },
+  "Languages": { tr: "Diller", es: "Idiomas" },
+  // Hobbies
+  "Chess": { tr: "Satran\u00e7", es: "Ajedrez" },
+  "Photography": { tr: "Foto\u011fraf\u00e7\u0131l\u0131k", es: "Fotograf\u00eda" },
+  "Hiking": { tr: "Do\u011fa y\u00fcr\u00fcy\u00fc\u015f\u00fc", es: "Senderismo" },
+  "Dancing": { tr: "Dans", es: "Baile" },
+  "Reading": { tr: "Okumak", es: "Lectura" },
+  "Walking": { tr: "Y\u00fcr\u00fcmek", es: "Caminar" },
+  "Cycling": { tr: "Bisiklet", es: "Ciclismo" },
+  "Basketball": { tr: "Basketbol", es: "Baloncesto" },
+  "Yoga": { tr: "Yoga", es: "Yoga" },
+  "Running": { tr: "Ko\u015fu", es: "Correr" },
+  "Museums": { tr: "M\u00fczeler", es: "Museos" },
+  "Art Galleries": { tr: "Sanat galerileri", es: "Galer\u00edas de arte" },
+  "Window Shopping": { tr: "Vitrin gezmek", es: "Mirar escaparates" },
+  "Birdwatching": { tr: "Ku\u015f g\u00f6zlemi", es: "Observaci\u00f3n de aves" },
+  "Picnics": { tr: "Piknik", es: "Picnic" },
+  // Gender
+  "Man": { tr: "Erkek", es: "Hombre" },
+  "Woman": { tr: "Kad\u0131n", es: "Mujer" },
+  "Nonbinary": { tr: "\u0130kili olmayan", es: "No binario" },
+  "Other": { tr: "Di\u011fer", es: "Otro" },
+  "Prefer not to say": { tr: "Belirtmek istemiyorum", es: "Prefiero no decirlo" },
+  // Orientation
+  "Straight": { tr: "Heteroseks\u00fcel", es: "Heterosexual" },
+  "Gay": { tr: "Gey", es: "Gay" },
+  "Lesbian": { tr: "Lezbiyen", es: "Lesbiana" },
+  "Bisexual": { tr: "Biseks\u00fcel", es: "Bisexual" },
+  "Pansexual": { tr: "Panseks\u00fcel", es: "Pansexual" },
+  "Asexual": { tr: "Aseks\u00fcel", es: "Asexual" },
+  "Queer": { tr: "Queer", es: "Queer" },
+  // Interested in
+  "Men": { tr: "Erkekler", es: "Hombres" },
+  "Women": { tr: "Kad\u0131nlar", es: "Mujeres" },
+  "Everyone": { tr: "Herkes", es: "Todos" },
+  // Chronotype
+  "Morning person": { tr: "Sabah insan\u0131", es: "Persona de ma\u00f1ana" },
+  "Night person": { tr: "Gece insan\u0131", es: "Persona de noche" },
+  "Both": { tr: "\u0130kisi de", es: "Ambos" },
+  // Review traits
+  "On time": { tr: "Dakik", es: "Puntual" },
+  "Great listener": { tr: "\u0130yi dinleyici", es: "Sabe escuchar" },
+  "Made me laugh": { tr: "Beni g\u00fcld\u00fcrd\u00fc", es: "Me hizo re\u00edr" },
+  "Felt safe": { tr: "G\u00fcvende hissettim", es: "Me sent\u00ed seguro" },
+  "Genuine": { tr: "Samimi", es: "Aut\u00e9ntico" },
+  "Good energy": { tr: "\u0130yi enerji", es: "Buena energ\u00eda" },
+  "Planned it well": { tr: "\u0130yi planlam\u0131\u015f", es: "Lo planeó bien" },
+  "Respectful": { tr: "Sayg\u0131l\u0131", es: "Respetuoso" },
+  "Easy to talk to": { tr: "Konu\u015fmas\u0131 kolay", es: "F\u00e1cil de hablar" },
+  "Adventurous": { tr: "Maceraperest", es: "Aventurero" },
+  // Review flags
+  "They paid or insisted on paying": { tr: "\u00d6dedi ya da \u00f6demekte \u0131srar etti", es: "Pag\u00f3 o insisti\u00f3 en pagar" },
+  "Didn't show up": { tr: "Gelmedi", es: "No apareci\u00f3" },
+  "Made me uncomfortable": { tr: "Beni rahats\u0131z etti", es: "Me incomod\u00f3" },
+};
+
+// Translate a stored option value for display
+function useLabel() {
+  const { lang } = useLang();
+  return (key) => (lang === "en" ? key : (LABELS[key] && LABELS[key][lang]) || key);
+}
+
+// ================= Availability =================
+// TOM is named after time, so when someone is free is a first class signal.
+const AVAIL_SLOTS = [
+  ["weekday_morning", "Weekday mornings"],
+  ["weekday_evening", "Weekday evenings"],
+  ["weekend_day", "Weekend days"],
+  ["weekend_night", "Weekend nights"],
+];
+// "Free tonight" expires on its own at the end of the day
+function freeTonightActive(iso) {
+  return Boolean(iso) && new Date(iso) > new Date();
+}
+function endOfToday() {
+  const d = new Date();
+  d.setHours(23, 59, 59, 999);
+  return d.toISOString();
+}
+
 const ACTIVITY_POOL = ["Stargazing", "Board games", "Park hangs", "Walks", "Free museums", "Sunset spots", "Market browsing", "Beach days", "People watching", "Free concerts", "Picnics (bring your own)", "Photography strolls"];
 const INTEREST_POOL = ["Music", "Art", "History", "Film", "Food", "Travel", "Books", "Fitness", "Tech", "Nature", "Fashion", "Languages"];
 const HOBBY_POOL = ["Chess", "Photography", "Hiking", "Dancing", "Reading", "Walking", "Cycling", "Basketball", "Yoga", "Running", "Stargazing", "Museums", "Art Galleries", "Window Shopping", "Birdwatching", "Picnics"];
@@ -551,7 +688,9 @@ const rankScore = (from, p) => {
   // Someone you passed on who then chose you rises to the top, so real
   // mutual interest is never lost to a careless swipe.
   const secondChanceBoost = p.secondChance ? 100000 : 0;
-  return base - sharedLikes(p).length * BOOST_KM - secondChanceBoost;
+  // Someone free tonight is the most actionable person in the deck
+  const freeTonightBoost = p.freeTonight ? 20 : 0;
+  return base - sharedLikes(p).length * BOOST_KM - secondChanceBoost - freeTonightBoost;
 };
 
 // ================= Demo profiles for the deck =================
@@ -722,6 +861,14 @@ const Ic = {
       <path d="M4.5 12.5l5 5L19.5 7" stroke={c} strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
+  Users: ({ s = 20, c = "#5B21B6" }) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="9" cy="8" r="3.4" fill={c} />
+      <circle cx="16.8" cy="9" r="2.6" fill={c} opacity="0.6" />
+      <path d="M2.8 19.5c.7-3.2 3.3-4.9 6.2-4.9s5.5 1.7 6.2 4.9" stroke={c} strokeWidth="2.2" strokeLinecap="round" />
+      <path d="M16.5 14.8c2.2.2 3.9 1.6 4.4 4" stroke={c} strokeWidth="2" strokeLinecap="round" opacity="0.6" />
+    </svg>
+  ),
   Undo: ({ s = 20, c = "#5B21B6" }) => (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M4 9h9.5a5.5 5.5 0 0 1 0 11H8" stroke={c} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
@@ -751,6 +898,19 @@ function ZeroStamp({ size = 54 }) {
 function Pill({ children, filled }) {
   return <span style={{ ...nu(700, 12, filled ? T.white : T.royal), padding: "5px 11px", borderRadius: 999, background: filled ? T.royal : T.lilac, whiteSpace: "nowrap" }}>{children}</span>;
 }
+function ToggleRow({ on, onToggle, label, icon }) {
+  const RIcon = icon && Ic[icon] ? Ic[icon] : null;
+  return (
+    <button onClick={onToggle} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, background: on ? T.lilac : T.white, border: `2px solid ${on ? T.royal : T.lilacDeep}`, borderRadius: 16, padding: "12px 14px", cursor: "pointer", textAlign: "left" }}>
+      {RIcon && <RIcon s={20} c={T.royal} />}
+      <span style={{ flex: 1, ...nu(800, 14, T.ink) }}>{label}</span>
+      <span style={{ width: 42, height: 24, borderRadius: 999, background: on ? T.royal : T.lilacDeep, position: "relative", transition: "background .2s", flexShrink: 0 }}>
+        <span style={{ position: "absolute", top: 3, left: on ? 21 : 3, width: 18, height: 18, borderRadius: "50%", background: T.white, transition: "left .2s" }} />
+      </span>
+    </button>
+  );
+}
+
 function Chip({ label, active, onClick }) {
   return (
     <button onClick={onClick} style={{ ...nu(700, 13, active ? T.white : T.royal), padding: "8px 13px", borderRadius: 999, border: `2px solid ${active ? T.royal : T.lilacDeep}`, background: active ? T.royal : T.white, cursor: "pointer" }}>
@@ -847,6 +1007,8 @@ function AdmirersPanel({ admirers, myLoc, onLikeBack, onBack, onReport }) {
 }
 
 function FiltersModal({ onClose, onApply }) {
+  const { t } = useLang();
+  const L = useLabel();
   const u = api.user || {};
   const [minAge, setMinAge] = useState(u.filterMinAge ?? 18);
   const [maxAge, setMaxAge] = useState(u.filterMaxAge ?? 99);
@@ -874,7 +1036,7 @@ function FiltersModal({ onClose, onApply }) {
         </Field>
         <Field label="Only show people into">
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {INTEREST_POOL.map((i) => <Chip key={i} label={i} active={picked.includes(i)} onClick={() => toggle(i)} />)}
+            {INTEREST_POOL.map((i) => <Chip key={i} label={L(i)} active={picked.includes(i)} onClick={() => toggle(i)} />)}
           </div>
         </Field>
         <PrimaryBtn onClick={() => onApply({ minAge: lo, maxAge: hi, radius, interests: picked })}>Apply filters</PrimaryBtn>
@@ -1088,7 +1250,120 @@ const MISSIONS = [
   ]},
 ];
 
+// Date idea translations. English stays the stored value.
+const IDEA_LABELS = {
+  "Sunrise mission: reach the best viewpoint in town before the sun does": { tr: "Gün doğumu görevi: güneşten önce şehrin en iyi manzarasına var", es: "Misión amanecer: llega al mejor mirador antes que el sol" },
+  "Explore a neighborhood neither of you has ever walked": { tr: "İkinizin de hiç yürümediği bir mahalleyi keşfedin", es: "Exploren un barrio que ninguno haya caminado" },
+  "Urban treasure hunt: find five hidden details most people miss": { tr: "Şehir hazine avı: çoğu kişinin görmediği beş detay bulun", es: "Búsqueda urbana del tesoro: encuentren cinco detalles que casi nadie ve" },
+  "Walk on ferry ride at golden hour, best story wins": { tr: "Gün batımında vapur yolculuğu, en iyi hikaye kazanır", es: "Paseo en ferry al atardecer, gana la mejor historia" },
+  "Follow a street cat and see where it takes you": { tr: "Bir sokak kedisini takip edin, sizi nereye götürüyor görün", es: "Sigan a un gato callejero y vean a dónde los lleva" },
+  "Find the highest free viewpoint in the city together": { tr: "Şehrin en yüksek ücretsiz manzarasını birlikte bulun", es: "Encuentren juntos el mirador gratuito más alto" },
+  "Get deliberately lost, then find your way home with no maps": { tr: "Bilerek kaybolun, sonra haritasız eve dönün", es: "Piérdanse a propósito y vuelvan sin mapas" },
+  "Ride a bus to the last stop and explore whatever is there": { tr: "Otobüse binip son durağa gidin ve orası neyse keşfedin", es: "Tomen un autobús hasta la última parada y exploren lo que haya" },
+  "Find the oldest street in town and walk its full length": { tr: "Şehrin en eski sokağını bulun ve baştan sona yürüyün", es: "Encuentren la calle más antigua y recórranla entera" },
+  "Coin flip walk: heads you go left, tails you go right, twenty flips": { tr: "Yazı tura yürüyüşü: yazı sola, tura sağa, yirmi atış", es: "Paseo a cara o cruz: cara izquierda, cruz derecha, veinte tiradas" },
+  "Explore the biggest park end to end without repeating a path": { tr: "En büyük parkı aynı yoldan geçmeden baştan sona keşfedin", es: "Recorran el parque más grande de punta a punta sin repetir camino" },
+  "Find five staircases and climb every one": { tr: "Beş merdiven bulun ve hepsini tırmanın", es: "Encuentren cinco escaleras y suban todas" },
+  "Pick a direction and walk it for one hour, then turn around": { tr: "Bir yön seçin, bir saat yürüyün, sonra geri dönün", es: "Elijan una dirección, caminen una hora y vuelvan" },
+  "36 questions on a park bench, no phones": { tr: "Park bankında 36 soru, telefon yok", es: "36 preguntas en un banco del parque, sin teléfonos" },
+  "Swap playlists and each explain three songs that made you": { tr: "Çalma listelerinizi değiştirin ve sizi siz yapan üç şarkıyı anlatın", es: "Intercambien playlists y expliquen tres canciones que los formaron" },
+  "People watch and invent their life stories": { tr: "İnsanları izleyin ve hayat hikayelerini uydurun", es: "Observen a la gente e inventen sus historias de vida" },
+  "Teach each other something new in twenty minutes": { tr: "Yirmi dakikada birbirinize yeni bir şey öğretin", es: "Enséñense algo nuevo en veinte minutos" },
+  "Walk and talk: describe the street you grew up on": { tr: "Yürüyün ve konuşun: büyüdüğünüz sokağı anlatın", es: "Caminen y hablen: describe la calle donde creciste" },
+  "Debate your silliest hills to die on": { tr: "En saçma inatlarınızı tartışın", es: "Debatan sus manias más absurdas" },
+  "Interview each other like a talk show host": { tr: "Birbirinizle talk show sunucusu gibi röportaj yapın", es: "Entrevístense como en un programa de televisión" },
+  "Trade the three best pieces of advice you ever got": { tr: "Aldığınız en iyi üç tavsiyeyi paylaşın", es: "Intercambien los tres mejores consejos que les han dado" },
+  "Describe your perfect ordinary Tuesday, then compare": { tr: "Mükemmel sıradan bir Salı gününüzü anlatın, sonra karşılaştırın", es: "Describan su martes perfecto y compárenlos" },
+  "Two truths and a lie until someone finally gets caught": { tr: "Biri yakalanana kadar iki doğru bir yalan", es: "Dos verdades y una mentira hasta que alguien caiga" },
+  "Plan an imaginary road trip you will never actually take": { tr: "Asla çıkmayacağınız hayali bir yol gezisi planlayın", es: "Planeen un viaje imaginario que nunca harán" },
+  "Tell each other the story behind a scar": { tr: "Birbirinize bir yaranın hikayesini anlatın", es: "Cuéntense la historia detrás de una cicatriz" },
+  "Say what you would do with a completely free year": { tr: "Tamamen boş bir yılınız olsa ne yapardınız söyleyin", es: "Digan qué harían con un año completamente libre" },
+  "Botanical garden on its free day": { tr: "Botanik bahçesinin ücretsiz günü", es: "Jardín botánico en su día gratuito" },
+  "Sunset picnic, you each bring something from home": { tr: "Gün batımı pikniği, herkes evden bir şey getirsin", es: "Picnic al atardecer, cada uno trae algo de casa" },
+  "Stone skipping contest at the water": { tr: "Suda taş sektirme yarışması", es: "Concurso de saltar piedras en el agua" },
+  "Find the oldest tree in the park": { tr: "Parktaki en yaşlı ağacı bulun", es: "Encuentren el árbol más viejo del parque" },
+  "Birdwatching with a shared thermos": { tr: "Paylaşılan bir termosla kuş gözlemi", es: "Observación de aves con un termo compartido" },
+  "Barefoot walk on the grass, loser plans the next date": { tr: "Çimende çıplak ayak yürüyüş, kaybeden bir sonraki buluşmayı planlar", es: "Caminen descalzos por el césped, el que pierda planea la próxima cita" },
+  "Collect five leaves each and rank them seriously": { tr: "Beşer yaprak toplayın ve ciddi ciddi sıralayın", es: "Recojan cinco hojas cada uno y clasifíquenlas en serio" },
+  "Cloud watching, name every shape out loud": { tr: "Bulut izleyin, her şekle isim verin", es: "Miren las nubes y nombren cada forma en voz alta" },
+  "Walk the whole waterfront, wherever it starts and ends": { tr: "Sahilin tamamını yürüyün, nerede başlayıp biterse", es: "Recorran todo el paseo marítimo, empiece donde empiece" },
+  "Find water: river, fountain, lake, whichever is closest": { tr: "Su bulun: nehir, çeşme, göl, hangisi yakınsa", es: "Busquen agua: río, fuente, lago, lo que quede más cerca" },
+  "Wildflower hunt, photograph them and leave them growing": { tr: "Yabani çiçek avı, fotoğraflayın ama koparmayın", es: "Busquen flores silvestres, fotografíenlas y déjenlas crecer" },
+  "Hunt for the best shade tree and read there": { tr: "En iyi gölge ağacını bulun ve orada okuyun", es: "Busquen el mejor árbol con sombra y lean ahí" },
+  "Follow a trail neither of you has taken all the way to its end": { tr: "İkinizin de gitmediği bir patikayı sonuna kadar takip edin", es: "Sigan hasta el final un sendero que ninguno haya tomado" },
+  "Free museum night, invent backstories for the art": { tr: "Ücretsiz müze gecesi, eserlere hikaye uydurun", es: "Noche de museo gratis, inventen historias para el arte" },
+  "Street art hunt: photograph ten murals": { tr: "Sokak sanatı avı: on duvar resmi fotoğraflayın", es: "Búsqueda de arte urbano: fotografíen diez murales" },
+  "Self guided walking tour of the old town": { tr: "Eski şehirde kendi rehberli yürüyüşünüz", es: "Recorrido a pie por el casco antiguo por su cuenta" },
+  "Library date: pick a book for each other": { tr: "Kütüphane buluşması: birbirinize kitap seçin", es: "Cita en la biblioteca: elijan un libro el uno para el otro" },
+  "Free concert or open rehearsal in the park": { tr: "Parkta ücretsiz konser ya da açık prova", es: "Concierto gratis o ensayo abierto en el parque" },
+  "Visit the oldest building either of you can find": { tr: "İkinizin bulabileceği en eski binayı ziyaret edin", es: "Visiten el edificio más antiguo que puedan encontrar" },
+  "Read the plaque on every monument you pass": { tr: "Geçtiğiniz her anıtın tabelasını okuyun", es: "Lean la placa de cada monumento que pasen" },
+  "Find the strangest statue in the city and pose with it": { tr: "Şehrin en tuhaf heykelini bulun ve yanında poz verin", es: "Encuentren la estatua más rara de la ciudad y posen con ella" },
+  "Sit in on a free lecture or open class": { tr: "Ücretsiz bir derse ya da konferansa katılın", es: "Asistan a una charla o clase abierta gratuita" },
+  "Bookshop browse, choose each other's next read": { tr: "Kitapçı gezin, birbirinizin bir sonraki kitabını seçin", es: "Recorran una librería y elijan la próxima lectura del otro" },
+  "Cemetery walk for the history and the quiet": { tr: "Tarih ve sessizlik için mezarlık yürüyüşü", es: "Paseo por el cementerio por la historia y el silencio" },
+  "Find a place your grandparents would still recognize": { tr: "Büyükanne ve büyükbabanızın hala tanıyacağı bir yer bulun", es: "Encuentren un lugar que sus abuelos aún reconocerían" },
+  "Watch the buskers and pick who deserves to be famous": { tr: "Sokak müzisyenlerini izleyin ve kimin ünlü olmayı hak ettiğini seçin", es: "Miren a los músicos callejeros y elijan quién merece ser famoso" },
+  "Sunrise run or brisk walk along the water": { tr: "Sahil boyunca gün doğumu koşusu ya da tempolu yürüyüş", es: "Carrera o caminata rápida al amanecer junto al agua" },
+  "Outdoor gym challenge: see who gives up first": { tr: "Açık hava spor aleti meydan okuması: kim önce pes edecek", es: "Reto en el gimnasio al aire libre: a ver quién se rinde primero" },
+  "Race up the big steps, winner picks the next mission": { tr: "Büyük merdivenleri yarışın, kazanan bir sonraki görevi seçer", es: "Suban corriendo las escaleras grandes, el ganador elige la próxima misión" },
+  "Park yoga, bring two mats": { tr: "Parkta yoga, iki mat getirin", es: "Yoga en el parque, lleven dos esterillas" },
+  "Bike ride to somewhere neither of you has been": { tr: "İkinizin de gitmediği bir yere bisikletle gidin", es: "Paseo en bici a un sitio donde ninguno haya estado" },
+  "Swim at the public beach": { tr: "Halk plajında yüzme", es: "Nádense en la playa pública" },
+  "Plank contest in the park, no mercy": { tr: "Parkta plank yarışı, acımak yok", es: "Concurso de plancha en el parque, sin piedad" },
+  "Walk ten thousand steps together and actually count them": { tr: "Birlikte on bin adım yürüyün ve gerçekten sayin", es: "Caminen diez mil pasos juntos y cuéntenlos de verdad" },
+  "Teach each other your best stretch": { tr: "Birbirinize en iyi esneme hareketinizi öğretin", es: "Enséñense su mejor estiramiento" },
+  "Hill sprints until one of you calls it": { tr: "Biriniz pes edene kadar yokuş sprintleri", es: "Sprints cuesta arriba hasta que alguien lo deje" },
+  "Handstand attempts against a wall, film the failures": { tr: "Duvara yaslanıp amuda kalkmayı deneyin, başarısızlıkları çekin", es: "Intenten hacer el pino contra la pared y graben los fallos" },
+  "Long walk with one rule: no stopping for an hour": { tr: "Tek kurallı uzun yürüyüş: bir saat boyunca durmak yok", es: "Caminata larga con una sola regla: no parar en una hora" },
+  "Shadow boxing lesson from whichever of you knows more": { tr: "Hanginiz daha iyi biliyorsa gölge boks dersi versin", es: "Clase de boxeo de sombra del que sepa más" },
+  "Sketch each other in ten minutes, reveal at the same time": { tr: "On dakikada birbirinizi çizin, aynı anda gösterin", es: "Dibújense en diez minutos y muéstrenlo a la vez" },
+  "Phone photo challenge: one theme, ten shots each": { tr: "Telefon fotoğraf meydan okuması: tek tema, beşer kare", es: "Reto fotográfico: un tema, diez fotos cada uno" },
+  "Write a six word story about this exact date": { tr: "Tam bu buluşma hakkında altı kelimelik bir hikaye yazın", es: "Escriban una historia de seis palabras sobre esta cita" },
+  "Build something tiny out of found objects": { tr: "Bulduğunuz nesnelerden minik bir şey yapın", es: "Construyan algo diminuto con objetos encontrados" },
+  "Learn a dance from a free video and film the result": { tr: "Ücretsiz bir videodan dans öğrenin ve sonucu çekin", es: "Aprendan un baile de un video gratis y graben el resultado" },
+  "Cook off using only what is already in the kitchen": { tr: "Sadece mutfakta olanlarla yemek yarışı", es: "Duelo de cocina usando solo lo que ya hay" },
+  "Write each other a terrible poem on purpose": { tr: "Birbirinize bilerek kötü bir şiir yazın", es: "Escríbanse un poema malo a propósito" },
+  "Invent a board game using whatever is on the table": { tr: "Masadakilerle bir kutu oyunu icat edin", es: "Inventen un juego de mesa con lo que haya en la mesa" },
+  "Photograph the same thing ten completely different ways": { tr: "Aynı şeyi on farklı şekilde fotoğraflayın", es: "Fotografíen lo mismo de diez formas distintas" },
+  "Make up a song about your day, talent not required": { tr: "Gününüz hakkında bir şarkı uydurun, yetenek gerekmez", es: "Inventen una canción sobre su día, no hace falta talento" },
+  "Design your dream house on scrap paper": { tr: "Hayalinizdeki evi müsvedde kağıda çizin", es: "Diseñen la casa de sus sueños en papel de borrador" },
+  "Write the opening line of a novel, trade, keep going": { tr: "Bir romanın ilk cümlesini yazın, değiştirin, devam edin", es: "Escriban la primera línea de una novela, intercámbienla y sigan" },
+  "Rename every shop you pass with a better name": { tr: "Geçtiğiniz her dükkana daha iyi bir isim verin", es: "Renombren cada tienda que pasen con un nombre mejor" },
+  "Board games marathon, loser makes the tea": { tr: "Kutu oyunu maratonu, kaybeden çay yapar", es: "Maratón de juegos de mesa, el que pierda hace el té" },
+  "Covered market wander, strictly buy nothing": { tr: "Kapalı çarşı gezisi, kesinlikle hiçbir şey almadan", es: "Paseo por el mercado cubierto sin comprar absolutamente nada" },
+  "Library afternoon, read each other one page": { tr: "Kütüphane öğleden sonrası, birbirinize bir sayfa okuyun", es: "Tarde de biblioteca, léanse una página el uno al otro" },
+  "Movie marathon with popcorn from your own kitchen": { tr: "Kendi mutfağınızdan patlamış mısırla film maratonu", es: "Maratón de películas con palomitas de su propia cocina" },
+  "Puzzle race against the rain": { tr: "Yağmura karşı yapboz yarışı", es: "Carrera de rompecabezas contra la lluvia" },
+  "Rain on window photography from a dry doorway": { tr: "Kuru bir kapı eşiğinden cama yağmur fotoğrafları", es: "Fotos de lluvia en la ventana desde un portal seco" },
+  "Card games, invent house rules as you go": { tr: "İskambil oyunları, kuralları yolda uydurun", es: "Juegos de cartas, inventen las reglas sobre la marcha" },
+  "Build a blanket fort with real structural engineering": { tr: "Gerçek mühendislikle battaniye kalesi kurun", es: "Construyan un fuerte de mantas con ingeniería de verdad" },
+  "Cook something neither of you has ever made": { tr: "İkinizin de hiç yapmadığı bir yemeği pişirin", es: "Cocinen algo que ninguno haya hecho nunca" },
+  "Trade favourite childhood shows and watch one each": { tr: "Çocukluk dizilerinizi değiştirin ve birer tane izleyin", es: "Intercambien series de la infancia y vean una de cada uno" },
+  "Deep clean a room together with the music loud": { tr: "Müziği açıp birlikte bir odayı derinlemesine temizleyin", es: "Limpien a fondo una habitación juntos con la música alta" },
+  "Learn a card trick from a video and perform it badly": { tr: "Videodan bir kart oyunu öğrenin ve kötü bir şekilde sergileyin", es: "Aprendan un truco de cartas de un video y háganlo mal" },
+  "Bake with whatever is already in the cupboard": { tr: "Dolapta ne varsa onunla fırınlayın", es: "Horneen con lo que ya haya en la despensa" },
+  "Stargazing from the darkest spot you can reach": { tr: "Ulaşabileceğiniz en karanlık noktadan yıldız izleme", es: "Observen estrellas desde el punto más oscuro al que lleguen" },
+  "Full moon walk through the old streets": { tr: "Dolunayda eski sokaklarda yürüyüş", es: "Paseo de luna llena por las calles antiguas" },
+  "City lights viewpoint with hot drinks from home": { tr: "Evden getirilen sıcak içeceklerle şehir ışıkları manzarası", es: "Mirador de luces de la ciudad con bebidas calientes de casa" },
+  "Night market stroll, spend nothing": { tr: "Gece pazarı gezisi, hiçbir şey harcamadan", es: "Paseo por el mercado nocturno sin gastar nada" },
+  "Ghost story walk, scariest local legend wins": { tr: "Hayalet hikayesi yürüyüşü, en korkunç yerel efsane kazanır", es: "Paseo de historias de fantasmas, gana la leyenda local más aterradora" },
+  "Midnight breakfast at home": { tr: "Evde gece yarısı kahvaltısı", es: "Desayuno de medianoche en casa" },
+  "Find every lit fountain in the city": { tr: "Şehirdeki ışıklı tüm çeşmeleri bulun", es: "Encuentren todas las fuentes iluminadas de la ciudad" },
+  "Late walk with one earbud each, shared playlist": { tr: "Birer kulaklıkla geç saatte yürüyüş, ortak çalma listesi", es: "Paseo nocturno con un auricular cada uno y playlist compartida" },
+  "Watch planes land from wherever you can see them": { tr: "Görebileceğiniz bir yerden uçakların inişini izleyin", es: "Miren aterrizar los aviones desde donde puedan verlos" },
+  "Sit somewhere high and invent your own constellations": { tr: "Yüksek bir yere oturun ve kendi takımyıldızlarınızı icat edin", es: "Siéntense en alto e inventen sus propias constelaciones" },
+  "Empty street photography after midnight": { tr: "Gece yarısından sonra boş sokak fotoğrafçılığı", es: "Fotografía de calles vacías después de medianoche" },
+  "Stay up for the sunrise, then sleep the day away": { tr: "Gün doğumu için uyanık kalın, sonra gün boyu uyuyun", es: "Quédense despiertos para el amanecer y luego duerman todo el día" },
+  "Rooftop or hilltop, whichever one you can reach for free": { tr: "Çatı ya da tepe, ücretsiz ulaşabildiğiniz hangisiyse", es: "Azotea o colina, la que puedan alcanzar gratis" },
+};
+
 // Flat list for the date proposal picker
+function useIdeaText() {
+  const { lang } = useLang();
+  return (idea) => (lang === "en" ? idea : (IDEA_LABELS[idea] && IDEA_LABELS[idea][lang]) || idea);
+}
+
 const ALL_IDEAS = MISSIONS.flatMap((m) => m.ideas.map((idea) => ({ idea, cat: m.id, label: m.label, icon: m.icon })));
 
 const REVIEW_TRAITS = ["On time", "Great listener", "Made me laugh", "Felt safe", "Genuine", "Good energy", "Planned it well", "Respectful", "Easy to talk to", "Adventurous"];
@@ -1096,6 +1371,7 @@ const REVIEW_FLAGS = ["They paid or insisted on paying", "Didn't show up", "Made
 
 function Missions({ matches, onSend }) {
   const { t } = useLang();
+  const ideaText = useIdeaText();
   const [cat, setCat] = useState(MISSIONS[0].id);
   const active = MISSIONS.find((m) => m.id === cat);
   const CatIcon = Ic[active.icon];
@@ -1117,7 +1393,7 @@ function Missions({ matches, onSend }) {
       {active.ideas.map((idea) => (
         <div key={idea} style={{ background: T.white, borderRadius: 16, padding: "13px 15px", marginBottom: 9, boxShadow: "0 3px 10px rgba(42,27,74,.06)", display: "flex", alignItems: "center", gap: 10 }}>
           <CatIcon s={18} c={T.royal} />
-          <span style={{ flex: 1, ...nu(700, 13.5, T.ink) }}>{idea}</span>
+          <span style={{ flex: 1, ...nu(700, 13.5, T.ink) }}>{ideaText(idea)}</span>
           <button onClick={() => onSend(idea)} style={{ border: "none", borderRadius: 999, padding: "8px 12px", background: matches.length ? T.royal : T.lilacDeep, cursor: matches.length ? "pointer" : "default", ...fr(600, 12, T.white) }} disabled={!matches.length}>{t("send")}</button>
         </div>
       ))}
@@ -1128,11 +1404,12 @@ function Missions({ matches, onSend }) {
 
 function SendMissionModal({ idea, matches, onPick, onClose }) {
   const { t } = useLang();
+  const ideaText = useIdeaText();
   return (
     <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "flex-end", zIndex: 60 }} onClick={onClose}>
       <div style={{ width: "100%", background: T.white, borderRadius: "26px 26px 0 0", padding: "20px 20px 24px", maxHeight: "70%", overflowY: "auto", animation: "floatUp .25s ease" }} onClick={(e) => e.stopPropagation()}>
         <h2 style={{ ...fr(700, 18, T.royal), margin: "0 0 4px" }}>{t("sendMissionTo")}</h2>
-        <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 14px" }}>{idea}</p>
+        <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 14px" }}>{ideaText(idea)}</p>
         {matches.map((p) => (
           <button key={p.id} onClick={() => onPick(p)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, background: T.white, border: `2px solid ${T.lilacDeep}`, borderRadius: 16, padding: 12, marginBottom: 8, cursor: "pointer" }}>
             <div style={{ width: 44, height: 44, borderRadius: "50%", background: p.photo ? `url(${p.photo}) center/cover no-repeat` : `linear-gradient(135deg, ${p.grad[0]}, ${p.grad[1]})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, ...fr(700, 18, T.white) }}>{p.photo ? "" : p.name[0]}</div>
@@ -1170,6 +1447,11 @@ function PlanBanner({ plan, myId, profileName, onConfirm, onComplete }) {
         <Ic.Hourglass s={13} c={T.royal} />{plan.status === "confirmed" ? "It's a plan" : "Date proposal"}
       </div>
       <div style={{ ...nu(700, 13.5, T.ink), margin: "3px 0 2px" }}>{plan.idea}</div>
+      {plan.is_double && (
+        <div style={{ ...nu(800, 11.5, T.royal), display: "inline-flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
+          <Ic.Users s={12} c={T.royal} />{t("doubleDate")}
+        </div>
+      )}
       {when && <div style={{ ...nu(800, 12, T.royal), marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}><Ic.Hourglass s={11} c={T.royal} />{when}</div>}
       {!when && <div style={{ marginBottom: 8 }} />}
       {plan.status === "proposed" && mine && <div style={{ ...nu(700, 12, T.soft) }}>Waiting for {profileName} to confirm</div>}
@@ -1230,6 +1512,8 @@ function OutcomeModal({ pending, onAnswer, onLater }) {
 }
 
 function ReviewModal({ pending, onDone, onSkip }) {
+  const { t } = useLang();
+  const L = useLabel();
   const [well, setWell] = useState(null); // true | false
   const [traits, setTraits] = useState([]);
   const [flag, setFlag] = useState(null);
@@ -1254,12 +1538,12 @@ function ReviewModal({ pending, onDone, onSkip }) {
         </div>
         <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 7 }}>What were they like? (pick up to 3)</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 14 }}>
-          {REVIEW_TRAITS.map((t) => <Chip key={t} label={t} active={traits.includes(t)} onClick={() => toggle(t)} />)}
+          {REVIEW_TRAITS.map((x) => <Chip key={x} label={L(x)} active={traits.includes(x)} onClick={() => toggle(x)} />)}
         </div>
         <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 7 }}>Anything to flag? (optional, private)</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 16 }}>
           {REVIEW_FLAGS.map((f) => (
-            <button key={f} onClick={() => setFlag(flag === f ? null : f)} style={{ textAlign: "left", padding: "9px 12px", borderRadius: 12, border: `2px solid ${flag === f ? T.royal : T.lilacDeep}`, background: flag === f ? T.lilac : T.white, cursor: "pointer", ...nu(700, 12.5, T.ink) }}>{f}</button>
+            <button key={f} onClick={() => setFlag(flag === f ? null : f)} style={{ textAlign: "left", padding: "9px 12px", borderRadius: 12, border: `2px solid ${flag === f ? T.royal : T.lilacDeep}`, background: flag === f ? T.lilac : T.white, cursor: "pointer", ...nu(700, 12.5, T.ink) }}>{L(f)}</button>
           ))}
         </div>
         <PrimaryBtn disabled={well === null || saving} onClick={submit}>{saving ? "Sending..." : "Submit review"}</PrimaryBtn>
@@ -1330,6 +1614,8 @@ function GuestPrompt({ onSignUp, onClose }) {
 // ================= Full profile view (before or after matching) =================
 function ProfileDetailModal({ profile, myLoc, onClose, onSwipe, onMessage, onLikeBack }) {
   const { t } = useLang();
+  const L = useLabel();
+  const ideaText = useIdeaText();
   const [idx, setIdx] = useState(0);
   if (!profile) return null;
   const gallery = [profile.photo, ...(profile.photos || [])].filter(Boolean);
@@ -1358,6 +1644,7 @@ function ProfileDetailModal({ profile, myLoc, onClose, onSwipe, onMessage, onLik
     genderLabel && genderLabel !== "Prefer not to say" && { icon: "Person", text: genderLabel },
     chronoLabel && { icon: chronoLabel === "Night person" ? "Moon" : "Sun", text: chronoLabel },
     profile.city && { icon: "Pin", text: profile.city },
+    profile.openToDoubles && { icon: "Users", text: t("doubleBadge") },
   ].filter(Boolean);
 
   const Section = ({ title, items }) => (
@@ -1365,7 +1652,7 @@ function ProfileDetailModal({ profile, myLoc, onClose, onSwipe, onMessage, onLik
       <div>
         <div style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".6px", textTransform: "uppercase", marginBottom: 7 }}>{title}</div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {items.map((x) => <Pill key={x} filled={shared.includes(x)}>{x}</Pill>)}
+          {items.map((x) => <Pill key={x} filled={shared.includes(x)}>{L(x)}</Pill>)}
         </div>
       </div>
     ) : null
@@ -1409,7 +1696,7 @@ function ProfileDetailModal({ profile, myLoc, onClose, onSwipe, onMessage, onLik
                 const FIcon = Ic[f.icon];
                 return (
                   <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#FBFAFE", border: `1px solid ${T.lilac}`, borderRadius: 999, padding: "6px 11px", ...nu(700, 12.5, T.ink) }}>
-                    <FIcon s={13} c={T.royal} />{f.text}
+                    <FIcon s={13} c={T.royal} />{L(f.text)}
                   </span>
                 );
               })}
@@ -1425,15 +1712,26 @@ function ProfileDetailModal({ profile, myLoc, onClose, onSwipe, onMessage, onLik
 
           {shared.length > 0 && (
             <div style={{ background: "#FFF4D6", borderRadius: 14, padding: "10px 12px", ...nu(700, 13, "#8A6400"), display: "flex", alignItems: "center", gap: 6 }}>
-              <Ic.Spark s={14} c={T.sun} />{t("bothLove")}: {shared.join(", ")}
+              <Ic.Spark s={14} c={T.sun} />{t("bothLove")}: {shared.map(L).join(", ")}
             </div>
           )}
 
+          {(profile.availability || []).length > 0 && (
+            <div>
+              <div style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".6px", textTransform: "uppercase", marginBottom: 7 }}>{t("availabilityLabel")}</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {(profile.availability || []).map((v) => {
+                  const slot = AVAIL_SLOTS.find(([k]) => k === v);
+                  return slot ? <Pill key={v}>{L(slot[1])}</Pill> : null;
+                })}
+              </div>
+            </div>
+          )}
           <Section title={t("thingsTheyDo")} items={profile.activities} />
           <Section title={t("interestsLabel")} items={profile.interests} />
           <Section title={t("hobbiesLabel")} items={profile.hobbies} />
 
-          <div style={{ background: T.lilac, borderRadius: 14, padding: "11px 13px", ...nu(700, 13.5, T.royal), display: "flex", alignItems: "center", gap: 6 }}><Ic.Bulb s={14} c={T.royal} />{t("freeDateIdea")}: {profile.idea}</div>
+          <div style={{ background: T.lilac, borderRadius: 14, padding: "11px 13px", ...nu(700, 13.5, T.royal), display: "flex", alignItems: "center", gap: 6 }}><Ic.Bulb s={14} c={T.royal} />{t("freeDateIdea")}: {ideaText(profile.idea)}</div>
 
           {onSwipe && (
             <div style={{ display: "flex", justifyContent: "center", gap: 18, paddingTop: 4 }}>
@@ -1452,6 +1750,8 @@ function ProfileDetailModal({ profile, myLoc, onClose, onSwipe, onMessage, onLik
 // ================= Swipe card =================
 function Card({ profile, onSwipe, isTop, myLoc, onReport, onView }) {
   const { t } = useLang();
+  const L = useLabel();
+  const ideaText = useIdeaText();
   const [drag, setDrag] = useState({ x: 0, y: 0, active: false });
   const start = useRef({ x: 0, y: 0 });
   const onDown = (e) => { if (!isTop) return; const p = e.touches ? e.touches[0] : e; start.current = { x: p.clientX, y: p.clientY }; setDrag((d) => ({ ...d, active: true })); };
@@ -1467,11 +1767,23 @@ function Card({ profile, onSwipe, isTop, myLoc, onReport, onView }) {
           <div style={{ position: "absolute", top: 14, right: 14 }}><ZeroStamp /></div>
           <div style={{ position: "absolute", top: 18, left: 16, opacity: likeOp, ...fr(700, 24, T.white), border: `3px solid ${T.white}`, borderRadius: 12, padding: "2px 12px", transform: "rotate(-10deg)", background: "rgba(47,191,113,.85)" }}>WORTH MY TIME</div>
           <div style={{ position: "absolute", top: 18, right: 76, opacity: nopeOp, ...fr(700, 24, T.white), border: `3px solid ${T.white}`, borderRadius: 12, padding: "2px 12px", transform: "rotate(10deg)", background: "rgba(42,27,74,.6)" }}>NOT THIS TIME</div>
-          {profile.secondChance && (
-            <div style={{ position: "absolute", bottom: 14, left: 14, display: "flex", alignItems: "center", gap: 5, borderRadius: 999, padding: "6px 11px", background: T.sun, ...fr(600, 11.5, T.ink) }}>
-              <Ic.Hourglass s={12} c={T.ink} />{t("gaveYouTime")}
-            </div>
-          )}
+          <div style={{ position: "absolute", bottom: 14, left: 14, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 5 }}>
+            {profile.secondChance && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, borderRadius: 999, padding: "6px 11px", background: T.sun, ...fr(600, 11.5, T.ink) }}>
+                <Ic.Hourglass s={12} c={T.ink} />{t("gaveYouTime")}
+              </span>
+            )}
+            {profile.freeTonight && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, borderRadius: 999, padding: "6px 11px", background: T.green, ...fr(600, 11.5, T.white) }}>
+                <Ic.Moon s={12} c={T.white} />{t("freeTonightBadge")}
+              </span>
+            )}
+            {profile.openToDoubles && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, borderRadius: 999, padding: "6px 11px", background: "rgba(255,255,255,.9)", ...fr(600, 11.5, T.royal) }}>
+                <Ic.Users s={12} c={T.royal} />{t("doubleBadge")}
+              </span>
+            )}
+          </div>
           <button onClick={() => onView(profile)} onPointerDown={(e) => e.stopPropagation()} aria-label={t("viewProfile")} style={{ position: "absolute", bottom: 14, right: 14, display: "flex", alignItems: "center", gap: 5, border: "none", borderRadius: 999, padding: "7px 12px", background: "rgba(0,0,0,.35)", cursor: "pointer", ...nu(700, 12, T.white) }}>
             <Ic.Eye s={14} c={T.white} />{t("viewProfile")}
           </button>
@@ -1634,7 +1946,33 @@ const LANGS = [
 
 const STRINGS = {
   en: {
-    loadingDates: "Loading your dates",
+    whenFree: "When are you usually free?", whenFreeSub: "Helps TOM match you with people whose hours line up.",
+    freeTonight: "Free tonight", freeTonightSub: "Shows a badge until midnight, then clears itself",
+    freeTonightBadge: "Free tonight", availabilityLabel: "Usually free",
+    openToDoubles: "Open to double dates", openToDoublesSub: "Two of you, two of them. Less pressure, more fun.",
+    doubleBadge: "Up for doubles", doubleDate: "Double date",
+    doubleDateSub: "You each bring a friend. Still $0.",
+    yourReputation: "Your Time Reputation", noReputationYet: "No reviews yet",
+    noReputationSub: "After 3 rated dates your reputation shows on your profile.",
+    reputationFrom: "from", ratedDates: "rated dates",
+    onlyFreeTonight: "Only people free tonight",
+    datingCosts: "Dating costs $200 to $500 now.", datingCostsSub: "On TOM it costs nothing. Don't spend money. Spend time.",
+    welcomeBack: "Welcome back", timeWaiting: "Your time is waiting.",
+    yourName: "Your name", namePlaceholder: "What should we call you?",
+    emailLabel: "Email", passwordLabel: "Password", pw8: "8+ characters", yourPassword: "Your password",
+    ageLabel: "Age", pleaseWait: "Please wait...", createAccount: "Create my account", signIn: "Sign in",
+    alreadyOnTom: "Already on TOM? Sign in", newHere: "New here? Create an account",
+    publicPlaces: "Public places. Equal basis. $0 always.",
+    showYourFace: "Show your face", photoFormats: "JPEG, PNG, WebP, or HEIC. Up to 5 MB each.",
+    profilePicture: "Profile picture (required)", changePhoto: "Change photo", uploadPhoto: "Upload photo",
+    galleryLabel: "Gallery", moreLabel: "more",
+    aboutYou: "About you", heightLabel: "Height", cityLabel: "City", cityPlaceholder: "Where you date",
+    iAmA: "I am a", orientationLabel: "Orientation", showMe: "Show me", myHours: "My hours",
+    whatYouLove: "What do you love doing?", freeDatesUpFor: "Free dates I'm up for (pick at least 1)",
+    lastOneBio: "Last one: your bio", bioHint: "What should someone know before they spend time with you?",
+    bioPlaceholder: "I rate every bench I sit on...",
+    back: "Back", saving: "Saving...", continueBtn: "Continue", saveChanges: "Save changes", startSpending: "Start spending time",
+    loadingDates: "Loading your connections",
     aboutMe: "About me", thingsTheyDo: "Things they like to do",
     interestsLabel: "Interests", hobbiesLabel: "Hobbies",
     spendTimeWith: "Spend time with", messageBtn: "Message",
@@ -1647,7 +1985,7 @@ const STRINGS = {
     privacy: "Privacy Policy", and: "and", language: "Language",
     languageSub: "Choose how TOM speaks to you",
     findingPeople: "Finding people near you",
-    tabDiscover: "Discover", tabMissions: "Missions", tabDates: "Dates", tabYou: "You",
+    tabDiscover: "Discover", tabMissions: "Missions", tabDates: "Connections", tabYou: "You",
     closest: "CLOSEST", mostInCommon: "MOST IN COMMON", primeTime: "PRIME TIME",
     pass: "PASS", goldenHour: "GOLDEN HOUR", spendTime: "SPEND TIME",
     seenEveryone: "You've seen everyone nearby",
@@ -1659,7 +1997,7 @@ const STRINGS = {
     locationOff: "Location is off, so distances are hidden. Turn it on in your browser or phone settings to see who's nearby.",
     viewProfile: "View profile", distanceUnavailable: "Distance unavailable",
     away: "away", bothLove: "You both love", freeDateIdea: "Free date idea",
-    yourDates: "Your dates", noDatesYet: "No dates yet",
+    yourDates: "Your connections", noDatesYet: "No connections yet",
     noDatesSub: "Swipe right on someone whose time you'd like to share.",
     tapToMessage: "Tap to message", worthTheirTime: "Worth their time",
     admirersSub: "These people already said yes to spending time with you.",
@@ -1711,7 +2049,33 @@ const STRINGS = {
     notNow: "Not now", close: "Close", gotIt: "Got it",
   },
   tr: {
-    loadingDates: "Bulu\u015fmalar\u0131n y\u00fckleniyor",
+    whenFree: "Genelde ne zaman m\u00fcsaitsin?", whenFreeSub: "TOM'un saatleri uyan ki\u015filerle e\u015fle\u015ftirmesine yard\u0131mc\u0131 olur.",
+    freeTonight: "Bu ak\u015fam m\u00fcsaitim", freeTonightSub: "Gece yar\u0131s\u0131na kadar rozet g\u00f6sterir, sonra kendili\u011finden kalkar",
+    freeTonightBadge: "Bu ak\u015fam m\u00fcsait", availabilityLabel: "Genelde m\u00fcsait",
+    openToDoubles: "\u00c7ift bulu\u015fmaya a\u00e7\u0131k", openToDoublesSub: "\u0130kiniz, ikisi. Daha az bask\u0131, daha \u00e7ok e\u011flence.",
+    doubleBadge: "\u00c7ifte var", doubleDate: "\u00c7ift bulu\u015fma",
+    doubleDateSub: "Her biriniz bir arkada\u015f getirir. Yine 0 TL.",
+    yourReputation: "Zaman \u0130tibar\u0131n", noReputationYet: "Hen\u00fcz de\u011ferlendirme yok",
+    noReputationSub: "3 de\u011ferlendirilmi\u015f bulu\u015fmadan sonra itibar\u0131n profilinde g\u00f6r\u00fcn\u00fcr.",
+    reputationFrom: "kaynak:", ratedDates: "de\u011ferlendirilmi\u015f bulu\u015fma",
+    onlyFreeTonight: "Sadece bu ak\u015fam m\u00fcsait olanlar",
+    datingCosts: "Fl\u00f6rt art\u0131k 200 ile 500 dolar aras\u0131.", datingCostsSub: "TOM'da hi\u00e7bir \u015fey tutmaz. Para de\u011fil, zaman harcay\u0131n.",
+    welcomeBack: "Tekrar ho\u015f geldin", timeWaiting: "Zaman\u0131n seni bekliyor.",
+    yourName: "Ad\u0131n", namePlaceholder: "Sana nas\u0131l hitap edelim?",
+    emailLabel: "E-posta", passwordLabel: "\u015eifre", pw8: "En az 8 karakter", yourPassword: "\u015eifren",
+    ageLabel: "Ya\u015f", pleaseWait: "L\u00fctfen bekleyin...", createAccount: "Hesab\u0131m\u0131 olu\u015ftur", signIn: "Giri\u015f yap",
+    alreadyOnTom: "Zaten TOM'da m\u0131s\u0131n? Giri\u015f yap", newHere: "Yeni misin? Hesap olu\u015ftur",
+    publicPlaces: "A\u00e7\u0131k mekanlar. E\u015fit ko\u015fullar. Her zaman 0 TL.",
+    showYourFace: "Y\u00fcz\u00fcn\u00fc g\u00f6ster", photoFormats: "JPEG, PNG, WebP veya HEIC. Her biri en fazla 5 MB.",
+    profilePicture: "Profil foto\u011fraf\u0131 (zorunlu)", changePhoto: "Foto\u011fraf\u0131 de\u011fi\u015ftir", uploadPhoto: "Foto\u011fraf y\u00fckle",
+    galleryLabel: "Galeri", moreLabel: "daha",
+    aboutYou: "Hakk\u0131nda", heightLabel: "Boy", cityLabel: "\u015eehir", cityPlaceholder: "Nerede bulu\u015fuyorsun",
+    iAmA: "Ben bir", orientationLabel: "Y\u00f6nelim", showMe: "Bana g\u00f6ster", myHours: "Saatlerim",
+    whatYouLove: "Ne yapmay\u0131 seversin?", freeDatesUpFor: "Vars\u0131n oldu\u011fum \u00fccretsiz bulu\u015fmalar (en az 1 se\u00e7)",
+    lastOneBio: "Son olarak: biyografin", bioHint: "Biri seninle zaman ge\u00e7irmeden \u00f6nce ne bilmeli?",
+    bioPlaceholder: "Oturdu\u011fum her bank\u0131 puanlar\u0131m...",
+    back: "Geri", saving: "Kaydediliyor...", continueBtn: "Devam", saveChanges: "De\u011fi\u015fiklikleri kaydet", startSpending: "Zaman ay\u0131rmaya ba\u015fla",
+    loadingDates: "Ba\u011flant\u0131lar\u0131n y\u00fckleniyor",
     aboutMe: "Hakk\u0131mda", thingsTheyDo: "Yapmay\u0131 sevdikleri",
     interestsLabel: "\u0130lgi alanlar\u0131", hobbiesLabel: "Hobiler",
     spendTimeWith: "Zaman ay\u0131r:", messageBtn: "Mesaj g\u00f6nder:",
@@ -1724,7 +2088,7 @@ const STRINGS = {
     privacy: "Gizlilik Politikası", and: "ve", language: "Dil",
     languageSub: "TOM'un sizinle hangi dilde konuşacağını seçin",
     findingPeople: "Yakınındaki kişiler aranıyor",
-    tabDiscover: "Keşfet", tabMissions: "Görevler", tabDates: "Buluşmalar", tabYou: "Sen",
+    tabDiscover: "Keşfet", tabMissions: "Görevler", tabDates: "Bağlantılar", tabYou: "Sen",
     closest: "EN YAKIN", mostInCommon: "EN ÇOK ORTAK NOKTA", primeTime: "ALTIN SAAT",
     pass: "GEÇ", goldenHour: "ALTIN SAAT", spendTime: "ZAMAN AYIR",
     seenEveryone: "Yakındaki herkesi gördün",
@@ -1736,7 +2100,7 @@ const STRINGS = {
     locationOff: "Konum kapalı, bu yüzden mesafeler gizli. Yakındakileri görmek için tarayıcı veya telefon ayarlarından aç.",
     viewProfile: "Profili gör", distanceUnavailable: "Mesafe bilinmiyor",
     away: "uzakta", bothLove: "İkiniz de seviyorsunuz", freeDateIdea: "Ücretsiz buluşma fikri",
-    yourDates: "Buluşmaların", noDatesYet: "Henüz buluşma yok",
+    yourDates: "Bağlantıların", noDatesYet: "Henüz bağlantı yok",
     noDatesSub: "Zamanını paylaşmak istediğin birine sağa kaydır.",
     tapToMessage: "Mesaj için dokun", worthTheirTime: "Zamanına değer",
     admirersSub: "Bu kişiler seninle zaman geçirmeye çoktan evet dedi.",
@@ -1788,7 +2152,33 @@ const STRINGS = {
     notNow: "Şimdi değil", close: "Kapat", gotIt: "Anladım",
   },
   es: {
-    loadingDates: "Cargando tus citas",
+    whenFree: "\u00bfCu\u00e1ndo sueles estar libre?", whenFreeSub: "Ayuda a TOM a emparejarte con gente cuyos horarios encajan.",
+    freeTonight: "Libre esta noche", freeTonightSub: "Muestra una insignia hasta medianoche y luego se borra sola",
+    freeTonightBadge: "Libre esta noche", availabilityLabel: "Suele estar libre",
+    openToDoubles: "Abierto a citas dobles", openToDoublesSub: "Ustedes dos, ellos dos. Menos presi\u00f3n, m\u00e1s diversi\u00f3n.",
+    doubleBadge: "Va a dobles", doubleDate: "Cita doble",
+    doubleDateSub: "Cada uno trae a un amigo. Sigue siendo $0.",
+    yourReputation: "Tu Reputaci\u00f3n de Tiempo", noReputationYet: "A\u00fan sin rese\u00f1as",
+    noReputationSub: "Tras 3 citas calificadas tu reputaci\u00f3n aparece en tu perfil.",
+    reputationFrom: "de", ratedDates: "citas calificadas",
+    onlyFreeTonight: "Solo gente libre esta noche",
+    datingCosts: "Salir cuesta ahora entre $200 y $500.", datingCostsSub: "En TOM no cuesta nada. No gastes dinero. Dedica tiempo.",
+    welcomeBack: "Bienvenido de nuevo", timeWaiting: "Tu tiempo te espera.",
+    yourName: "Tu nombre", namePlaceholder: "\u00bfC\u00f3mo te llamamos?",
+    emailLabel: "Correo", passwordLabel: "Contrase\u00f1a", pw8: "8 caracteres o m\u00e1s", yourPassword: "Tu contrase\u00f1a",
+    ageLabel: "Edad", pleaseWait: "Un momento...", createAccount: "Crear mi cuenta", signIn: "Iniciar sesi\u00f3n",
+    alreadyOnTom: "\u00bfYa est\u00e1s en TOM? Inicia sesi\u00f3n", newHere: "\u00bfNuevo aqu\u00ed? Crea una cuenta",
+    publicPlaces: "Lugares p\u00fablicos. En igualdad. Siempre $0.",
+    showYourFace: "Muestra tu cara", photoFormats: "JPEG, PNG, WebP o HEIC. Hasta 5 MB cada una.",
+    profilePicture: "Foto de perfil (obligatoria)", changePhoto: "Cambiar foto", uploadPhoto: "Subir foto",
+    galleryLabel: "Galer\u00eda", moreLabel: "m\u00e1s",
+    aboutYou: "Sobre ti", heightLabel: "Estatura", cityLabel: "Ciudad", cityPlaceholder: "D\u00f3nde tienes citas",
+    iAmA: "Soy", orientationLabel: "Orientaci\u00f3n", showMe: "Mu\u00e9strame", myHours: "Mis horas",
+    whatYouLove: "\u00bfQu\u00e9 te encanta hacer?", freeDatesUpFor: "Citas gratis que me apetecen (elige al menos 1)",
+    lastOneBio: "Lo \u00faltimo: tu biograf\u00eda", bioHint: "\u00bfQu\u00e9 deber\u00eda saber alguien antes de pasar tiempo contigo?",
+    bioPlaceholder: "Califico cada banco en el que me siento...",
+    back: "Atr\u00e1s", saving: "Guardando...", continueBtn: "Continuar", saveChanges: "Guardar cambios", startSpending: "Empezar a dar tiempo",
+    loadingDates: "Cargando tus conexiones",
     aboutMe: "Sobre m\u00ed", thingsTheyDo: "Lo que le gusta hacer",
     interestsLabel: "Intereses", hobbiesLabel: "Pasatiempos",
     spendTimeWith: "Dar tiempo a", messageBtn: "Enviar mensaje a",
@@ -1801,7 +2191,7 @@ const STRINGS = {
     privacy: "Política de Privacidad", and: "y", language: "Idioma",
     languageSub: "Elige cómo TOM te habla",
     findingPeople: "Buscando personas cerca de ti",
-    tabDiscover: "Descubrir", tabMissions: "Misiones", tabDates: "Citas", tabYou: "Tú",
+    tabDiscover: "Descubrir", tabMissions: "Misiones", tabDates: "Conexiones", tabYou: "Tú",
     closest: "MÁS CERCA", mostInCommon: "MÁS EN COMÚN", primeTime: "HORA ESTELAR",
     pass: "PASAR", goldenHour: "HORA DORADA", spendTime: "DAR TIEMPO",
     seenEveryone: "Ya viste a todos cerca de ti",
@@ -1813,7 +2203,7 @@ const STRINGS = {
     locationOff: "La ubicación está desactivada, así que las distancias están ocultas. Actívala en tu navegador o teléfono para ver quién está cerca.",
     viewProfile: "Ver perfil", distanceUnavailable: "Distancia no disponible",
     away: "de distancia", bothLove: "A los dos les gusta", freeDateIdea: "Idea de cita gratis",
-    yourDates: "Tus citas", noDatesYet: "Aún no hay citas",
+    yourDates: "Tus conexiones", noDatesYet: "Aún no hay conexiones",
     noDatesSub: "Desliza a la derecha en alguien con quien quieras compartir tu tiempo.",
     tapToMessage: "Toca para escribir", worthTheirTime: "Vales su tiempo",
     admirersSub: "Estas personas ya dijeron que sí a pasar tiempo contigo.",
@@ -1946,6 +2336,7 @@ function Home({ onPick, onLegal }) {
 }
 
 function Welcome({ onDone, initialMode }) {
+  const { t } = useLang();
   const [mode, setMode] = useState(initialMode || "signup"); // signup | signin
   const [form, setForm] = useState({ name: "", email: "", password: "", age: "" });
   const [error, setError] = useState(null);
@@ -1969,28 +2360,30 @@ function Welcome({ onDone, initialMode }) {
       <div style={{ textAlign: "center", margin: "16px 0 20px" }}>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}><ZeroStamp size={70} /></div>
         <h2 style={{ ...fr(700, 26, T.ink), margin: 0 }}>
-          {mode === "signup" ? "Dating costs $200 to $500 now." : "Welcome back"}
+          {mode === "signup" ? t("datingCosts") : t("welcomeBack")}
         </h2>
         <p style={{ ...nu(700, 15, T.royal), margin: "6px 0 0" }}>
-          {mode === "signup" ? "On TOM it costs nothing. Don't spend money. Spend time." : "Your time is waiting."}
+          {mode === "signup" ? t("datingCostsSub") : t("timeWaiting")}
         </p>
       </div>
-      {mode === "signup" && <Field label="Your name"><input style={inputStyle} value={form.name} onChange={set("name")} placeholder="What should we call you?" /></Field>}
-      <Field label="Email"><input style={inputStyle} type="email" value={form.email} onChange={set("email")} placeholder="you@example.com" /></Field>
-      <Field label="Password"><input style={inputStyle} type="password" value={form.password} onChange={set("password")} placeholder={mode === "signup" ? "8+ characters" : "Your password"} /></Field>
-      {mode === "signup" && <Field label="Age"><input style={inputStyle} type="number" value={form.age} onChange={set("age")} placeholder="18+" /></Field>}
+      {mode === "signup" && <Field label={t("yourName")}><input style={inputStyle} value={form.name} onChange={set("name")} placeholder={t("namePlaceholder")} /></Field>}
+      <Field label={t("emailLabel")}><input style={inputStyle} type="email" value={form.email} onChange={set("email")} placeholder="you@example.com" /></Field>
+      <Field label={t("passwordLabel")}><input style={inputStyle} type="password" value={form.password} onChange={set("password")} placeholder={mode === "signup" ? t("pw8") : t("yourPassword")} /></Field>
+      {mode === "signup" && <Field label={t("ageLabel")}><input style={inputStyle} type="number" value={form.age} onChange={set("age")} placeholder="18+" /></Field>}
       {error && <p style={{ ...nu(700, 13, T.red), margin: "0 0 12px" }}>{error}</p>}
-      <PrimaryBtn disabled={busy} onClick={submit}>{busy ? "Please wait..." : (mode === "signup" ? "Create my account" : "Sign in")}</PrimaryBtn>
+      <PrimaryBtn disabled={busy} onClick={submit}>{busy ? t("pleaseWait") : (mode === "signup" ? t("createAccount") : t("signIn"))}</PrimaryBtn>
       <button onClick={() => { setMode(mode === "signup" ? "signin" : "signup"); setError(null); }}
         style={{ width: "100%", marginTop: 12, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13.5, T.royal) }}>
-        {mode === "signup" ? "Already on TOM? Sign in" : "New here? Create an account"}
+        {mode === "signup" ? t("alreadyOnTom") : t("newHere")}
       </button>
-      <p style={{ ...nu(600, 11.5, T.soft), textAlign: "center", marginTop: 8 }}>Public places. Equal basis. $0 always.</p>
+      <p style={{ ...nu(600, 11.5, T.soft), textAlign: "center", marginTop: 8 }}>{t("publicPlaces")}</p>
     </div>
   );
 }
 
 function Builder({ onDone, editMode }) {
+  const { t } = useLang();
+  const L = useLabel();
   const [step, setStep] = useState(0);
   const [, force] = useState(0);
   const rerender = () => force((n) => n + 1);
@@ -2052,20 +2445,20 @@ function Builder({ onDone, editMode }) {
   const steps = [
     // ---- Step 1: photos ----
     <div key="p">
-      <h3 style={{ ...fr(600, 21, T.ink), margin: "0 0 4px" }}>Show your face</h3>
-      <p style={{ ...nu(600, 13.5, T.soft), margin: "0 0 16px" }}>JPEG, PNG, WebP, or HEIC. Up to 5 MB each.</p>
-      <Field label="Profile picture (required)">
+      <h3 style={{ ...fr(600, 21, T.ink), margin: "0 0 4px" }}>{t("showYourFace")}</h3>
+      <p style={{ ...nu(600, 13.5, T.soft), margin: "0 0 16px" }}>{t("photoFormats")}</p>
+      <Field label={t("profilePicture")}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           {u.profilePhoto ? <PhotoThumb src={u.profilePhoto} size={84} round /> : (
             <div style={{ width: 84, height: 84, borderRadius: "50%", background: T.lilac, display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Person s={34} c={T.royal} /></div>
           )}
           <label style={{ ...nu(800, 13, T.royal), background: T.lilac, borderRadius: 999, padding: "10px 16px", cursor: "pointer" }}>
-            {u.profilePhoto ? "Change photo" : "Upload photo"}
+            {u.profilePhoto ? t("changePhoto") : t("uploadPhoto")}
             <input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" style={{ display: "none" }} onChange={(e) => handleFiles(e.target.files, true)} />
           </label>
         </div>
       </Field>
-      <Field label={`Gallery (up to ${MAX_PHOTOS} more) — ${u.photos.length}/${MAX_PHOTOS}`}>
+      <Field label={`${t("galleryLabel")} ${u.photos.length}/${MAX_PHOTOS}`}>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           {u.photos.map((src, i) => (
             <PhotoThumb key={i} src={src} onRemove={() => { u.photos = u.photos.filter((_, j) => j !== i); rerender(); }} />
@@ -2083,8 +2476,8 @@ function Builder({ onDone, editMode }) {
 
     // ---- Step 2: about you ----
     <div key="a">
-      <h3 style={{ ...fr(600, 21, T.ink), margin: "0 0 16px" }}>About you</h3>
-      <Field label="Height">
+      <h3 style={{ ...fr(600, 21, T.ink), margin: "0 0 16px" }}>{t("aboutYou")}</h3>
+      <Field label={t("heightLabel")}>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ display: "flex", borderRadius: 999, background: T.lilac, padding: 3 }}>
             {["cm", "ft"].map((unit) => (
@@ -2104,26 +2497,42 @@ function Builder({ onDone, editMode }) {
         </div>
         {heightUnit === "ft" && u.heightCm && <div style={{ ...nu(700, 12, T.soft), marginTop: 6 }}>= {u.heightCm} cm</div>}
       </Field>
-      <Field label="City"><input style={inputStyle} placeholder="Where you date" value={u.city} onChange={(e) => { u.city = e.target.value; rerender(); }} /></Field>
-      <Field label="I am a"><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{GENDERS.map(([v, l]) => <Chip key={v} label={l} active={u.gender === v} onClick={() => { u.gender = v; rerender(); }} />)}</div></Field>
-      <Field label="Orientation"><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{ORIENTATIONS.map(([v, l]) => <Chip key={v} label={l} active={u.orientation === v} onClick={() => { u.orientation = v; rerender(); }} />)}</div></Field>
-      <Field label="Show me"><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{INTERESTED_IN.map(([v, l]) => <Chip key={v} label={l} active={u.interestedIn === v} onClick={() => { u.interestedIn = v; rerender(); }} />)}</div></Field>
-      <Field label="My hours"><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{CHRONO.map(([v, l]) => <Chip key={v} label={l} active={u.chronotype === v} onClick={() => { u.chronotype = v; rerender(); }} />)}</div></Field>
+      <Field label={t("cityLabel")}><input style={inputStyle} placeholder={t("cityPlaceholder")} value={u.city} onChange={(e) => { u.city = e.target.value; rerender(); }} /></Field>
+      <Field label={t("iAmA")}><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{GENDERS.map(([v, l]) => <Chip key={v} label={L(l)} active={u.gender === v} onClick={() => { u.gender = v; rerender(); }} />)}</div></Field>
+      <Field label={t("orientationLabel")}><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{ORIENTATIONS.map(([v, l]) => <Chip key={v} label={L(l)} active={u.orientation === v} onClick={() => { u.orientation = v; rerender(); }} />)}</div></Field>
+      <Field label={t("showMe")}><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{INTERESTED_IN.map(([v, l]) => <Chip key={v} label={L(l)} active={u.interestedIn === v} onClick={() => { u.interestedIn = v; rerender(); }} />)}</div></Field>
+      <Field label={t("myHours")}><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{CHRONO.map(([v, l]) => <Chip key={v} label={L(l)} active={u.chronotype === v} onClick={() => { u.chronotype = v; rerender(); }} />)}</div></Field>
+      <Field label={t("whenFree")}>
+        <p style={{ ...nu(600, 12.5, T.soft), margin: "0 0 8px" }}>{t("whenFreeSub")}</p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {AVAIL_SLOTS.map(([v, l]) => (
+            <Chip key={v} label={L(l)} active={(u.availability || []).includes(v)} onClick={() => {
+              const arr = u.availability || [];
+              u.availability = arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v];
+              rerender();
+            }} />
+          ))}
+        </div>
+      </Field>
+      <Field label={t("openToDoubles")}>
+        <p style={{ ...nu(600, 12.5, T.soft), margin: "0 0 8px" }}>{t("openToDoublesSub")}</p>
+        <ToggleRow on={Boolean(u.openToDoubles)} onToggle={() => { u.openToDoubles = !u.openToDoubles; rerender(); }} label={t("openToDoubles")} icon="Users" />
+      </Field>
     </div>,
 
     // ---- Step 3: what you love ----
     <div key="t">
-      <h3 style={{ ...fr(600, 21, T.ink), margin: "0 0 16px" }}>What do you love doing?</h3>
-      <Field label="Free dates I'm up for (pick at least 1)"><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{ACTIVITY_POOL.map((a) => <Chip key={a} label={a} active={u.thingsILikeToDo.includes(a)} onClick={() => toggle("thingsILikeToDo", a)} />)}</div></Field>
-      <Field label="Interests"><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{INTEREST_POOL.map((a) => <Chip key={a} label={a} active={u.interests.includes(a)} onClick={() => toggle("interests", a)} />)}</div></Field>
-      <Field label="Hobbies"><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{HOBBY_POOL.map((a) => <Chip key={a} label={a} active={u.hobbies.includes(a)} onClick={() => toggle("hobbies", a)} />)}</div></Field>
+      <h3 style={{ ...fr(600, 21, T.ink), margin: "0 0 16px" }}>{t("whatYouLove")}</h3>
+      <Field label={t("freeDatesUpFor")}><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{ACTIVITY_POOL.map((a) => <Chip key={a} label={L(a)} active={u.thingsILikeToDo.includes(a)} onClick={() => toggle("thingsILikeToDo", a)} />)}</div></Field>
+      <Field label={t("interestsLabel")}><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{INTEREST_POOL.map((a) => <Chip key={a} label={L(a)} active={u.interests.includes(a)} onClick={() => toggle("interests", a)} />)}</div></Field>
+      <Field label={t("hobbiesLabel")}><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{HOBBY_POOL.map((a) => <Chip key={a} label={L(a)} active={u.hobbies.includes(a)} onClick={() => toggle("hobbies", a)} />)}</div></Field>
     </div>,
 
     // ---- Step 4: bio ----
     <div key="b">
-      <h3 style={{ ...fr(600, 21, T.ink), margin: "0 0 4px" }}>Last one: your bio</h3>
-      <p style={{ ...nu(600, 13.5, T.soft), margin: "0 0 14px" }}>What should someone know before they spend time with you?</p>
-      <textarea rows={5} maxLength={600} placeholder="I rate every bench I sit on..." value={u.bio} onChange={(e) => { u.bio = e.target.value; rerender(); }} style={{ ...inputStyle, resize: "none", lineHeight: 1.5 }} />
+      <h3 style={{ ...fr(600, 21, T.ink), margin: "0 0 4px" }}>{t("lastOneBio")}</h3>
+      <p style={{ ...nu(600, 13.5, T.soft), margin: "0 0 14px" }}>{t("bioHint")}</p>
+      <textarea rows={5} maxLength={600} placeholder={t("bioPlaceholder")} value={u.bio} onChange={(e) => { u.bio = e.target.value; rerender(); }} style={{ ...inputStyle, resize: "none", lineHeight: 1.5 }} />
       <div style={{ ...nu(700, 11.5, T.soft), textAlign: "right", marginTop: 4 }}>{u.bio.length}/600</div>
     </div>,
   ];
@@ -2136,7 +2545,7 @@ function Builder({ onDone, editMode }) {
       <div style={{ flex: 1, overflowY: "auto", padding: "0 22px" }}>{steps[step]}</div>
       <div style={{ display: "flex", gap: 10, padding: "14px 22px 20px" }}>
         {step > 0 && (
-          <button onClick={() => setStep(step - 1)} style={{ padding: "14px 18px", borderRadius: 16, border: `2px solid ${T.lilacDeep}`, background: T.white, ...fr(600, 15, T.royal), cursor: "pointer" }}>Back</button>
+          <button onClick={() => setStep(step - 1)} style={{ padding: "14px 18px", borderRadius: 16, border: `2px solid ${T.lilacDeep}`, background: T.white, ...fr(600, 15, T.royal), cursor: "pointer" }}>{t("back")}</button>
         )}
         <div style={{ flex: 1 }}>
           <PrimaryBtn disabled={!canNext || saving} onClick={async () => {
@@ -2147,7 +2556,7 @@ function Builder({ onDone, editMode }) {
             if (r.error) { setPhotoError(r.error); return; }
             onDone();
           }}>
-            {saving ? "Saving..." : (step < 3 ? "Continue" : (editMode ? "Save changes" : "Start spending time"))}
+            {saving ? t("saving") : (step < 3 ? t("continueBtn") : (editMode ? t("saveChanges") : t("startSpending")))}
           </PrimaryBtn>
         </div>
       </div>
@@ -2414,6 +2823,7 @@ function VerifyModal({ onClose, onSubmit }) {
 
 function Chat({ profile, onBack, onDateCompleted, myLoc }) {
   const { t } = useLang();
+  const ideaText = useIdeaText();
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(true);
@@ -2426,6 +2836,7 @@ function Chat({ profile, onBack, onDateCompleted, myLoc }) {
   const [planTime, setPlanTime] = useState("");
   const [ideaPicker, setIdeaPicker] = useState(false);
   const [ideaCat, setIdeaCat] = useState("all");
+  const [planDouble, setPlanDouble] = useState(false);
   const [viewing, setViewing] = useState(null);
   const endRef = useRef(null);
   const myId = api.user && api.user.id;
@@ -2474,11 +2885,11 @@ function Chat({ profile, onBack, onDateCompleted, myLoc }) {
       const local = new Date(`${planDate}T${planTime}`);
       if (!isNaN(local.getTime())) scheduledAt = local.toISOString();
     }
-    const r = await api.proposeDate(profile.matchId, idea, scheduledAt);
+    const r = await api.proposeDate(profile.matchId, idea, scheduledAt, planDouble);
     if (r.ok) {
       setPlan(r.date);
       setPlanning(false);
-      setPlanDate(""); setPlanTime("");
+      setPlanDate(""); setPlanTime(""); setPlanDouble(false);
       const when = scheduledAt ? ` (${whenLabel(scheduledAt)})` : "";
       await api.sendMessage(profile.matchId, `Date proposal: ${idea}${when}`);
       refresh();
@@ -2545,8 +2956,8 @@ function Chat({ profile, onBack, onDateCompleted, myLoc }) {
               </div>
               <div style={{ maxHeight: 168, overflowY: "auto" }}>
                 {ALL_IDEAS.filter((i) => ideaCat === "all" || i.cat === ideaCat).map((i) => (
-                  <button key={i.idea} onClick={() => { setPlanDraft(i.idea); setIdeaPicker(false); }} style={{ display: "block", width: "100%", textAlign: "left", background: T.white, border: `1px solid ${T.lilac}`, borderRadius: 10, padding: "8px 10px", marginBottom: 5, cursor: "pointer", ...nu(600, 12.5, T.ink) }}>
-                    {i.idea}
+                  <button key={i.idea} onClick={() => { setPlanDraft(ideaText(i.idea)); setIdeaPicker(false); }} style={{ display: "block", width: "100%", textAlign: "left", background: T.white, border: `1px solid ${T.lilac}`, borderRadius: 10, padding: "8px 10px", marginBottom: 5, cursor: "pointer", ...nu(600, 12.5, T.ink) }}>
+                    {ideaText(i.idea)}
                   </button>
                 ))}
               </div>
@@ -2557,6 +2968,10 @@ function Chat({ profile, onBack, onDateCompleted, myLoc }) {
             <input type="time" value={planTime} onChange={(e) => setPlanTime(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
           </div>
           <div style={{ ...nu(700, 11, T.soft), marginBottom: 8 }}>{t("timeHint")}</div>
+          <div style={{ marginBottom: 8 }}>
+            <ToggleRow on={planDouble} onToggle={() => setPlanDouble((v) => !v)} label={t("doubleDate")} icon="Users" />
+            <div style={{ ...nu(600, 11, T.soft), margin: "5px 2px 0" }}>{t("doubleDateSub")}</div>
+          </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={propose} style={{ flex: 1, border: "none", borderRadius: 999, padding: "9px 0", background: T.royal, cursor: "pointer", ...fr(600, 13, T.white) }}>{t("propose")}</button>
             <button onClick={() => setPlanning(false)} style={{ flex: 1, border: `2px solid ${T.lilacDeep}`, borderRadius: 999, padding: "9px 0", background: T.white, cursor: "pointer", ...fr(600, 13, T.soft) }}>Cancel</button>
@@ -2691,8 +3106,9 @@ function LanguageModal({ onClose }) {
   );
 }
 
-function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, onEditProfile, onLogout, onOffClock, onEmailSettings, onLanguage }) {
+function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, onEditProfile, onLogout, onOffClock, onEmailSettings, onLanguage, myRep, onFreeTonight }) {
   const { t, lang } = useLang();
+  const L = useLabel();
   const u = api.user;
   const [, force] = useState(0);
   const rerender = () => force((n) => n + 1);
@@ -2760,6 +3176,27 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
           {verifyStatus !== "review" && <Ic.Chevron s={16} c={T.green} />}
         </button>
       )}
+      <div style={{ background: T.white, borderRadius: 18, padding: "14px 16px", marginBottom: 10, border: `2px solid ${T.lilacDeep}` }}>
+        <div style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".6px", textTransform: "uppercase", marginBottom: 8 }}>{t("yourReputation")}</div>
+        {myRep && myRep.total >= 3 ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ ...fr(700, 15, T.green), background: "#E8F8EF", borderRadius: 999, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <Ic.Hourglass s={14} c={T.green} />{myRep.pct}% {t("timeWellSpentPct")}
+            </span>
+            {(myRep.traits || []).map((x) => <Pill key={x}>{L(x)}</Pill>)}
+            <span style={{ ...nu(700, 11.5, T.soft), width: "100%" }}>{myRep.total} {t("ratedDates")}</span>
+          </div>
+        ) : (
+          <div>
+            <div style={{ ...nu(800, 14, T.ink) }}>{myRep && myRep.total ? `${myRep.total} / 3` : t("noReputationYet")}</div>
+            <div style={{ ...nu(600, 12.5, T.soft), marginTop: 3 }}>{t("noReputationSub")}</div>
+          </div>
+        )}
+      </div>
+      <div style={{ marginBottom: 10 }}>
+        <ToggleRow on={freeTonightActive(u.freeTonightUntil)} onToggle={onFreeTonight} label={t("freeTonight")} icon="Moon" />
+        <div style={{ ...nu(600, 11.5, T.soft), margin: "5px 2px 0" }}>{t("freeTonightSub")}</div>
+      </div>
       <button onClick={onUpgrade} style={{ width: "100%", marginTop: 10, borderRadius: 18, padding: "14px 16px", border: `2px solid ${T.sun}`, background: "#FFFBEF", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
         <Ic.Sun s={26} c={T.sun} />
         <span style={{ flex: 1 }}>
@@ -3075,6 +3512,8 @@ function TomAppInner() {
   const [guestPrompt, setGuestPrompt] = useState(false);
   const [languageOpen, setLanguageOpen] = useState(false);
   const [lastSwipe, setLastSwipe] = useState(null); // enables undo
+  const [myRep, setMyRep] = useState(null);
+  const [freeTonightOn, setFreeTonightOn] = useState(false);
   const [undoNote, setUndoNote] = useState(null);
   const [emailSettings, setEmailSettings] = useState(false);
 
@@ -3186,6 +3625,13 @@ function TomAppInner() {
     setLastSwipe(null);
   };
 
+  const toggleFreeTonight = async () => {
+    if (!api.user || api.user.isGuest) return;
+    const turningOn = !freeTonightActive(api.user.freeTonightUntil);
+    await api.setFreeTonight(turningOn);
+    setFreeTonightOn(turningOn);
+  };
+
   const likeBackAdmirer = (p) => {
     if (likesLeft <= 0 && !isPlus) { setPaywall(true); return; }
     setAdmirers((a) => a.filter((x) => x.id !== p.id));
@@ -3268,6 +3714,7 @@ function TomAppInner() {
     api.loadMatches().then((m) => { setMatches(m); setMatchesLoading(false); });
     api.countAdmirers().then(setAdmirerCount);
     api.loadAdmirers().then(setAdmirers);
+    api.myReputation().then(setMyRep);
     api.loadDailyUsage().then((usage) => {
       setLikesUsed(usage.likesUsed);
       setGoldenUsed(usage.goldenUsed);
@@ -3396,7 +3843,7 @@ function TomAppInner() {
 
         {screen === "home" && <Home onLegal={setLegal} onPick={(mode) => {
           if (mode === "guest") {
-            api.user = { name: "Guest", age: null, isGuest: true, heightCm: null, gender: null, orientation: null, interestedIn: null, chronotype: null, bio: "", city: "", thingsILikeToDo: [], interests: [], hobbies: [], profilePhoto: null, photos: [], searchRadiusKm: 50, distanceUnit: "km" };
+            api.user = { name: "Guest", age: null, isGuest: true, heightCm: null, gender: null, orientation: null, interestedIn: null, chronotype: null, bio: "", city: "", thingsILikeToDo: [], interests: [], hobbies: [], profilePhoto: null, photos: [], searchRadiusKm: 50, distanceUnit: "km", availability: [], freeTonightUntil: null, openToDoubles: false };
             setScreen("main");
           } else {
             setAuthMode(mode);
@@ -3414,7 +3861,7 @@ function TomAppInner() {
               ? <Chat profile={chatWith} onBack={() => setChatWith(null)} onDateCompleted={onDateCompleted} myLoc={myLoc} />
               : <Matches matches={matches} myLoc={myLoc} admirerCount={admirerCount} onUpgrade={openAdmirers} onReport={(p) => setReporting({ profile: p, from: "matches" })} onOpenChat={(p) => setChatWith(p)} loading={matchesLoading} />
             )}
-            {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} onLogout={logout} onOffClock={() => requirePlus("Off the Clock", "Go invisible without deleting anything. A TOM+ perk.", () => setOffClockOpen(true))} onEmailSettings={() => setEmailSettings(true)} onLanguage={() => setLanguageOpen(true)} />}
+            {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} onLogout={logout} onOffClock={() => requirePlus("Off the Clock", "Go invisible without deleting anything. A TOM+ perk.", () => setOffClockOpen(true))} onEmailSettings={() => setEmailSettings(true)} onLanguage={() => setLanguageOpen(true)} myRep={myRep} onFreeTonight={toggleFreeTonight} />}
             <nav style={{ display: "flex", justifyContent: "space-around", padding: "10px 8px 16px", background: T.white, borderTop: `1px solid ${T.lilac}` }}>
               {tabs.map((t) => (
                 <button key={t.id} onClick={() => { setTab(t.id); setChatWith(null); }} style={{ border: "none", background: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, opacity: tab === t.id ? 1 : 0.45, padding: "4px 14px" }}>
