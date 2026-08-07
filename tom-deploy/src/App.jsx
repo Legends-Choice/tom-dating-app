@@ -69,7 +69,15 @@ function dbRowToCard(row) {
     vibe: likes[0] || "New here",
     tags: (row.hobbies && row.hobbies.length ? row.hobbies : (row.interests || [])).slice(0, 2),
     idea: DATE_IDEAS[h % DATE_IDEAS.length],
-    bio: row.bio || "Just joined TOM \u2014 say hi!",
+    bio: row.bio || "Just joined TOM. Say hi!",
+    // Everything below powers the full profile view
+    city: row.location || null,
+    heightCm: row.height_cm ?? null,
+    gender: row.gender || null,
+    chronotype: row.chronotype || null,
+    interests: row.interests || [],
+    hobbies: row.hobbies || [],
+    activities: row.things_i_like_to_do || [],
   };
 }
 
@@ -785,8 +793,8 @@ function PhotoThumb({ src, size = 76, onRemove, round }) {
 // ================= Batch 2: TOM+ features =================
 function PlusGate({ title, blurb, onClose, onUpgrade }) {
   return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 24 }}>
-      <div style={{ width: "100%", background: T.white, borderRadius: 24, padding: 22, textAlign: "center", animation: "popIn .25s ease" }}>
+    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 24 }} onClick={onClose}>
+      <div style={{ width: "100%", background: T.white, borderRadius: 24, padding: 22, textAlign: "center", animation: "popIn .25s ease" }} onClick={(e) => e.stopPropagation()}>
         <Ic.Sun s={34} c={T.sun} />
         <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>{title}</h2>
         <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>{blurb}</p>
@@ -848,8 +856,8 @@ function FiltersModal({ onClose, onApply }) {
   const lo = Math.min(Number(minAge) || 18, Number(maxAge) || 99);
   const hi = Math.max(Number(minAge) || 18, Number(maxAge) || 99);
   return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
-      <div style={{ width: "100%", background: T.white, borderRadius: "26px 26px 0 0", padding: "20px 20px 24px", maxHeight: "82%", overflowY: "auto", animation: "floatUp .25s ease" }}>
+    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "flex-end", zIndex: 60 }} onClick={onClose}>
+      <div style={{ width: "100%", background: T.white, borderRadius: "26px 26px 0 0", padding: "20px 20px 24px", maxHeight: "82%", overflowY: "auto", animation: "floatUp .25s ease" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <h2 style={{ ...fr(700, 20, T.royal), margin: 0, display: "flex", alignItems: "center", gap: 8 }}><Ic.Sliders s={20} c={T.royal} />Fine-tune your time</h2>
           <button onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Cross s={18} /></button>
@@ -879,8 +887,8 @@ function FiltersModal({ onClose, onApply }) {
 function OffTheClockModal({ onClose, onToggle }) {
   const active = Boolean(api.user && api.user.offTheClock);
   return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 24 }}>
-      <div style={{ width: "100%", background: T.white, borderRadius: 24, padding: 22, textAlign: "center", animation: "popIn .25s ease" }}>
+    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 24 }} onClick={onClose}>
+      <div style={{ width: "100%", background: T.white, borderRadius: 24, padding: 22, textAlign: "center", animation: "popIn .25s ease" }} onClick={(e) => e.stopPropagation()}>
         <Ic.Moon s={34} c={T.royal} />
         <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>Off the Clock</h2>
         <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>
@@ -909,8 +917,8 @@ const TIME_ZONE_CITIES = [
 
 function TimeZonesModal({ current, onPick, onClose }) {
   return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
-      <div style={{ width: "100%", background: T.white, borderRadius: "26px 26px 0 0", padding: "20px 20px 24px", maxHeight: "82%", overflowY: "auto", animation: "floatUp .25s ease" }}>
+    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "flex-end", zIndex: 60 }} onClick={onClose}>
+      <div style={{ width: "100%", background: T.white, borderRadius: "26px 26px 0 0", padding: "20px 20px 24px", maxHeight: "82%", overflowY: "auto", animation: "floatUp .25s ease" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
           <h2 style={{ ...fr(700, 20, T.royal), margin: 0, display: "flex", alignItems: "center", gap: 8 }}><Ic.Globe s={20} c={T.royal} />Time Zones</h2>
           <button onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Cross s={18} /></button>
@@ -935,8 +943,8 @@ function PrimeTimeModal({ onClose, onActivate, boostUntil }) {
   const active = boostUntil && new Date(boostUntil) > new Date();
   const daysLeft = active ? Math.max(1, Math.ceil((new Date(boostUntil) - new Date()) / 86400000)) : 0;
   return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 24 }}>
-      <div style={{ width: "100%", background: T.white, borderRadius: 24, padding: 22, textAlign: "center", animation: "popIn .25s ease" }}>
+    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 24 }} onClick={onClose}>
+      <div style={{ width: "100%", background: T.white, borderRadius: 24, padding: 22, textAlign: "center", animation: "popIn .25s ease" }} onClick={(e) => e.stopPropagation()}>
         <Ic.Rise s={34} c={T.royal} />
         <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>Weekly Prime Time</h2>
         {active ? (
@@ -1121,8 +1129,8 @@ function Missions({ matches, onSend }) {
 function SendMissionModal({ idea, matches, onPick, onClose }) {
   const { t } = useLang();
   return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
-      <div style={{ width: "100%", background: T.white, borderRadius: "26px 26px 0 0", padding: "20px 20px 24px", maxHeight: "70%", overflowY: "auto", animation: "floatUp .25s ease" }}>
+    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "flex-end", zIndex: 60 }} onClick={onClose}>
+      <div style={{ width: "100%", background: T.white, borderRadius: "26px 26px 0 0", padding: "20px 20px 24px", maxHeight: "70%", overflowY: "auto", animation: "floatUp .25s ease" }} onClick={(e) => e.stopPropagation()}>
         <h2 style={{ ...fr(700, 18, T.royal), margin: "0 0 4px" }}>{t("sendMissionTo")}</h2>
         <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 14px" }}>{idea}</p>
         {matches.map((p) => (
@@ -1289,8 +1297,8 @@ function EmailSettingsModal({ onClose }) {
     </button>
   );
   return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
-      <div style={{ width: "100%", background: T.white, borderRadius: "26px 26px 0 0", padding: "20px 20px 24px", maxHeight: "82%", overflowY: "auto", animation: "floatUp .25s ease" }}>
+    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "flex-end", zIndex: 60 }} onClick={onClose}>
+      <div style={{ width: "100%", background: T.white, borderRadius: "26px 26px 0 0", padding: "20px 20px 24px", maxHeight: "82%", overflowY: "auto", animation: "floatUp .25s ease" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
           <h2 style={{ ...fr(700, 20, T.royal), margin: 0 }}>Email me when</h2>
           <button onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Cross s={18} /></button>
@@ -1307,8 +1315,8 @@ function EmailSettingsModal({ onClose }) {
 
 function GuestPrompt({ onSignUp, onClose }) {
   return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 24 }}>
-      <div style={{ width: "100%", background: T.white, borderRadius: 24, padding: 22, textAlign: "center", animation: "popIn .25s ease" }}>
+    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 24 }} onClick={onClose}>
+      <div style={{ width: "100%", background: T.white, borderRadius: 24, padding: 22, textAlign: "center", animation: "popIn .25s ease" }} onClick={(e) => e.stopPropagation()}>
         <Ic.Hourglass s={34} c={T.royal} />
         <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>Join to spend time</h2>
         <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>These are real people. Create your free profile and they can say yes back.</p>
@@ -1321,17 +1329,54 @@ function GuestPrompt({ onSignUp, onClose }) {
 
 // ================= Full profile view (before or after matching) =================
 function ProfileDetailModal({ profile, myLoc, onClose, onSwipe, onMessage, onLikeBack }) {
+  const { t } = useLang();
   const [idx, setIdx] = useState(0);
   if (!profile) return null;
   const gallery = [profile.photo, ...(profile.photos || [])].filter(Boolean);
   const hasPhotos = gallery.length > 0;
   const shared = sharedLikes(profile);
+
+  // Height reads in feet and inches for people using miles
+  const heightLabel = (() => {
+    if (!profile.heightCm) return null;
+    if (api.user?.distanceUnit === "mi") {
+      const total = Math.round(profile.heightCm / 2.54);
+      return `${Math.floor(total / 12)}' ${total % 12}"`;
+    }
+    return `${profile.heightCm} cm`;
+  })();
+
+  const chronoLabel = profile.chronotype
+    ? (CHRONO.find(([v]) => v === profile.chronotype) || [])[1] || null
+    : null;
+  const genderLabel = profile.gender
+    ? (GENDERS.find(([v]) => v === profile.gender) || [])[1] || null
+    : null;
+
+  const facts = [
+    heightLabel && { icon: "Rise", text: heightLabel },
+    genderLabel && genderLabel !== "Prefer not to say" && { icon: "Person", text: genderLabel },
+    chronoLabel && { icon: chronoLabel === "Night person" ? "Moon" : "Sun", text: chronoLabel },
+    profile.city && { icon: "Pin", text: profile.city },
+  ].filter(Boolean);
+
+  const Section = ({ title, items }) => (
+    items && items.length > 0 ? (
+      <div>
+        <div style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".6px", textTransform: "uppercase", marginBottom: 7 }}>{title}</div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {items.map((x) => <Pill key={x} filled={shared.includes(x)}>{x}</Pill>)}
+        </div>
+      </div>
+    ) : null
+  );
+
   return (
-    <div style={{ position: "absolute", inset: 0, zIndex: 40, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div style={{ background: T.white, borderRadius: "26px 26px 0 0", width: "100%", maxHeight: "92%", overflowY: "auto", animation: "floatUp .3s ease" }}>
+    <div style={{ position: "absolute", inset: 0, zIndex: 40, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
+      <div style={{ background: T.white, borderRadius: "26px 26px 0 0", width: "100%", maxHeight: "94%", overflowY: "auto", animation: "floatUp .3s ease" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ position: "relative", height: 300, background: hasPhotos ? `url(${gallery[idx]}) center/cover no-repeat` : `linear-gradient(135deg, ${profile.grad[0]}, ${profile.grad[1]})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
           {!hasPhotos && <span style={{ ...fr(700, 100, "rgba(255,255,255,.95)"), lineHeight: 1 }}>{profile.name[0]}</span>}
-          <button onClick={onClose} aria-label="Close" style={{ position: "absolute", top: 14, right: 14, width: 34, height: 34, borderRadius: "50%", border: "none", background: "rgba(0,0,0,.35)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Cross s={16} c={T.white} /></button>
+          <button onClick={onClose} aria-label={t("close")} style={{ position: "absolute", top: 14, right: 14, width: 34, height: 34, borderRadius: "50%", border: "none", background: "rgba(0,0,0,.35)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Cross s={16} c={T.white} /></button>
           {gallery.length > 1 && (
             <>
               <button onClick={() => setIdx((i) => (i - 1 + gallery.length) % gallery.length)} aria-label="Previous photo" style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", width: 34, height: 34, borderRadius: "50%", border: "none", background: "rgba(0,0,0,.35)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ display: "inline-flex", transform: "rotate(180deg)" }}><Ic.Chevron s={16} c={T.white} /></span></button>
@@ -1343,38 +1388,61 @@ function ProfileDetailModal({ profile, myLoc, onClose, onSwipe, onMessage, onLik
           )}
           <div style={{ position: "absolute", top: 14, left: 14 }}><ZeroStamp size={54} /></div>
         </div>
-        <div style={{ padding: "16px 20px 22px", display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+
+        <div style={{ padding: "16px 20px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span style={fr(700, 26, T.ink)}>{profile.name}, {profile.age}</span>
             {profile.verified && <Ic.ShieldCheck s={20} c={T.green} />}
             <span style={{ ...nu(700, 13, T.soft), marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4 }}><Ic.Pin s={13} c={T.soft} />{distPhrase(myLoc, profile)}</span>
           </div>
+
           {profile.rep && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <span style={{ ...fr(700, 12, T.green), background: "#E8F8EF", borderRadius: 999, padding: "4px 10px", display: "inline-flex", alignItems: "center", gap: 4 }}><Ic.Hourglass s={12} c={T.green} />{profile.rep.pct}% time well spent</span>
-              {(profile.rep.traits || []).map((t) => <Pill key={t}>{t}</Pill>)}
+              <span style={{ ...fr(700, 12, T.green), background: "#E8F8EF", borderRadius: 999, padding: "4px 10px", display: "inline-flex", alignItems: "center", gap: 4 }}><Ic.Hourglass s={12} c={T.green} />{profile.rep.pct}% {t("timeWellSpentPct")}</span>
+              {(profile.rep.traits || []).map((x) => <Pill key={x}>{x}</Pill>)}
             </div>
           )}
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <Pill filled>{profile.vibe}</Pill>
-            {(profile.tags || []).map((t) => <Pill key={t}>{t}</Pill>)}
-          </div>
+
+          {facts.length > 0 && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {facts.map((f, i) => {
+                const FIcon = Ic[f.icon];
+                return (
+                  <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#FBFAFE", border: `1px solid ${T.lilac}`, borderRadius: 999, padding: "6px 11px", ...nu(700, 12.5, T.ink) }}>
+                    <FIcon s={13} c={T.royal} />{f.text}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+
+          {profile.bio && (
+            <div>
+              <div style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".6px", textTransform: "uppercase", marginBottom: 6 }}>{t("aboutMe")}</div>
+              <p style={{ margin: 0, ...nu(600, 14, T.ink), lineHeight: 1.55 }}>{profile.bio}</p>
+            </div>
+          )}
+
           {shared.length > 0 && (
             <div style={{ background: "#FFF4D6", borderRadius: 14, padding: "10px 12px", ...nu(700, 13, "#8A6400"), display: "flex", alignItems: "center", gap: 6 }}>
-              <Ic.Spark s={14} c={T.sun} />You both love: {shared.join(", ")}
+              <Ic.Spark s={14} c={T.sun} />{t("bothLove")}: {shared.join(", ")}
             </div>
           )}
-          <div style={{ background: T.lilac, borderRadius: 14, padding: "11px 13px", ...nu(700, 13.5, T.royal), display: "flex", alignItems: "center", gap: 6 }}><Ic.Bulb s={14} c={T.royal} />Free date idea: {profile.idea}</div>
-          {profile.bio && <p style={{ margin: 0, ...nu(600, 14, T.ink), lineHeight: 1.5 }}>{profile.bio}</p>}
+
+          <Section title={t("thingsTheyDo")} items={profile.activities} />
+          <Section title={t("interestsLabel")} items={profile.interests} />
+          <Section title={t("hobbiesLabel")} items={profile.hobbies} />
+
+          <div style={{ background: T.lilac, borderRadius: 14, padding: "11px 13px", ...nu(700, 13.5, T.royal), display: "flex", alignItems: "center", gap: 6 }}><Ic.Bulb s={14} c={T.royal} />{t("freeDateIdea")}: {profile.idea}</div>
 
           {onSwipe && (
-            <div style={{ display: "flex", justifyContent: "center", gap: 18, paddingTop: 8 }}>
-              <button onClick={() => onSwipe("left")} aria-label="Pass" style={{ width: 54, height: 54, borderRadius: "50%", border: "none", background: T.lilac, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Cross s={20} c={T.ink} /></button>
-              <button onClick={() => onSwipe("right")} aria-label="Spend time" style={{ width: 64, height: 64, borderRadius: "50%", border: "none", background: T.royal, cursor: "pointer", boxShadow: "0 6px 18px rgba(91,33,182,.35)", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Hourglass s={26} c={T.white} /></button>
+            <div style={{ display: "flex", justifyContent: "center", gap: 18, paddingTop: 4 }}>
+              <button onClick={() => onSwipe("left")} aria-label={t("pass")} style={{ width: 54, height: 54, borderRadius: "50%", border: "none", background: T.lilac, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Cross s={20} c={T.ink} /></button>
+              <button onClick={() => onSwipe("right")} aria-label={t("spendTime")} style={{ width: 64, height: 64, borderRadius: "50%", border: "none", background: T.royal, cursor: "pointer", boxShadow: "0 6px 18px rgba(91,33,182,.35)", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Hourglass s={26} c={T.white} /></button>
             </div>
           )}
-          {onLikeBack && <PrimaryBtn onClick={() => onLikeBack(profile)}>Spend time with {profile.name}</PrimaryBtn>}
-          {onMessage && <PrimaryBtn onClick={() => onMessage(profile)}>Message {profile.name}</PrimaryBtn>}
+          {onLikeBack && <PrimaryBtn onClick={() => onLikeBack(profile)}>{t("spendTimeWith")} {profile.name}</PrimaryBtn>}
+          {onMessage && <PrimaryBtn onClick={() => onMessage(profile)}>{t("messageBtn")} {profile.name}</PrimaryBtn>}
         </div>
       </div>
     </div>
@@ -1442,18 +1510,19 @@ function Card({ profile, onSwipe, isTop, myLoc, onReport, onView }) {
 }
 
 function Paywall({ onClose }) {
+  // Only list things TOM+ actually gives you. Anything free for everyone
+  // does not belong on this screen.
   const feats = [
     [Ic.Infinity, "Unlimited likes", "Never run out of time to give"],
     [Ic.Eye, "See who likes you", "Skip straight to mutual"],
+    [Ic.Undo, "Undo last swipe", "Take back a swipe you didn't mean"],
     [Ic.Globe, "Time Zones", "Match in other cities before you travel"],
     [Ic.Moon, "Off the Clock", "Browse invisibly"],
-    [Ic.Sliders, "Advanced filters", "Hours, height, date styles"],
-    [Ic.Rise, "Weekly Prime Time", "30 minutes at the top, every week"],
-    [Ic.Compass, "Free Date Guides", "Curated $0 dates in your city"],
+    [Ic.Rise, "Weekly Prime Time", "Seven days at the top of nearby decks"],
   ];
   return (
-    <div style={{ position: "absolute", inset: 0, zIndex: 30, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div style={{ background: T.white, borderRadius: "26px 26px 0 0", padding: "22px 20px 20px", width: "100%", maxHeight: "88%", overflowY: "auto", animation: "floatUp .3s ease" }}>
+    <div style={{ position: "absolute", inset: 0, zIndex: 30, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
+      <div style={{ background: T.white, borderRadius: "26px 26px 0 0", padding: "22px 20px 20px", width: "100%", maxHeight: "88%", overflowY: "auto", animation: "floatUp .3s ease" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ textAlign: "center", marginBottom: 14 }}>
           <h2 style={{ ...fr(700, 28, T.royal), margin: 0 }}>TOM<span style={{ color: T.sun }}>+</span></h2>
           <p style={{ ...nu(700, 13.5, T.ink), margin: "4px 0 0" }}>More time, better matched.</p>
@@ -1565,6 +1634,9 @@ const LANGS = [
 
 const STRINGS = {
   en: {
+    aboutMe: "About me", thingsTheyDo: "Things they like to do",
+    interestsLabel: "Interests", hobbiesLabel: "Hobbies",
+    spendTimeWith: "Spend time with", messageBtn: "Message",
     bootLead1: "The best dates are measured in moments\u2026", bootEmph1: "not money.",
     bootLead2: "Share experiences.", bootEmph2: "Not expenses.",
     undo: "UNDO", gaveYouTime: "Gave you their time",
@@ -1638,6 +1710,9 @@ const STRINGS = {
     notNow: "Not now", close: "Close", gotIt: "Got it",
   },
   tr: {
+    aboutMe: "Hakk\u0131mda", thingsTheyDo: "Yapmay\u0131 sevdikleri",
+    interestsLabel: "\u0130lgi alanlar\u0131", hobbiesLabel: "Hobiler",
+    spendTimeWith: "Zaman ay\u0131r:", messageBtn: "Mesaj g\u00f6nder:",
     bootLead1: "En g\u00fczel bulu\u015fmalar anlarla \u00f6l\u00e7\u00fcl\u00fcr\u2026", bootEmph1: "parayla de\u011fil.",
     bootLead2: "Deneyimleri payla\u015f\u0131n.", bootEmph2: "Masraflar\u0131 de\u011fil.",
     undo: "GERİ AL", gaveYouTime: "Sana zaman ayırdı",
@@ -1711,6 +1786,9 @@ const STRINGS = {
     notNow: "Şimdi değil", close: "Kapat", gotIt: "Anladım",
   },
   es: {
+    aboutMe: "Sobre m\u00ed", thingsTheyDo: "Lo que le gusta hacer",
+    interestsLabel: "Intereses", hobbiesLabel: "Pasatiempos",
+    spendTimeWith: "Dar tiempo a", messageBtn: "Enviar mensaje a",
     bootLead1: "Las mejores citas se miden en momentos\u2026", bootEmph1: "no en dinero.",
     bootLead2: "Comparte experiencias.", bootEmph2: "No gastos.",
     undo: "DESHACER", gaveYouTime: "Te dio su tiempo",
@@ -2590,8 +2668,8 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
 function LanguageModal({ onClose }) {
   const { lang, setLang, t } = useLang();
   return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "flex-end", zIndex: 60 }}>
-      <div style={{ width: "100%", background: T.white, borderRadius: "26px 26px 0 0", padding: "20px 20px 24px", animation: "floatUp .25s ease" }}>
+    <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "flex-end", zIndex: 60 }} onClick={onClose}>
+      <div style={{ width: "100%", background: T.white, borderRadius: "26px 26px 0 0", padding: "20px 20px 24px", animation: "floatUp .25s ease" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
           <h2 style={{ ...fr(700, 20, T.royal), margin: 0, display: "flex", alignItems: "center", gap: 8 }}><Ic.Globe s={20} c={T.royal} />{t("language")}</h2>
           <button onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Cross s={18} /></button>
