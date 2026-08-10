@@ -249,17 +249,17 @@ const api = {
   async loadDeck() {
     // Guests browse real people too. TOM never shows invented profiles.
     if (!this.user || this.user.isGuest || !this.user.id) {
-      const { data: guestRows } = await supabase.from("profiles").select("*")
-        .eq("is_deleted", false).limit(50);
+      const { data: guestRows } = await supabase.from("profiles").select("*").limit(50);
       const guestCards = (guestRows || [])
-        .filter((p) => p.name && !p.off_the_clock)
+        // NULL is not false in SQL, so these checks live here, not in the query
+        .filter((p) => p.name && p.is_deleted !== true && p.off_the_clock !== true)
         .map(dbRowToCard);
       const guestReps = await this.loadReputations(guestCards.map((c) => c.id));
-      return guestCards.map((c) => ({ ...c, rep: guestReps[c.id] || null }));
+      return { cards: guestCards.map((c) => ({ ...c, rep: guestReps[c.id] || null })) };
     }
     const myId = this.user.id;
-    const [{ data: allProfiles }, { data: myLikes }, { data: myBlocks }, { data: likedMe }] = await Promise.all([
-      supabase.from("profiles").select("*").neq("id", myId).eq("is_deleted", false),
+    const [{ data: allProfiles, error: profErr }, { data: myLikes }, { data: myBlocks }, { data: likedMe }] = await Promise.all([
+      supabase.from("profiles").select("*").neq("id", myId),
       supabase.from("likes").select("liked_user_id, action, created_at").eq("user_id", myId),
       supabase.from("blocks").select("blocked_user_id").eq("user_id", myId),
       // People who gave me their time; used for second chances after a pass
@@ -290,16 +290,20 @@ const api = {
       }
     });
 
+    if (profErr) return { cards: [], error: profErr.message };
     let cards = (allProfiles || [])
-      // A row with no name is a half finished signup, not a person to show
-      .filter((p) => !blocked.has(p.id) && !hidden.has(p.id) && !p.off_the_clock && p.name)
+      // A row with no name is a half finished signup, not a person to show.
+      // is_deleted and off_the_clock are checked against true, because NULL
+      // is not false in SQL and would otherwise hide everyone silently.
+      .filter((p) => !blocked.has(p.id) && !hidden.has(p.id)
+        && p.is_deleted !== true && p.off_the_clock !== true && p.name)
       .map(dbRowToCard)
       .map((c) => ({ ...c, secondChance: secondChance.has(c.id) }));
 
     // Batch 3: attach Time Reputation to each card (only 3+ reviews come back)
     const reps = await this.loadReputations(cards.map((c) => c.id));
     cards = cards.map((c) => ({ ...c, rep: reps[c.id] || null }));
-    return cards;
+    return { cards };
   },
   // Undo the last swipe. TOM+ only. Blocks are never undone here.
   async undoLastSwipe() {
@@ -324,16 +328,21 @@ const api = {
     return { ok: true, action: row.action, profile: prof ? dbRowToCard(prof) : null };
   },
   async loadMatches() {
-    if (!this.user || !this.user.id) return [];
+    if (!this.user || !this.user.id) return { matches: [], error: "Not signed in" };
     const myId = this.user.id;
-    const { data: rows } = await supabase.from("matches").select("*")
-      .or(`user_id_1.eq.${myId},user_id_2.eq.${myId}`).eq("is_active", true);
-    if (!rows || rows.length === 0) return [];
-    const otherIds = rows.map((r) => (r.user_id_1 === myId ? r.user_id_2 : r.user_id_1));
-    const { data: profs } = await supabase.from("profiles").select("*").in("id", otherIds);
+    // is_active can be NULL on older rows, and NULL is not false in SQL, so
+    // filter it out here rather than in the query.
+    const { data: rows, error } = await supabase.from("matches").select("*")
+      .or(`user_id_1.eq.${myId},user_id_2.eq.${myId}`);
+    if (error) return { matches: [], error: error.message };
+    const active = (rows || []).filter((r) => r.is_active !== false);
+    if (active.length === 0) return { matches: [] };
+    const otherIds = active.map((r) => (r.user_id_1 === myId ? r.user_id_2 : r.user_id_1));
+    const { data: profs, error: profErr } = await supabase.from("profiles").select("*").in("id", otherIds);
+    if (profErr) return { matches: [], error: profErr.message };
     const matchIdByUser = {};
-    rows.forEach((r) => { matchIdByUser[r.user_id_1 === myId ? r.user_id_2 : r.user_id_1] = r.id; });
-    return (profs || []).map((p) => ({ ...dbRowToCard(p), matchId: matchIdByUser[p.id] }));
+    active.forEach((r) => { matchIdByUser[r.user_id_1 === myId ? r.user_id_2 : r.user_id_1] = r.id; });
+    return { matches: (profs || []).map((p) => ({ ...dbRowToCard(p), matchId: matchIdByUser[p.id] })) };
   },
   async swipe(profileId, action) {
     if (!this.user || !this.user.id) return { matched: false };
@@ -1946,6 +1955,8 @@ const LANGS = [
 
 const STRINGS = {
   en: {
+    personThinks: "person thinks you're worth their time", peopleThink: "people think you're worth their time", seeWhoLikes: "See who likes you with TOM+",
+    loadTrouble: "Trouble loading. Tap retry.", retry: "Retry",
     whenFree: "When are you usually free?", whenFreeSub: "Helps TOM match you with people whose hours line up.",
     freeTonight: "Free tonight", freeTonightSub: "Shows a badge until midnight, then clears itself",
     freeTonightBadge: "Free tonight", availabilityLabel: "Usually free",
@@ -2049,6 +2060,8 @@ const STRINGS = {
     notNow: "Not now", close: "Close", gotIt: "Got it",
   },
   tr: {
+    personThinks: "ki\u015fi zaman\u0131na de\u011fer buluyor", peopleThink: "ki\u015fi zaman\u0131na de\u011fer buluyor", seeWhoLikes: "TOM+ ile seni be\u011fenenleri g\u00f6r",
+    loadTrouble: "Y\u00fckleme sorunu. Yeniden dene.", retry: "Yeniden dene",
     whenFree: "Genelde ne zaman m\u00fcsaitsin?", whenFreeSub: "TOM'un saatleri uyan ki\u015filerle e\u015fle\u015ftirmesine yard\u0131mc\u0131 olur.",
     freeTonight: "Bu ak\u015fam m\u00fcsaitim", freeTonightSub: "Gece yar\u0131s\u0131na kadar rozet g\u00f6sterir, sonra kendili\u011finden kalkar",
     freeTonightBadge: "Bu ak\u015fam m\u00fcsait", availabilityLabel: "Genelde m\u00fcsait",
@@ -2152,6 +2165,8 @@ const STRINGS = {
     notNow: "Şimdi değil", close: "Kapat", gotIt: "Anladım",
   },
   es: {
+    personThinks: "persona cree que vales su tiempo", peopleThink: "personas creen que vales su tiempo", seeWhoLikes: "Ve qui\u00e9n te quiere con TOM+",
+    loadTrouble: "Problema al cargar. Reintenta.", retry: "Reintentar",
     whenFree: "\u00bfCu\u00e1ndo sueles estar libre?", whenFreeSub: "Ayuda a TOM a emparejarte con gente cuyos horarios encajan.",
     freeTonight: "Libre esta noche", freeTonightSub: "Muestra una insignia hasta medianoche y luego se borra sola",
     freeTonightBadge: "Libre esta noche", availabilityLabel: "Suele estar libre",
@@ -3036,8 +3051,8 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
           ))}
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ ...nu(800, 14, T.white) }}>{admirerCount} {admirerCount === 1 ? "person thinks" : "people think"} you're worth their time</div>
-          <div style={{ ...nu(700, 12, "#D9CCF5") }}>See who likes you with TOM+ →</div>
+          <div style={{ ...nu(800, 14, T.white) }}>{admirerCount} {admirerCount === 1 ? t("personThinks") : t("peopleThink")}</div>
+          <div style={{ ...nu(700, 12, "#D9CCF5") }}>{t("seeWhoLikes")}</div>
         </div>
       </button>
       )}
@@ -3049,7 +3064,7 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
       ) : matches.length === 0 ? (
         <div style={{ textAlign: "center", paddingTop: 70 }}>
           <Ic.Hourglass s={48} c={T.royal} />
-          <h2 style={{ ...fr(600, 22, T.ink), margin: "10px 0 6px" }}>No dates planned yet</h2>
+          <h2 style={{ ...fr(600, 22, T.ink), margin: "10px 0 6px" }}>{t("noDatesYet")}</h2>
           <p style={{ ...nu(600, 14, T.soft), margin: 0 }}>{t("noDatesSub")}</p>
         </div>
       ) : (
@@ -3471,6 +3486,7 @@ function TomAppInner() {
   const [deck, setDeck] = useState([]);
   const [deckLoading, setDeckLoading] = useState(true);
   const [matchesLoading, setMatchesLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [matches, setMatches] = useState([]);
   const [admirerCount, setAdmirerCount] = useState(0);
   const [tab, setTab] = useState("discover");
@@ -3606,8 +3622,8 @@ function TomAppInner() {
       if (pr) setPendingReview(pr);
     }
     const [m, d] = await Promise.all([api.loadMatches(), api.loadDeck()]);
-    setMatches(m);
-    setDeck(d);
+    setMatches(m.matches || []);
+    setDeck(d.cards || []);
   };
 
   // Undo the last swipe. TOM+ perk: convenience, never the difference
@@ -3624,6 +3640,21 @@ function TomAppInner() {
     setDeck((d) => [lastSwipe.profile, ...d.filter((p) => p.id !== lastSwipe.profile.id)]);
     setLastSwipe(null);
   };
+
+  // Reload connections each time the tab is opened. A single failed fetch
+  // should never leave someone staring at an empty list.
+  React.useEffect(() => {
+    if (screen !== "main" || tab !== "matches") return;
+    if (!api.user || api.user.isGuest || !api.user.id) return;
+    let cancelled = false;
+    api.loadMatches().then((r) => {
+      if (cancelled) return;
+      if (r.error) setLoadError(r.error);
+      else { setLoadError(null); setMatches(r.matches || []); }
+      setMatchesLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [screen, tab]);
 
   const toggleFreeTonight = async () => {
     if (!api.user || api.user.isGuest) return;
@@ -3701,8 +3732,9 @@ function TomAppInner() {
       // Guests see the real deck, browse only. No invented profiles.
       setDeckLoading(true);
       (async () => {
-        const d = await api.loadDeck();
-        setDeck(d);
+        const r = await api.loadDeck();
+        if (r.error) setLoadError(r.error);
+        setDeck(r.cards || []);
         setDeckLoading(false);
       })();
       return;
@@ -3711,7 +3743,11 @@ function TomAppInner() {
     setMatchesLoading(true);
     // Each query lands on its own. Waiting for all of them meant the Dates
     // tab sat on its empty state until the slowest one finished.
-    api.loadMatches().then((m) => { setMatches(m); setMatchesLoading(false); });
+    api.loadMatches().then((r) => {
+      if (r.error) setLoadError(r.error);
+      setMatches(r.matches || []);
+      setMatchesLoading(false);
+    });
     api.countAdmirers().then(setAdmirerCount);
     api.loadAdmirers().then(setAdmirers);
     api.myReputation().then(setMyRep);
@@ -3720,8 +3756,9 @@ function TomAppInner() {
       setGoldenUsed(usage.goldenUsed);
     });
     (async () => {
-      const d = await api.loadDeck();
-      setDeck(d);
+      const r = await api.loadDeck();
+      if (r.error) setLoadError(r.error);
+      setDeck(r.cards || []);
       setDeckLoading(false);
       if (api.user) {
         setAgeFilter({ min: api.user.filterMinAge ?? 18, max: api.user.filterMaxAge ?? 99 });
@@ -3753,7 +3790,7 @@ function TomAppInner() {
           if (r.ok && !locSaved) {
             setLocSaved(true);
             const fresh = await api.loadDeck();
-            setDeck(fresh);
+            setDeck(fresh.cards || []);
           }
         }
       },
@@ -3904,6 +3941,13 @@ function TomAppInner() {
               </p>
               <PrimaryBtn onClick={() => setUnsubDone(null)}>Got it</PrimaryBtn>
             </div>
+          </div>
+        )}
+        {loadError && (
+          <div style={{ position: "absolute", left: 12, right: 12, top: 8, zIndex: 70, background: "#FFF4D6", border: "1px solid #E8C86A", borderRadius: 14, padding: "9px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+            <Ic.Flag s={14} c="#8A6400" />
+            <span style={{ flex: 1, ...nu(700, 11.5, "#8A6400") }}>{t("loadTrouble")}</span>
+            <button onClick={() => { setLoadError(null); setScreen("main"); }} style={{ border: "none", background: "#8A6400", borderRadius: 999, padding: "5px 10px", cursor: "pointer", ...fr(600, 11, T.white) }}>{t("retry")}</button>
           </div>
         )}
         {undoNote && (
