@@ -1955,6 +1955,11 @@ const LANGS = [
 
 const STRINGS = {
   en: {
+    roadmap1: "Make connections",
+    roadmap2: "Propose a date",
+    roadmap3: "Or send a mission",
+    roadmap4: "Use our Free Tonight button",
+    roadmap5: "Rate the time you spent",
     personThinks: "person thinks you're worth their time", peopleThink: "people think you're worth their time", seeWhoLikes: "See who likes you with TOM+",
     loadTrouble: "Trouble loading. Tap retry.", retry: "Retry",
     whenFree: "When are you usually free?", whenFreeSub: "Helps TOM match you with people whose hours line up.",
@@ -2060,6 +2065,11 @@ const STRINGS = {
     notNow: "Not now", close: "Close", gotIt: "Got it",
   },
   tr: {
+    roadmap1: "Ba\u011flant\u0131 kur",
+    roadmap2: "Bulu\u015fma \u00f6ner",
+    roadmap3: "Ya da bir g\u00f6rev g\u00f6nder",
+    roadmap4: "Bu Ak\u015fam M\u00fcsaitim d\u00fc\u011fmesini kullan",
+    roadmap5: "Ge\u00e7irdi\u011fin zaman\u0131 puanla",
     personThinks: "ki\u015fi zaman\u0131na de\u011fer buluyor", peopleThink: "ki\u015fi zaman\u0131na de\u011fer buluyor", seeWhoLikes: "TOM+ ile seni be\u011fenenleri g\u00f6r",
     loadTrouble: "Y\u00fckleme sorunu. Yeniden dene.", retry: "Yeniden dene",
     whenFree: "Genelde ne zaman m\u00fcsaitsin?", whenFreeSub: "TOM'un saatleri uyan ki\u015filerle e\u015fle\u015ftirmesine yard\u0131mc\u0131 olur.",
@@ -2165,6 +2175,11 @@ const STRINGS = {
     notNow: "Şimdi değil", close: "Kapat", gotIt: "Anladım",
   },
   es: {
+    roadmap1: "Haz conexiones",
+    roadmap2: "Propon una cita",
+    roadmap3: "O env\u00eda una misi\u00f3n",
+    roadmap4: "Usa el bot\u00f3n Libre esta noche",
+    roadmap5: "Califica el tiempo que pasaron",
     personThinks: "persona cree que vales su tiempo", peopleThink: "personas creen que vales su tiempo", seeWhoLikes: "Ve qui\u00e9n te quiere con TOM+",
     loadTrouble: "Problema al cargar. Reintenta.", retry: "Reintentar",
     whenFree: "\u00bfCu\u00e1ndo sueles estar libre?", whenFreeSub: "Ayuda a TOM a emparejarte con gente cuyos horarios encajan.",
@@ -3038,6 +3053,67 @@ function Chat({ profile, onBack, onDateCompleted, myLoc }) {
   );
 }
 
+// How TOM works. A purple line draws downward and each step drops in behind
+// it, so it reads as one quick motion rather than a list of instructions.
+const ROADMAP = ["roadmap1", "roadmap2", "roadmap3", "roadmap4", "roadmap5"];
+const STEP_GAP = 0.42; // seconds between each step appearing
+
+function Roadmap() {
+  const { t } = useLang();
+  const total = ROADMAP.length * STEP_GAP + 0.5;
+  return (
+    <div style={{ background: T.lilac, borderRadius: 24, padding: "26px 20px 30px", margin: "6px 0 12px" }}>
+      <style>{`
+        @keyframes tomHeartBeat {
+          0%, 100%   { transform: scale(1) }
+          14%        { transform: scale(1.18) }
+          28%        { transform: scale(1) }
+          42%        { transform: scale(1.12) }
+          56%        { transform: scale(1) }
+        }
+        @keyframes tomLineDraw { from { height: 0 } to { height: 100% } }
+        @keyframes tomStepIn {
+          from { opacity: 0; transform: translateX(-8px) }
+          to   { opacity: 1; transform: translateX(0) }
+        }
+        @keyframes tomDotPop {
+          0%   { transform: scale(0); opacity: 0 }
+          60%  { transform: scale(1.35) }
+          100% { transform: scale(1); opacity: 1 }
+        }
+      `}</style>
+
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 4 }}>
+        <span style={{ display: "inline-flex", animation: "tomHeartBeat 1.5s ease-in-out infinite", transformOrigin: "center" }}>
+          <Ic.Heart s={44} c={T.royal} />
+        </span>
+      </div>
+
+      <div style={{ position: "relative", paddingLeft: 34, marginTop: 6 }}>
+        {/* the line that draws downward */}
+        <span style={{
+          position: "absolute", left: 13, top: 6, bottom: 10, width: 3,
+          borderRadius: 3, background: T.royal, opacity: .5,
+          animation: `tomLineDraw ${total}s ease-out forwards`,
+        }} />
+        {ROADMAP.map((key, i) => (
+          <div key={key} style={{
+            position: "relative", minHeight: 40, display: "flex", alignItems: "center",
+            animation: `tomStepIn .45s ease ${i * STEP_GAP + 0.35}s both`,
+          }}>
+            <span style={{
+              position: "absolute", left: -27, width: 13, height: 13, borderRadius: "50%",
+              background: T.royal, border: `3px solid ${T.lilac}`, boxSizing: "content-box",
+              animation: `tomDotPop .4s ease ${i * STEP_GAP + 0.3}s both`,
+            }} />
+            <span style={{ ...fr(600, 16, T.royal) }}>{t(key)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat, loading }) {
   const { t } = useLang();
   const [viewing, setViewing] = useState(null);
@@ -3057,16 +3133,9 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
       </button>
       )}
       {loading ? (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: "60px 24px", textAlign: "center" }}>
-          <SearchClock size={54} />
-          <p style={{ ...nu(700, 14, T.soft), margin: 0 }}>{t("loadingDates")}</p>
-        </div>
+        <Roadmap />
       ) : matches.length === 0 ? (
-        <div style={{ textAlign: "center", paddingTop: 70 }}>
-          <Ic.Hourglass s={48} c={T.royal} />
-          <h2 style={{ ...fr(600, 22, T.ink), margin: "10px 0 6px" }}>{t("noDatesYet")}</h2>
-          <p style={{ ...nu(600, 14, T.soft), margin: 0 }}>{t("noDatesSub")}</p>
-        </div>
+        <Roadmap />
       ) : (
         <>
           {matches.map((p) => (
