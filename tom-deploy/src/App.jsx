@@ -568,6 +568,17 @@ const api = {
     if (error || !data || !data.length) return { unread: 0, actions: 0 };
     return { unread: data[0].unread_count || 0, actions: data[0].action_count || 0 };
   },
+  // Per-connection breakdown so each row in Connections can show its own badge.
+  async unreadByMatch() {
+    if (!this.user || !this.user.id) return {};
+    const { data, error } = await supabase.rpc("tom_unread_by_match");
+    if (error || !data) return {};
+    const byUser = {};
+    data.forEach((r) => {
+      byUser[r.other_id] = { unread: r.unread_count || 0, action: Boolean(r.has_action) };
+    });
+    return byUser;
+  },
   async sendMessage(matchId, body) {
     if (!this.user || !this.user.id) return { error: "Not signed in" };
     const text = (body || "").trim();
@@ -2067,6 +2078,9 @@ const STRINGS = {
     pass: "PASS", goldenHour: "GOLDEN HOUR", spendTime: "SPEND TIME",
     seenEveryone: "You've seen everyone nearby",
     newPeopleDaily: "New people join TOM every day. Check back soon.",
+    oneNewMessage: "1 new message",
+    newMessages: "{n} new messages",
+    planWaiting: "A date plan is waiting on you",
     readReceipt: "Read",
     tuneHint: "Widen your age range or distance with the sliders button above to see more people.",
     emptyAdmirers: "{n} people already gave you their time. Take a look.",
@@ -2183,6 +2197,9 @@ const STRINGS = {
     pass: "GEÇ", goldenHour: "ALTIN SAAT", spendTime: "ZAMAN AYIR",
     seenEveryone: "Yakındaki herkesi gördün",
     newPeopleDaily: "TOM'a her gün yeni kişiler katılıyor. Yakında tekrar bak.",
+    oneNewMessage: "1 yeni mesaj",
+    newMessages: "{n} yeni mesaj",
+    planWaiting: "Bir buluşma planı seni bekliyor",
     readReceipt: "Okundu",
     tuneHint: "Daha fazla kişi görmek için yukarıdaki ayar düğmesinden yaş aralığını veya mesafeyi genişlet.",
     emptyAdmirers: "{n} kişi sana çoktan zaman ayırdı. Bir bak.",
@@ -2299,6 +2316,9 @@ const STRINGS = {
     pass: "PASAR", goldenHour: "HORA DORADA", spendTime: "DAR TIEMPO",
     seenEveryone: "Ya viste a todos cerca de ti",
     newPeopleDaily: "Cada día se une gente nueva a TOM. Vuelve pronto.",
+    oneNewMessage: "1 mensaje nuevo",
+    newMessages: "{n} mensajes nuevos",
+    planWaiting: "Un plan de cita te está esperando",
     readReceipt: "Leído",
     tuneHint: "Amplía tu rango de edad o distancia con el botón de ajustes de arriba para ver a más personas.",
     emptyAdmirers: "{n} personas ya te dieron su tiempo. Échales un vistazo.",
@@ -3264,7 +3284,7 @@ function Roadmap({ label }) {
   );
 }
 
-function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat, loading }) {
+function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat, loading, unreadBy = {} }) {
   const { t } = useLang();
   const [viewing, setViewing] = useState(null);
   return (
@@ -3288,21 +3308,30 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
         <Roadmap label={t("noDatesYet")} />
       ) : (
         <>
-          {matches.map((p) => (
-            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, background: T.white, borderRadius: 18, padding: 12, marginBottom: 10, boxShadow: "0 4px 14px rgba(42,27,74,.08)", animation: "floatUp .3s ease" }}>
-              <button onClick={() => setViewing(p)} aria-label={`View ${p.name}'s profile`} style={{ border: "none", background: "none", padding: 0, cursor: "pointer", flexShrink: 0 }}>
-                <div style={{ width: 54, height: 54, borderRadius: "50%", background: p.photo ? `url(${p.photo}) center/cover no-repeat` : `linear-gradient(135deg, ${p.grad[0]}, ${p.grad[1]})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, ...fr(700, 22, T.white) }}>{p.photo ? "" : p.name[0]}</div>
+          {matches.map((p) => {
+            const u = unreadBy[p.id] || { unread: 0, action: false };
+            const waiting = u.unread > 0 || u.action;
+            return (
+            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, background: waiting ? "#F3EEFF" : T.white, borderRadius: 18, padding: 12, marginBottom: 10, boxShadow: waiting ? `0 4px 16px rgba(91,33,182,.18)` : "0 4px 14px rgba(42,27,74,.08)", border: waiting ? `2px solid ${T.violet}` : "2px solid transparent", animation: "floatUp .3s ease" }}>
+              <button onClick={() => setViewing(p)} aria-label={`View ${p.name}'s profile`} style={{ position: "relative", border: "none", background: "none", padding: 0, cursor: "pointer", flexShrink: 0 }}>
+                <div style={{ width: 54, height: 54, borderRadius: "50%", background: p.photo ? `url(${p.photo}) center/cover no-repeat` : `linear-gradient(135deg, ${p.grad[0]}, ${p.grad[1]})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: waiting ? `0 0 0 3px ${T.violet}` : "none", ...fr(700, 22, T.white) }}>{p.photo ? "" : p.name[0]}</div>
+                {u.unread > 0 && (
+                  <span style={{ position: "absolute", top: -3, right: -3, minWidth: 21, height: 21, borderRadius: 999, background: T.red, border: `2px solid ${T.white}`, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 5px", ...nu(800, 11.5, T.white) }}>{u.unread > 9 ? "9+" : u.unread}</span>
+                )}
               </button>
               <button onClick={() => onOpenChat && onOpenChat(p)} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, border: "none", background: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={fr(600, 17, T.ink)}>{p.name} <span style={{ ...nu(700, 12, T.soft), display: "inline-flex", alignItems: "center", gap: 3 }}>· <Ic.Pin s={11} c={T.soft} />{distLabel(myLoc, p)}</span></div>
-                  <div style={{ ...nu(700, 12.5, T.royal), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t("tapToMessage")}</div>
+                  <div style={fr(waiting ? 700 : 600, 17, T.ink)}>{p.name} <span style={{ ...nu(700, 12, T.soft), display: "inline-flex", alignItems: "center", gap: 3 }}>· <Ic.Pin s={11} c={T.soft} />{distLabel(myLoc, p)}</span></div>
+                  <div style={{ ...nu(waiting ? 800 : 700, 12.5, waiting ? T.violet : T.royal), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {u.unread > 0 ? (u.unread === 1 ? t("oneNewMessage") : t("newMessages").replace("{n}", u.unread)) : u.action ? t("planWaiting") : t("tapToMessage")}
+                  </div>
                 </div>
               </button>
               <button onClick={() => onReport(p)} aria-label="Report or unmatch" style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Flag s={15} c={T.lilacDeep} /></button>
               <span style={{ ...fr(700, 13, T.green), background: "#E8F8EF", borderRadius: 999, padding: "5px 10px" }}>$0</span>
             </div>
-          ))}
+            );
+          })}
         </>
       )}
       {viewing && (
@@ -3721,10 +3750,13 @@ function TomAppInner() {
   const [likesUsed, setLikesUsed] = useState(0);
   const [chatWith, setChatWith] = useState(null);
   const [unread, setUnread] = useState({ unread: 0, actions: 0 });
+  const [unreadBy, setUnreadBy] = useState({});
 
   const refreshUnread = React.useCallback(async () => {
     if (!api.user || api.user.isGuest || !api.user.id) return;
-    setUnread(await api.unreadSummary());
+    const [summary, byMatch] = await Promise.all([api.unreadSummary(), api.unreadByMatch()]);
+    setUnread(summary);
+    setUnreadBy(byMatch);
   }, []);
 
   // Poll while the app is open so the Connections dot appears without a reload.
@@ -4158,20 +4190,22 @@ function TomAppInner() {
             {tab === "missions" && <Missions matches={matches} onSend={(idea) => setMissionToSend(idea)} />}
             {tab === "matches" && (chatWith
               ? <Chat profile={chatWith} onBack={() => setChatWith(null)} onDateCompleted={onDateCompleted} myLoc={myLoc} isPlus={isPlus} />
-              : <Matches matches={matches} myLoc={myLoc} admirerCount={admirerCount} onUpgrade={openAdmirers} onReport={(p) => setReporting({ profile: p, from: "matches" })} onOpenChat={(p) => setChatWith(p)} loading={matchesLoading} />
+              : <Matches unreadBy={unreadBy} matches={matches} myLoc={myLoc} admirerCount={admirerCount} onUpgrade={openAdmirers} onReport={(p) => setReporting({ profile: p, from: "matches" })} onOpenChat={(p) => setChatWith(p)} loading={matchesLoading} />
             )}
             {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} onLogout={logout} onOffClock={() => requirePlus("Off the Clock", "Go invisible without deleting anything. A TOM+ perk.", () => setOffClockOpen(true))} onEmailSettings={() => setEmailSettings(true)} onLanguage={() => setLanguageOpen(true)} myRep={myRep} onFreeTonight={toggleFreeTonight} />}
             <nav style={{ display: "flex", justifyContent: "space-around", padding: "10px 8px 16px", background: T.white, borderTop: `1px solid ${T.lilac}` }}>
               {tabs.map((t) => (
-                <button key={t.id} onClick={() => { setTab(t.id); setChatWith(null); }} style={{ position: "relative", border: "none", background: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, opacity: tab === t.id ? 1 : 0.45, padding: "4px 14px" }}>
-                  {React.createElement(t.icon, { s: 22, c: T.royal })}
+                <button key={t.id} onClick={() => { setTab(t.id); setChatWith(null); }} style={{ position: "relative", border: "none", background: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "4px 14px" }}>
+                  <span style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, opacity: tab === t.id ? 1 : 0.45 }}>
+                    {React.createElement(t.icon, { s: 22, c: T.royal })}
+                    <span style={nu(800, 11, T.royal)}>{t.label}</span>
+                  </span>
                   {t.id === "matches" && (unread.unread > 0 || unread.actions > 0) && (
-                    <span aria-label="Something is waiting for you" style={{ position: "absolute", top: -2, right: 8, display: "flex", gap: 1, pointerEvents: "none" }}>
-                      <span style={{ display: "flex", animation: "heartBlink 1.1s ease-in-out infinite" }}><Ic.Heart s={11} c={T.sun} /></span>
-                      <span style={{ display: "flex", animation: "heartBlink 1.1s ease-in-out .55s infinite" }}><Ic.Heart s={11} c={T.sun} /></span>
+                    <span aria-label="Something is waiting for you" style={{ position: "absolute", top: -4, right: 4, display: "flex", gap: 1, pointerEvents: "none", filter: "drop-shadow(0 0 2px #FFFFFF) drop-shadow(0 1px 3px rgba(42,27,74,.45))" }}>
+                      <span style={{ display: "flex", animation: "heartBlink 1.1s ease-in-out infinite" }}><Ic.Heart s={14} c={T.red} /></span>
+                      <span style={{ display: "flex", animation: "heartBlink 1.1s ease-in-out .55s infinite" }}><Ic.Heart s={14} c={T.red} /></span>
                     </span>
                   )}
-                  <span style={nu(800, 11, T.royal)}>{t.label}</span>
                 </button>
               ))}
             </nav>
