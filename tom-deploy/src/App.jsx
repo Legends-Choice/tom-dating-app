@@ -1118,6 +1118,10 @@ const TIME_ZONE_CITIES = [
   { id: "istanbul", name: "Istanbul", loc: { lat: 41.0082, lng: 28.9784 } },
   { id: "athens", name: "Athens", loc: { lat: 37.9838, lng: 23.7275 } },
   { id: "valletta", name: "Valletta", loc: { lat: 35.8989, lng: 14.5146 } },
+  { id: "tbilisi", name: "Tbilisi", loc: { lat: 41.7151, lng: 44.8271 } },
+  { id: "izmir", name: "Izmir", loc: { lat: 38.4161, lng: 27.1302 } },
+  { id: "ankara", name: "Ankara", loc: { lat: 39.9334, lng: 32.8597 } },
+  { id: "barcelona", name: "Barcelona", loc: { lat: 41.3851, lng: 2.1734 } },
   { id: "london", name: "London", loc: { lat: 51.5074, lng: -0.1278 } },
   { id: "paris", name: "Paris", loc: { lat: 48.8566, lng: 2.3522 } },
   { id: "berlin", name: "Berlin", loc: { lat: 52.52, lng: 13.405 } },
@@ -2074,7 +2078,7 @@ const STRINGS = {
     verifyProfile: "Verify your profile", verifyInReview: "Verification in review",
     verifySub: "Get the green badge. Match with more confidence.",
     verifyReviewSub: "Usually done within 24 hours",
-    getTom: "Get TOM", tomPerks: "Golden Hours, Prime Time, Time Zones and more",
+    getTom: "Get TOM", tomPerks: "Golden Hours, Prime Time, and more",
     offTheClock: "Off the Clock", offOn: "You're invisible right now",
     offOff: "Go invisible without deleting anything",
     emailNotifs: "Email notifications",
@@ -2184,7 +2188,7 @@ const STRINGS = {
     verifyProfile: "Profilini doğrula", verifyInReview: "Doğrulama inceleniyor",
     verifySub: "Yeşil rozeti al. Daha güvenle eşleş.",
     verifyReviewSub: "Genellikle 24 saat içinde tamamlanır",
-    getTom: "TOM", tomPerks: "Altın Saatler, Altın Saat önceliği, Zaman Dilimleri ve daha fazlası",
+    getTom: "TOM", tomPerks: "Altın Saatler, Altın Saat önceliği, ve daha fazlası",
     offTheClock: "Mesai Dışı", offOn: "Şu anda görünmezsin",
     offOff: "Hesabını silmeden görünmez ol",
     emailNotifs: "E-posta bildirimleri",
@@ -2294,7 +2298,7 @@ const STRINGS = {
     verifyProfile: "Verifica tu perfil", verifyInReview: "Verificación en revisión",
     verifySub: "Consigue la insignia verde. Haz match con más confianza.",
     verifyReviewSub: "Normalmente listo en 24 horas",
-    getTom: "Consigue TOM", tomPerks: "Horas Doradas, Hora Estelar, Zonas Horarias y más",
+    getTom: "Consigue TOM", tomPerks: "Horas Doradas, Hora Estelar, y más",
     offTheClock: "Fuera de servicio", offOn: "Ahora eres invisible",
     offOff: "Vuélvete invisible sin borrar nada",
     emailNotifs: "Notificaciones por correo",
@@ -4034,7 +4038,7 @@ function TomAppInner() {
                   <Ic.Eye s={19} c={T.royal} />
                   {admirerCount > 0 && <span style={{ position: "absolute", top: -3, right: -3, minWidth: 17, height: 17, borderRadius: 999, background: T.sun, ...fr(700, 10.5, T.ink), display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{admirerCount}</span>}
                 </button>
-                <button onClick={() => requirePlus("Time Zones", "Browse and match in other cities before you travel. A TOM+ perk.", () => setTimeZonesOpen(true))} aria-label="Time Zones" style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: travelCity ? T.royal : T.lilac, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <button onClick={() => setTimeZonesOpen(true)} aria-label="Time Zones" style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: travelCity ? T.royal : T.lilac, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Ic.Globe s={19} c={travelCity ? T.white : T.royal} />
                 </button>
               </div>
