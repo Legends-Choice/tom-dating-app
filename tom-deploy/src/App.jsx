@@ -3053,63 +3053,62 @@ function Chat({ profile, onBack, onDateCompleted, myLoc }) {
   );
 }
 
-// How TOM works. A purple line draws downward and each step drops in behind
-// it, so it reads as one quick motion rather than a list of instructions.
+// How TOM works. A single purple line runs down the centre and each phrase
+// interrupts it as the line reaches that point, then the line carries on.
 const ROADMAP = ["roadmap1", "roadmap2", "roadmap3", "roadmap4", "roadmap5"];
-const STEP_GAP = 0.42; // seconds between each step appearing
+const SEG_T = 0.3;   // seconds for one line segment to draw
+const WORD_T = 0.32; // seconds for a phrase to fade in
 
-function Roadmap() {
+function Roadmap({ label }) {
   const { t } = useLang();
-  const total = ROADMAP.length * STEP_GAP + 0.5;
+  const seg = (delay, h) => (
+    <span style={{
+      display: "block", width: 3, height: h, margin: "0 auto",
+      background: T.royal, borderRadius: 3, transformOrigin: "top center",
+      animation: `tomSeg ${SEG_T}s linear ${delay}s both`,
+    }} />
+  );
   return (
-    <div style={{ background: T.lilac, borderRadius: 24, padding: "26px 20px 30px", margin: "6px 0 12px" }}>
+    <div style={{ background: T.lilac, borderRadius: 24, padding: "24px 20px 26px", margin: "6px 0 12px", textAlign: "center" }}>
       <style>{`
+        @keyframes tomSeg { from { transform: scaleY(0) } to { transform: scaleY(1) } }
+        @keyframes tomWord {
+          from { opacity: 0; transform: translateY(5px) }
+          to   { opacity: 1; transform: translateY(0) }
+        }
         @keyframes tomHeartBeat {
-          0%, 100%   { transform: scale(1) }
-          14%        { transform: scale(1.18) }
-          28%        { transform: scale(1) }
-          42%        { transform: scale(1.12) }
-          56%        { transform: scale(1) }
+          0%, 100% { transform: scale(1) }
+          14%      { transform: scale(1.18) }
+          28%      { transform: scale(1) }
+          42%      { transform: scale(1.11) }
+          56%      { transform: scale(1) }
         }
-        @keyframes tomLineDraw { from { height: 0 } to { height: 100% } }
-        @keyframes tomStepIn {
-          from { opacity: 0; transform: translateX(-8px) }
-          to   { opacity: 1; transform: translateX(0) }
-        }
-        @keyframes tomDotPop {
-          0%   { transform: scale(0); opacity: 0 }
-          60%  { transform: scale(1.35) }
-          100% { transform: scale(1); opacity: 1 }
-        }
+        @keyframes tomPulse { 0%, 100% { opacity: .45 } 50% { opacity: 1 } }
       `}</style>
 
-      <div style={{ display: "flex", justifyContent: "center", marginBottom: 4 }}>
-        <span style={{ display: "inline-flex", animation: "tomHeartBeat 1.5s ease-in-out infinite", transformOrigin: "center" }}>
-          <Ic.Heart s={44} c={T.royal} />
-        </span>
-      </div>
+      <span style={{ display: "inline-flex", animation: "tomHeartBeat 1.5s ease-in-out infinite", transformOrigin: "center" }}>
+        <Ic.Heart s={42} c={T.royal} />
+      </span>
 
-      <div style={{ position: "relative", paddingLeft: 34, marginTop: 6 }}>
-        {/* the line that draws downward */}
-        <span style={{
-          position: "absolute", left: 13, top: 6, bottom: 10, width: 3,
-          borderRadius: 3, background: T.royal, opacity: .5,
-          animation: `tomLineDraw ${total}s ease-out forwards`,
-        }} />
-        {ROADMAP.map((key, i) => (
-          <div key={key} style={{
-            position: "relative", minHeight: 40, display: "flex", alignItems: "center",
-            animation: `tomStepIn .45s ease ${i * STEP_GAP + 0.35}s both`,
-          }}>
-            <span style={{
-              position: "absolute", left: -27, width: 13, height: 13, borderRadius: "50%",
-              background: T.royal, border: `3px solid ${T.lilac}`, boxSizing: "content-box",
-              animation: `tomDotPop .4s ease ${i * STEP_GAP + 0.3}s both`,
-            }} />
-            <span style={{ ...fr(600, 16, T.royal) }}>{t(key)}</span>
+      {ROADMAP.map((key, i) => {
+        const segDelay = 0.25 + i * (SEG_T + WORD_T);
+        const wordDelay = segDelay + SEG_T;
+        return (
+          <div key={key}>
+            {seg(segDelay, 22)}
+            <div style={{
+              ...fr(600, 16.5, T.royal), padding: "3px 0",
+              animation: `tomWord ${WORD_T}s ease ${wordDelay}s both`,
+            }}>{t(key)}</div>
           </div>
-        ))}
-      </div>
+        );
+      })}
+
+      {seg(0.25 + ROADMAP.length * (SEG_T + WORD_T), 22)}
+      <div style={{
+        ...nu(800, 13, T.royal), letterSpacing: ".3px", paddingTop: 6,
+        animation: `tomWord .3s ease ${0.25 + ROADMAP.length * (SEG_T + WORD_T) + SEG_T}s both, tomPulse 1.6s ease-in-out ${0.25 + ROADMAP.length * (SEG_T + WORD_T) + SEG_T + 0.3}s infinite`,
+      }}>{label}</div>
     </div>
   );
 }
@@ -3133,9 +3132,9 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
       </button>
       )}
       {loading ? (
-        <Roadmap />
+        <Roadmap label={t("loadingDates")} />
       ) : matches.length === 0 ? (
-        <Roadmap />
+        <Roadmap label={t("noDatesYet")} />
       ) : (
         <>
           {matches.map((p) => (
