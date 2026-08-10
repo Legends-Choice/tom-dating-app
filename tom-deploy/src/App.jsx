@@ -67,6 +67,7 @@ const FONT = (
     @keyframes popIn { 0% { transform: scale(.7); opacity: 0 } 70% { transform: scale(1.05) } 100% { transform: scale(1); opacity: 1 } }
     @keyframes floatUp { 0% { transform: translateY(8px); opacity: 0 } 100% { transform: translateY(0); opacity: 1 } }
     @keyframes buttonPress { 0% { transform: scale(1); } 50% { transform: scale(0.97); } 100% { transform: scale(1); } }
+    @keyframes heartBlink { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .25; transform: scale(.82); } }
     button:active { animation: buttonPress 0.15s ease; }
     @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important } }
   `}</style>
@@ -549,6 +550,18 @@ const api = {
     const { data } = await supabase.from("messages").select("*")
       .eq("match_id", matchId).order("created_at", { ascending: true });
     return data || [];
+  },
+  async markRead(matchId) {
+    if (!this.user || !this.user.id || !matchId) return;
+    await supabase.rpc("tom_mark_read", { p_match_id: matchId });
+  },
+  // Powers the dot on the Connections tab. Never let a failure here
+  // surface as an error: a missing badge is better than a broken tab.
+  async unreadSummary() {
+    if (!this.user || !this.user.id) return { unread: 0, actions: 0 };
+    const { data, error } = await supabase.rpc("tom_unread_summary");
+    if (error || !data || !data.length) return { unread: 0, actions: 0 };
+    return { unread: data[0].unread_count || 0, actions: data[0].action_count || 0 };
   },
   async sendMessage(matchId, body) {
     if (!this.user || !this.user.id) return { error: "Not signed in" };
@@ -1879,7 +1892,7 @@ function Paywall({ onClose }) {
   const feats = [
     [Ic.Infinity, "Unlimited likes", "Never run out of time to give"],
     [Ic.Eye, "See who likes you", "Skip straight to mutual"],
-    [Ic.Undo, "Undo last swipe", "Take back a swipe you didn't mean"],
+    [Ic.Bubble, "Read receipts", "See when your message was opened"],
     [Ic.Sun, "Golden Hours", "Five a day instead of one"],
     [Ic.Moon, "Off the Clock", "Browse invisibly"],
     [Ic.Rise, "Weekly Prime Time", "Seven days at the top of nearby decks"],
@@ -2049,6 +2062,7 @@ const STRINGS = {
     pass: "PASS", goldenHour: "GOLDEN HOUR", spendTime: "SPEND TIME",
     seenEveryone: "You've seen everyone nearby",
     newPeopleDaily: "New people join TOM every day. Check back soon.",
+    readReceipt: "Read",
     tuneHint: "Widen your age range or distance with the sliders button above to see more people.",
     emptyAdmirers: "{n} people already gave you their time. Take a look.",
     emptyAdmirersOne: "1 person already gave you their time. Take a look.",
@@ -2164,6 +2178,7 @@ const STRINGS = {
     pass: "GEÇ", goldenHour: "ALTIN SAAT", spendTime: "ZAMAN AYIR",
     seenEveryone: "Yakındaki herkesi gördün",
     newPeopleDaily: "TOM'a her gün yeni kişiler katılıyor. Yakında tekrar bak.",
+    readReceipt: "Okundu",
     tuneHint: "Daha fazla kişi görmek için yukarıdaki ayar düğmesinden yaş aralığını veya mesafeyi genişlet.",
     emptyAdmirers: "{n} kişi sana çoktan zaman ayırdı. Bir bak.",
     emptyAdmirersOne: "1 kişi sana çoktan zaman ayırdı. Bir bak.",
@@ -2279,6 +2294,7 @@ const STRINGS = {
     pass: "PASAR", goldenHour: "HORA DORADA", spendTime: "DAR TIEMPO",
     seenEveryone: "Ya viste a todos cerca de ti",
     newPeopleDaily: "Cada día se une gente nueva a TOM. Vuelve pronto.",
+    readReceipt: "Leído",
     tuneHint: "Amplía tu rango de edad o distancia con el botón de ajustes de arriba para ver a más personas.",
     emptyAdmirers: "{n} personas ya te dieron su tiempo. Échales un vistazo.",
     emptyAdmirersOne: "1 persona ya te dio su tiempo. Échale un vistazo.",
@@ -2923,7 +2939,7 @@ function VerifyModal({ onClose, onSubmit }) {
   );
 }
 
-function Chat({ profile, onBack, onDateCompleted, myLoc }) {
+function Chat({ profile, onBack, onDateCompleted, myLoc, isPlus = false }) {
   const { t } = useLang();
   const ideaText = useIdeaText();
   const [messages, setMessages] = useState([]);
@@ -3090,11 +3106,18 @@ function Chat({ profile, onBack, onDateCompleted, myLoc }) {
             <p style={{ ...fr(600, 16, T.ink), margin: "10px 0 4px" }}>You matched with {profile.name}</p>
             <p style={{ ...nu(600, 13, T.soft), margin: 0 }}>Say hi and plan something free.</p>
           </div>
-        ) : messages.map((m) => {
+        ) : messages.map((m, i) => {
           const mine = m.sender_id === myId;
+          // Read receipts are a TOM+ perk, and only on the newest message
+          // you sent, so the thread does not fill up with markers.
+          const lastMine = mine && !messages.slice(i + 1).some((x) => x.sender_id === myId);
+          const showReceipt = isPlus && lastMine && Boolean(m.read_at);
           return (
-            <div key={m.id} style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "78%", background: mine ? T.royal : T.lilac, color: mine ? T.white : T.ink, borderRadius: 16, padding: "9px 13px", ...nu(600, 14, mine ? T.white : T.ink) }}>
-              {m.body}
+            <div key={m.id} style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "78%", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+              <div style={{ background: mine ? T.royal : T.lilac, color: mine ? T.white : T.ink, borderRadius: 16, padding: "9px 13px", ...nu(600, 14, mine ? T.white : T.ink) }}>
+                {m.body}
+              </div>
+              {showReceipt && <span style={{ ...nu(700, 10.5, T.soft), marginTop: 3 }}>{t("readReceipt")}</span>}
             </div>
           );
         })}
@@ -3692,6 +3715,29 @@ function TomAppInner() {
   const [goldenUsed, setGoldenUsed] = useState(0);
   const [likesUsed, setLikesUsed] = useState(0);
   const [chatWith, setChatWith] = useState(null);
+  const [unread, setUnread] = useState({ unread: 0, actions: 0 });
+
+  const refreshUnread = React.useCallback(async () => {
+    if (!api.user || api.user.isGuest || !api.user.id) return;
+    setUnread(await api.unreadSummary());
+  }, []);
+
+  // Poll while the app is open so the Connections dot appears without a reload.
+  React.useEffect(() => {
+    if (screen !== "main") return;
+    refreshUnread();
+    const id = setInterval(refreshUnread, 30000);
+    return () => clearInterval(id);
+  }, [screen, tab, refreshUnread]);
+
+  // Opening a conversation clears its unread messages.
+  React.useEffect(() => {
+    if (!chatWith || !chatWith.matchId) return;
+    (async () => {
+      await api.markRead(chatWith.matchId);
+      refreshUnread();
+    })();
+  }, [chatWith, refreshUnread]);
   const isPlus = Boolean(api.user && api.user.isPlus);
   const goldenLeft = Math.max(0, api.goldenLimit() - goldenUsed);
   const likesLeft = api.likeLimit() - likesUsed;
@@ -3827,10 +3873,6 @@ function TomAppInner() {
   // between finding someone and not.
   const undoLastSwipe = async () => {
     if (!lastSwipe) return;
-    if (!isPlus) {
-      setPlusGate({ title: "Take it back", blurb: "Undo a swipe you didn't mean. A TOM+ perk." });
-      return;
-    }
     const r = await api.undoLastSwipe();
     if (r.error) { setUndoNote(r.error); setTimeout(() => setUndoNote(null), 2600); return; }
     if (lastSwipe.dir === "right") setLikesUsed((n) => Math.max(0, n - 1));
@@ -4110,14 +4152,20 @@ function TomAppInner() {
             {tab === "discover" && !showAdmirers && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={deckOrigin} onGolden={onGolden} goldenLeft={goldenLeft} likesLeft={likesLeft} isPlus={isPlus} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "deck" })} locDenied={locDenied && !travelCity} loading={deckLoading} onPrimeTime={() => requirePlus("Weekly Prime Time", "Rise to the top of nearby decks for 7 days. A TOM+ perk.", () => setPrimeTimeOpen(true))} onUndo={undoLastSwipe} canUndo={Boolean(lastSwipe)} admirerCount={admirerCount} onAdmirers={openAdmirers} onTimeZones={() => setTimeZonesOpen(true)} onInvite={inviteFriend} />}
             {tab === "missions" && <Missions matches={matches} onSend={(idea) => setMissionToSend(idea)} />}
             {tab === "matches" && (chatWith
-              ? <Chat profile={chatWith} onBack={() => setChatWith(null)} onDateCompleted={onDateCompleted} myLoc={myLoc} />
+              ? <Chat profile={chatWith} onBack={() => setChatWith(null)} onDateCompleted={onDateCompleted} myLoc={myLoc} isPlus={isPlus} />
               : <Matches matches={matches} myLoc={myLoc} admirerCount={admirerCount} onUpgrade={openAdmirers} onReport={(p) => setReporting({ profile: p, from: "matches" })} onOpenChat={(p) => setChatWith(p)} loading={matchesLoading} />
             )}
             {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} onLogout={logout} onOffClock={() => requirePlus("Off the Clock", "Go invisible without deleting anything. A TOM+ perk.", () => setOffClockOpen(true))} onEmailSettings={() => setEmailSettings(true)} onLanguage={() => setLanguageOpen(true)} myRep={myRep} onFreeTonight={toggleFreeTonight} />}
             <nav style={{ display: "flex", justifyContent: "space-around", padding: "10px 8px 16px", background: T.white, borderTop: `1px solid ${T.lilac}` }}>
               {tabs.map((t) => (
-                <button key={t.id} onClick={() => { setTab(t.id); setChatWith(null); }} style={{ border: "none", background: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, opacity: tab === t.id ? 1 : 0.45, padding: "4px 14px" }}>
+                <button key={t.id} onClick={() => { setTab(t.id); setChatWith(null); }} style={{ position: "relative", border: "none", background: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, opacity: tab === t.id ? 1 : 0.45, padding: "4px 14px" }}>
                   {React.createElement(t.icon, { s: 22, c: T.royal })}
+                  {t.id === "matches" && (unread.unread > 0 || unread.actions > 0) && (
+                    <span aria-label="Something is waiting for you" style={{ position: "absolute", top: -2, right: 8, display: "flex", gap: 1, pointerEvents: "none" }}>
+                      <span style={{ display: "flex", animation: "heartBlink 1.1s ease-in-out infinite" }}><Ic.Heart s={11} c={T.sun} /></span>
+                      <span style={{ display: "flex", animation: "heartBlink 1.1s ease-in-out .55s infinite" }}><Ic.Heart s={11} c={T.sun} /></span>
+                    </span>
+                  )}
                   <span style={nu(800, 11, T.royal)}>{t.label}</span>
                 </button>
               ))}
