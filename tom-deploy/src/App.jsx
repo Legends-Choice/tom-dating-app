@@ -380,6 +380,11 @@ const api = {
     const otherIds = active.map((r) => (r.user_id_1 === myId ? r.user_id_2 : r.user_id_1));
     const { data: profs, error: profErr } = await supabase.from("profiles").select("*").in("id", otherIds);
     if (profErr) return { matches: [], error: profErr.message };
+    // Match rows exist but no partner profile came back. That is row security
+    // hiding people, not an empty inbox, so say so instead of showing "none".
+    if (!profs || profs.length === 0) {
+      return { matches: [], error: "Your connections could not load. Pull down to retry." };
+    }
     const matchIdByUser = {};
     active.forEach((r) => { matchIdByUser[r.user_id_1 === myId ? r.user_id_2 : r.user_id_1] = r.id; });
     return { matches: (profs || []).map((p) => ({ ...dbRowToCard(p), matchId: matchIdByUser[p.id] })) };
