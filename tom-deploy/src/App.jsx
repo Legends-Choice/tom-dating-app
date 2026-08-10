@@ -22,6 +22,43 @@ const T = {
   white: "#FFFFFF", sun: "#FFC53D", ink: "#2A1B4A", soft: "#8A7BAF", green: "#2FBF71",
   red: "#E5484D",
 };
+
+// ================= Toast Context =================
+const ToastContext = React.createContext();
+
+function ToastProvider({ children }) {
+  const [toasts, setToasts] = React.useState([]);
+  const showToast = (message, duration = 3000) => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, duration);
+  };
+  return (
+    <ToastContext.Provider value={showToast}>
+      {children}
+      <ToastContainer toasts={toasts} />
+    </ToastContext.Provider>
+  );
+}
+
+function ToastContainer({ toasts }) {
+  return (
+    <div style={{ position: "fixed", top: 16, right: 16, zIndex: 1000, display: "flex", flexDirection: "column", gap: 8 }}>
+      {toasts.map(toast => (
+        <div key={toast.id} style={{ background: "rgba(42,27,74,.95)", color: "#FFFFFF", padding: "12px 16px", borderRadius: 8, fontSize: 14, fontWeight: 600, boxShadow: "0 8px 24px rgba(42,27,74,.2)", animation: "popIn .3s ease", maxWidth: 280 }}>
+          {toast.message}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function useToast() {
+  return React.useContext(ToastContext);
+}
+
 const FONT = (
   <style>{`
     @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap');
@@ -29,6 +66,8 @@ const FONT = (
     input, textarea { font-family: Nunito, sans-serif; }
     @keyframes popIn { 0% { transform: scale(.7); opacity: 0 } 70% { transform: scale(1.05) } 100% { transform: scale(1); opacity: 1 } }
     @keyframes floatUp { 0% { transform: translateY(8px); opacity: 0 } 100% { transform: translateY(0); opacity: 1 } }
+    @keyframes buttonPress { 0% { transform: scale(1); } 50% { transform: scale(0.97); } 100% { transform: scale(1); } }
+    button:active { animation: buttonPress 0.15s ease; }
     @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important } }
   `}</style>
 );
@@ -3331,22 +3370,25 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
         <ToggleRow on={freeTonightActive(u.freeTonightUntil)} onToggle={onFreeTonight} label={t("freeTonight")} icon="Moon" />
         <div style={{ ...nu(600, 11.5, T.soft), margin: "5px 2px 0" }}>{t("freeTonightSub")}</div>
       </div>
-      <button onClick={onUpgrade} style={{ width: "100%", marginTop: 10, borderRadius: 18, padding: "14px 16px", border: `2px solid ${T.sun}`, background: "#FFFBEF", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
-        <Ic.Sun s={26} c={T.sun} />
-        <span style={{ flex: 1 }}>
-          <span style={{ ...fr(700, 16, T.royal), display: "block" }}>Get TOM<span style={{ color: T.sun }}>+</span></span>
-          <span style={{ ...nu(700, 12.5, T.soft) }}>{t("tomPerks")}</span>
-        </span>
-        <Ic.Chevron s={16} c={T.royal} />
-      </button>
-      <button onClick={onOffClock} style={{ width: "100%", marginTop: 10, borderRadius: 18, padding: "14px 16px", border: `2px solid ${T.lilacDeep}`, background: u.offTheClock ? T.lilac : T.white, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
-        <Ic.Moon s={26} c={T.royal} />
-        <span style={{ flex: 1 }}>
-          <span style={{ ...fr(700, 16, T.ink), display: "block" }}>{t("offTheClock")}{u.offTheClock ? " · ON" : ""}</span>
-          <span style={{ ...nu(700, 12.5, T.soft) }}>{u.offTheClock ? t("offOn") : t("offOff")}</span>
-        </span>
-        <Ic.Chevron s={16} c={T.royal} />
-      </button>
+      <div style={{ marginTop: 10, borderRadius: 18, border: `2px solid ${T.sun}`, background: "#FFFBEF", overflow: "hidden" }}>
+        <button onClick={onUpgrade} style={{ width: "100%", padding: "14px 16px", border: "none", background: "transparent", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
+          <Ic.Sun s={26} c={T.sun} />
+          <span style={{ flex: 1 }}>
+            <span style={{ ...fr(700, 16, T.royal), display: "block" }}>Get TOM<span style={{ color: T.sun }}>+</span></span>
+            <span style={{ ...nu(700, 12.5, T.soft) }}>{t("tomPerks")}</span>
+          </span>
+          <Ic.Chevron s={16} c={T.royal} />
+        </button>
+        <div style={{ height: 1, background: T.lilacDeep, opacity: 0.3 }} />
+        <button onClick={onOffClock} style={{ width: "100%", padding: "14px 16px", border: "none", background: "transparent", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
+          <Ic.Moon s={26} c={T.royal} />
+          <span style={{ flex: 1 }}>
+            <span style={{ ...fr(700, 16, T.ink), display: "block" }}>{t("offTheClock")}{u.offTheClock ? " · ON" : ""}</span>
+            {u.offTheClock ? <span style={{ ...nu(700, 12.5, T.green) }}>Resets at midnight</span> : <span style={{ ...nu(700, 12.5, T.soft) }}>{t("offOff")}</span>}
+          </span>
+          <Ic.Chevron s={16} c={T.royal} />
+        </button>
+      </div>
       <button onClick={onLanguage} style={{ width: "100%", marginTop: 10, borderRadius: 18, padding: "14px 16px", border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
         <Ic.Globe s={26} c={T.royal} />
         <span style={{ flex: 1 }}>
@@ -3571,9 +3613,11 @@ function BootScreen() {
 
 export default function TomApp() {
   return (
-    <LanguageProvider>
-      <TomAppInner />
-    </LanguageProvider>
+    <ToastProvider>
+      <LanguageProvider>
+        <TomAppInner />
+      </LanguageProvider>
+    </ToastProvider>
   );
 }
 
@@ -3777,9 +3821,13 @@ function TomAppInner() {
 
   const toggleFreeTonight = async () => {
     if (!api.user || api.user.isGuest) return;
+    const showToast = useToast();
     const turningOn = !freeTonightActive(api.user.freeTonightUntil);
     await api.setFreeTonight(turningOn);
     setFreeTonightOn(turningOn);
+    if (turningOn) {
+      showToast("Your profile will show Free tonight until midnight");
+    }
   };
 
   const likeBackAdmirer = (p) => {
