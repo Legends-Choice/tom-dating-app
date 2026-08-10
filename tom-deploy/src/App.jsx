@@ -1880,7 +1880,7 @@ function Paywall({ onClose }) {
     [Ic.Infinity, "Unlimited likes", "Never run out of time to give"],
     [Ic.Eye, "See who likes you", "Skip straight to mutual"],
     [Ic.Undo, "Undo last swipe", "Take back a swipe you didn't mean"],
-    [Ic.Globe, "Time Zones", "Match in other cities before you travel"],
+    [Ic.Sun, "Golden Hours", "Five a day instead of one"],
     [Ic.Moon, "Off the Clock", "Browse invisibly"],
     [Ic.Rise, "Weekly Prime Time", "Seven days at the top of nearby decks"],
   ];
@@ -2050,6 +2050,11 @@ const STRINGS = {
     seenEveryone: "You've seen everyone nearby",
     newPeopleDaily: "New people join TOM every day. Check back soon.",
     tuneHint: "Widen your age range or distance with the sliders button above to see more people.",
+    emptyAdmirers: "{n} people already gave you their time. Take a look.",
+    emptyAdmirersOne: "1 person already gave you their time. Take a look.",
+    emptyTimeZones: "Spend time in another city. Free for everyone.",
+    emptyInvite: "Invite a friend to TOM and fill your deck.",
+    inviteCopied: "Invite link copied. Send it to a friend.",
     outOfLikes: "You're out of likes for today",
     likesReset: "Your likes reset tomorrow. Passing is always unlimited.",
     getUnlimited: "Get unlimited with TOM+",
@@ -2160,6 +2165,11 @@ const STRINGS = {
     seenEveryone: "Yakındaki herkesi gördün",
     newPeopleDaily: "TOM'a her gün yeni kişiler katılıyor. Yakında tekrar bak.",
     tuneHint: "Daha fazla kişi görmek için yukarıdaki ayar düğmesinden yaş aralığını veya mesafeyi genişlet.",
+    emptyAdmirers: "{n} kişi sana çoktan zaman ayırdı. Bir bak.",
+    emptyAdmirersOne: "1 kişi sana çoktan zaman ayırdı. Bir bak.",
+    emptyTimeZones: "Başka bir şehirde zaman geçir. Herkese ücretsiz.",
+    emptyInvite: "Bir arkadaşını TOM'a davet et, desteni doldur.",
+    inviteCopied: "Davet bağlantısı kopyalandı. Bir arkadaşına gönder.",
     outOfLikes: "Bugünlük beğeni hakkın bitti",
     likesReset: "Beğenilerin yarın yenilenir. Geçmek her zaman sınırsızdır.",
     getUnlimited: "TOM+ ile sınırsız al",
@@ -2270,6 +2280,11 @@ const STRINGS = {
     seenEveryone: "Ya viste a todos cerca de ti",
     newPeopleDaily: "Cada día se une gente nueva a TOM. Vuelve pronto.",
     tuneHint: "Amplía tu rango de edad o distancia con el botón de ajustes de arriba para ver a más personas.",
+    emptyAdmirers: "{n} personas ya te dieron su tiempo. Échales un vistazo.",
+    emptyAdmirersOne: "1 persona ya te dio su tiempo. Échale un vistazo.",
+    emptyTimeZones: "Pasa tiempo en otra ciudad. Gratis para todos.",
+    emptyInvite: "Invita a un amigo a TOM y llena tu mazo.",
+    inviteCopied: "Enlace de invitación copiado. Envíaselo a un amigo.",
     outOfLikes: "Se acabaron tus me gusta de hoy",
     likesReset: "Tus me gusta se reinician mañana. Pasar es siempre ilimitado.",
     getUnlimited: "Consigue ilimitado con TOM+",
@@ -2670,7 +2685,7 @@ function SearchClock({ size = 68 }) {
   );
 }
 
-function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlus, onUpgrade, onReport, locDenied, loading, onPrimeTime, onUndo, canUndo }) {
+function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlus, onUpgrade, onReport, locDenied, loading, onPrimeTime, onUndo, canUndo, admirerCount = 0, onAdmirers, onTimeZones, onInvite }) {
   const { t } = useLang();
   const [viewing, setViewing] = useState(null);
   const outOfLikes = !isPlus && likesLeft !== undefined && likesLeft <= 0;
@@ -2728,7 +2743,21 @@ function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlu
         <Ic.Hourglass s={54} c={T.royal} />
         <h2 style={{ ...fr(600, 22, T.ink), margin: 0 }}>{t("seenEveryone")}</h2>
         <p style={{ ...nu(600, 14, T.soft), margin: 0 }}>{t("newPeopleDaily")}</p>
+        {admirerCount > 0 && (
+          <button onClick={onAdmirers} style={{ background: T.sun, border: "none", borderRadius: 14, padding: "11px 13px", display: "flex", alignItems: "center", gap: 8, textAlign: "left", maxWidth: 300, width: "100%", cursor: "pointer", boxShadow: "0 4px 14px rgba(255,197,61,.45)" }}>
+            <Ic.Eye s={18} c={T.ink} />
+            <span style={{ ...nu(700, 12.5, T.ink) }}>{admirerCount === 1 ? t("emptyAdmirersOne") : t("emptyAdmirers").replace("{n}", admirerCount)}</span>
+          </button>
+        )}
+        <button onClick={onTimeZones} style={{ background: T.royal, border: "none", borderRadius: 14, padding: "11px 13px", display: "flex", alignItems: "center", gap: 8, textAlign: "left", maxWidth: 300, width: "100%", cursor: "pointer" }}>
+          <Ic.Globe s={18} c={T.white} />
+          <span style={{ ...nu(700, 12.5, T.white) }}>{t("emptyTimeZones")}</span>
+        </button>
         {tuneHint}
+        <button onClick={onInvite} style={{ background: T.white, border: `2px solid ${T.lilacDeep}`, borderRadius: 14, padding: "11px 13px", display: "flex", alignItems: "center", gap: 8, textAlign: "left", maxWidth: 300, width: "100%", cursor: "pointer" }}>
+          <Ic.Heart s={18} c={T.royal} />
+          <span style={{ ...nu(700, 12.5, T.royal) }}>{t("emptyInvite")}</span>
+        </button>
       </div>
     );
   } else {
@@ -3627,6 +3656,7 @@ export default function TomApp() {
 
 function TomAppInner() {
   const { t } = useLang();
+  const showToast = useToast();
   const [screen, setScreen] = useState("home"); // home -> welcome -> builder -> main
   const [booting, setBooting] = useState(true);
 
@@ -3823,9 +3853,23 @@ function TomAppInner() {
     return () => { cancelled = true; };
   }, [screen, tab]);
 
+  const inviteFriend = async () => {
+    const url = "https://www.tomdates.com";
+    const text = "Dating without the bill. Come spend time on TOM.";
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "TOM", text, url });
+        return;
+      }
+      await navigator.clipboard.writeText(`${text} ${url}`);
+      showToast(t("inviteCopied"));
+    } catch (e) {
+      // User cancelled the share sheet, or clipboard was blocked. Nothing to do.
+    }
+  };
+
   const toggleFreeTonight = async () => {
     if (!api.user || api.user.isGuest) return;
-    const showToast = useToast();
     const turningOn = !freeTonightActive(api.user.freeTonightUntil);
     await api.setFreeTonight(turningOn);
     setFreeTonightOn(turningOn);
@@ -4063,7 +4107,7 @@ function TomAppInner() {
         {screen === "main" && (
           <>
             {tab === "discover" && showAdmirers && <AdmirersPanel admirers={admirers} myLoc={deckOrigin} onLikeBack={likeBackAdmirer} onBack={() => setShowAdmirers(false)} onReport={(p) => setReporting({ profile: p, from: "admirers" })} />}
-            {tab === "discover" && !showAdmirers && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={deckOrigin} onGolden={onGolden} goldenLeft={goldenLeft} likesLeft={likesLeft} isPlus={isPlus} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "deck" })} locDenied={locDenied && !travelCity} loading={deckLoading} onPrimeTime={() => requirePlus("Weekly Prime Time", "Rise to the top of nearby decks for 7 days. A TOM+ perk.", () => setPrimeTimeOpen(true))} onUndo={undoLastSwipe} canUndo={Boolean(lastSwipe)} />}
+            {tab === "discover" && !showAdmirers && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={deckOrigin} onGolden={onGolden} goldenLeft={goldenLeft} likesLeft={likesLeft} isPlus={isPlus} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "deck" })} locDenied={locDenied && !travelCity} loading={deckLoading} onPrimeTime={() => requirePlus("Weekly Prime Time", "Rise to the top of nearby decks for 7 days. A TOM+ perk.", () => setPrimeTimeOpen(true))} onUndo={undoLastSwipe} canUndo={Boolean(lastSwipe)} admirerCount={admirerCount} onAdmirers={openAdmirers} onTimeZones={() => setTimeZonesOpen(true)} onInvite={inviteFriend} />}
             {tab === "missions" && <Missions matches={matches} onSend={(idea) => setMissionToSend(idea)} />}
             {tab === "matches" && (chatWith
               ? <Chat profile={chatWith} onBack={() => setChatWith(null)} onDateCompleted={onDateCompleted} myLoc={myLoc} />
