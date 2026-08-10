@@ -3053,61 +3053,112 @@ function Chat({ profile, onBack, onDateCompleted, myLoc }) {
   );
 }
 
-// How TOM works. A single purple line runs down the centre and each phrase
-// interrupts it as the line reaches that point, then the line carries on.
+// How TOM works. A gold spark travels down a deep purple card, and each
+// phrase lights up as the spark reaches it. Meant to feel like a moment,
+// not a checklist.
 const ROADMAP = ["roadmap1", "roadmap2", "roadmap3", "roadmap4", "roadmap5"];
-const SEG_T = 0.3;   // seconds for one line segment to draw
-const WORD_T = 0.32; // seconds for a phrase to fade in
+const SEG_T = 0.34;   // one line segment drawing
+const WORD_T = 0.34;  // one phrase lighting up
+const STEP = SEG_T + WORD_T;
+const LEAD = 0.3;
 
 function Roadmap({ label }) {
   const { t } = useLang();
-  const seg = (delay, h) => (
+  const endAt = LEAD + ROADMAP.length * STEP;
+
+  const seg = (delay) => (
     <span style={{
-      display: "block", width: 3, height: h, margin: "0 auto",
-      background: T.royal, borderRadius: 3, transformOrigin: "top center",
+      display: "block", width: 2, height: 24, margin: "0 auto", borderRadius: 2,
+      background: `linear-gradient(180deg, ${T.sun}, rgba(255,197,61,.45))`,
+      transformOrigin: "top center",
       animation: `tomSeg ${SEG_T}s linear ${delay}s both`,
     }} />
   );
+
   return (
-    <div style={{ background: T.lilac, borderRadius: 24, padding: "24px 20px 26px", margin: "6px 0 12px", textAlign: "center" }}>
+    <div style={{
+      position: "relative", overflow: "hidden",
+      background: `linear-gradient(155deg, ${T.royal} 0%, ${T.violet} 58%, #8B5CF6 100%)`,
+      borderRadius: 28, padding: "26px 20px 28px", margin: "6px 0 12px",
+      textAlign: "center", boxShadow: "0 14px 34px rgba(91,33,182,.32)",
+    }}>
       <style>{`
         @keyframes tomSeg { from { transform: scaleY(0) } to { transform: scaleY(1) } }
-        @keyframes tomWord {
-          from { opacity: 0; transform: translateY(5px) }
-          to   { opacity: 1; transform: translateY(0) }
+        @keyframes tomWordIn {
+          0%   { opacity: 0; transform: translateY(6px) scale(.96); filter: blur(3px) }
+          60%  { opacity: 1; filter: blur(0) }
+          100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0) }
+        }
+        @keyframes tomFlare {
+          0%   { opacity: 0; transform: scale(.3) }
+          40%  { opacity: 1; transform: scale(1.5) }
+          100% { opacity: 0; transform: scale(2.6) }
         }
         @keyframes tomHeartBeat {
           0%, 100% { transform: scale(1) }
-          14%      { transform: scale(1.18) }
+          14%      { transform: scale(1.2) }
           28%      { transform: scale(1) }
-          42%      { transform: scale(1.11) }
+          42%      { transform: scale(1.12) }
           56%      { transform: scale(1) }
         }
-        @keyframes tomPulse { 0%, 100% { opacity: .45 } 50% { opacity: 1 } }
+        @keyframes tomShimmer { from { background-position: 200% 0 } to { background-position: -200% 0 } }
+        @keyframes tomGlowOrb {
+          0%, 100% { opacity: .28; transform: scale(1) }
+          50%      { opacity: .5; transform: scale(1.12) }
+        }
       `}</style>
 
-      <span style={{ display: "inline-flex", animation: "tomHeartBeat 1.5s ease-in-out infinite", transformOrigin: "center" }}>
-        <Ic.Heart s={42} c={T.royal} />
+      {/* soft light behind the heart */}
+      <span style={{
+        position: "absolute", top: -46, left: "50%", marginLeft: -80,
+        width: 160, height: 160, borderRadius: "50%", pointerEvents: "none",
+        background: "radial-gradient(circle, rgba(255,197,61,.55) 0%, rgba(255,197,61,0) 70%)",
+        animation: "tomGlowOrb 3s ease-in-out infinite",
+      }} />
+
+      <span style={{
+        position: "relative", display: "inline-flex",
+        animation: "tomHeartBeat 1.5s ease-in-out infinite", transformOrigin: "center",
+        filter: "drop-shadow(0 4px 12px rgba(0,0,0,.28))",
+      }}>
+        <Ic.Heart s={46} c={T.white} />
       </span>
 
       {ROADMAP.map((key, i) => {
-        const segDelay = 0.25 + i * (SEG_T + WORD_T);
+        const segDelay = LEAD + i * STEP;
         const wordDelay = segDelay + SEG_T;
         return (
-          <div key={key}>
-            {seg(segDelay, 22)}
-            <div style={{
-              ...fr(600, 16.5, T.royal), padding: "3px 0",
-              animation: `tomWord ${WORD_T}s ease ${wordDelay}s both`,
-            }}>{t(key)}</div>
+          <div key={key} style={{ position: "relative" }}>
+            {seg(segDelay)}
+            <div style={{ position: "relative", padding: "4px 0" }}>
+              {/* gold flare as the spark lands on the phrase */}
+              <span style={{
+                position: "absolute", left: "50%", top: "50%", width: 54, height: 54,
+                marginLeft: -27, marginTop: -27, borderRadius: "50%", pointerEvents: "none",
+                background: "radial-gradient(circle, rgba(255,197,61,.7) 0%, rgba(255,197,61,0) 70%)",
+                animation: `tomFlare .7s ease ${wordDelay}s both`,
+              }} />
+              <span style={{
+                position: "relative", ...fr(600, 17, T.white),
+                textShadow: "0 2px 10px rgba(0,0,0,.22)",
+                animation: `tomWordIn ${WORD_T + 0.16}s ease ${wordDelay}s both`,
+                display: "inline-block",
+              }}>{t(key)}</span>
+            </div>
           </div>
         );
       })}
 
-      {seg(0.25 + ROADMAP.length * (SEG_T + WORD_T), 22)}
+      {seg(endAt)}
+
       <div style={{
-        ...nu(800, 13, T.royal), letterSpacing: ".3px", paddingTop: 6,
-        animation: `tomWord .3s ease ${0.25 + ROADMAP.length * (SEG_T + WORD_T) + SEG_T}s both, tomPulse 1.6s ease-in-out ${0.25 + ROADMAP.length * (SEG_T + WORD_T) + SEG_T + 0.3}s infinite`,
+        marginTop: 8,
+        ...nu(800, 12.5, T.white), letterSpacing: ".8px", textTransform: "uppercase",
+        background: `linear-gradient(90deg, rgba(255,255,255,.55) 20%, ${T.sun} 50%, rgba(255,255,255,.55) 80%)`,
+        backgroundSize: "200% 100%",
+        WebkitBackgroundClip: "text", backgroundClip: "text",
+        WebkitTextFillColor: "transparent",
+        animation: `tomWordIn .4s ease ${endAt + SEG_T}s both, tomShimmer 2.6s linear ${endAt + SEG_T}s infinite`,
       }}>{label}</div>
     </div>
   );
