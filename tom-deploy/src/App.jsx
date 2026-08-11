@@ -3839,6 +3839,9 @@ function TomAppInner() {
   const [deck, setDeck] = useState([]);
   const [deckLoading, setDeckLoading] = useState(true);
   const [matchesLoading, setMatchesLoading] = useState(true);
+  // True once connections have loaded at least once, so revisiting the tab
+  // refreshes quietly instead of blanking the list behind a loading screen.
+  const hasLoadedMatches = useRef(false);
   const [loadError, setLoadError] = useState(null);
   const [matchesError, setMatchesError] = useState(null);
   const [matches, setMatches] = useState([]);
@@ -4023,6 +4026,7 @@ function TomAppInner() {
     }
     const [m, d] = await Promise.all([api.loadMatches(), api.loadDeck()]);
     setMatches(m.matches || []);
+    if (!m.error) hasLoadedMatches.current = true;
     setDeck(d.cards || []);
   };
 
@@ -4039,12 +4043,15 @@ function TomAppInner() {
 
   // Reload connections each time the tab is opened. A single failed fetch
   // should never leave someone staring at an empty list.
-  const reloadMatches = React.useCallback(async () => {
-    if (!api.user || api.user.isGuest || !api.user.id) return;
-    setMatchesLoading(true);
+  // Connections are already in state from boot, so blanking the list and
+  // showing the full loading screen on every tab visit made the app feel slow
+  // for data we already had. Show the loader only when there is nothing to
+  // show yet; otherwise refresh quietly underneath the existing list.
+  const reloadMatches = React.useCallback(async () => {    if (!api.user || api.user.isGuest || !api.user.id) return;
+    if (!hasLoadedMatches.current) setMatchesLoading(true);
     const r = await api.loadMatches();
     if (r.error) setMatchesError(r.error);
-    else { setMatchesError(null); setMatches(r.matches || []); }
+    else { setMatchesError(null); setMatches(r.matches || []); hasLoadedMatches.current = true; }
     setMatchesLoading(false);
   }, []);
 
@@ -4171,7 +4178,7 @@ function TomAppInner() {
       // A transient failure must not blank out connections we already have,
       // and it belongs on the Connections tab, not as a banner over the app.
       if (r.error) setMatchesError(r.error);
-      else { setMatchesError(null); setMatches(r.matches || []); }
+      else { setMatchesError(null); setMatches(r.matches || []); hasLoadedMatches.current = true; }
       setMatchesLoading(false);
     });
     api.countAdmirers().then(setAdmirerCount);
