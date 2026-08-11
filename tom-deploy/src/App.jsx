@@ -3451,7 +3451,7 @@ function LanguageModal({ onClose }) {
   );
 }
 
-function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, onEditProfile, onLogout, onOffClock, onEmailSettings, onLanguage, myRep, onFreeTonight }) {
+function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, onEditProfile, onLogout, onOffClock, onEmailSettings, onLanguage, myRep, onFreeTonight, onSearchPrefsSaved }) {
   const { t, lang } = useLang();
   const L = useLabel();
   const u = api.user;
@@ -3618,7 +3618,12 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
       {managingSearch && (
         <SearchPrefsModal
           onClose={() => setManagingSearch(false)}
-          onSaved={() => { rerender(); setManagingSearch(false); }}
+          onSaved={() => {
+            rerender();
+            setManagingSearch(false);
+            // Tell the app the search area changed so Discover refreshes
+            if (onSearchPrefsSaved) onSearchPrefsSaved();
+          }}
         />
       )}
     </div>
@@ -3954,9 +3959,13 @@ function TomAppInner() {
   );
 
   // Pull a fresh deck from the server. Used when the search area changes, so
-  // people who were outside the old settings actually show up.
+  // people who were outside the old settings actually show up. Clears undo,
+  // since undoing back into a card that no longer matches the search makes
+  // no sense once the area has changed.
   const reloadDeck = useCallback(async () => {
     setDeckLoading(true);
+    setLastSwipe(null);
+    setTab("discover");
     const r = await api.loadDeck();
     setLoadError(r.cards ? null : (r.error || "Failed to load"));
     setDeck(r.cards || []);
@@ -3976,7 +3985,6 @@ function TomAppInner() {
       await api.saveProfile();
     }
     // Refresh Discover under the new settings
-    setTab("discover");
     reloadDeck();
   };
 
@@ -4135,6 +4143,14 @@ function TomAppInner() {
   React.useEffect(() => {
     if (screen !== "main") return;
     setLoadError(null);  // Clear any old error banner from previous session
+    // This component mounts before login, so pull the saved search settings in
+    // once we're on the main screen. Without this, radius would sit at the
+    // default 50 and silently override what the user actually saved.
+    if (api.user && !api.user.isGuest) {
+      setRadiusKm(api.user.searchRadiusKm ?? 50);
+      setAgeFilter({ min: api.user.filterMinAge ?? 18, max: api.user.filterMaxAge ?? 99 });
+      setInterestFilter(api.user.filterInterests || []);
+    }
     const isGuest = !api.user || api.user.isGuest || !api.user.id;
     if (isGuest) {
       // Guests see the real deck, browse only. No invented profiles.
@@ -4310,7 +4326,7 @@ function TomAppInner() {
               ? <Chat profile={chatWith} onBack={() => setChatWith(null)} onDateCompleted={onDateCompleted} myLoc={myLoc} isPlus={isPlus} />
               : <Matches matchesError={matchesError} onRetry={() => { setMatchesError(null); reloadMatches(); }} unreadBy={unreadBy} matches={matches} myLoc={myLoc} admirerCount={admirerCount} onUpgrade={openAdmirers} onReport={(p) => setReporting({ profile: p, from: "matches" })} onOpenChat={(p) => setChatWith(p)} loading={matchesLoading} />
             )}
-            {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} onLogout={logout} onOffClock={() => requirePlus("Off the Clock", "Go invisible without deleting anything. A TOM+ perk.", () => setOffClockOpen(true))} onEmailSettings={() => setEmailSettings(true)} onLanguage={() => setLanguageOpen(true)} myRep={myRep} onFreeTonight={toggleFreeTonight} />}
+            {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} onLogout={logout} onOffClock={() => requirePlus("Off the Clock", "Go invisible without deleting anything. A TOM+ perk.", () => setOffClockOpen(true))} onEmailSettings={() => setEmailSettings(true)} onLanguage={() => setLanguageOpen(true)} myRep={myRep} onFreeTonight={toggleFreeTonight} onSearchPrefsSaved={() => { setRadiusKm((api.user && api.user.searchRadiusKm) ?? 50); reloadDeck(); }} />}
             <nav style={{ display: "flex", justifyContent: "space-around", padding: "10px 8px 16px", background: T.white, borderTop: `1px solid ${T.lilac}` }}>
               {tabs.map((t) => (
                 <button key={t.id} onClick={() => { setTab(t.id); setChatWith(null); }} style={{ position: "relative", border: "none", background: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "4px 14px" }}>
@@ -4346,7 +4362,7 @@ function TomAppInner() {
         {deleteOpen && <DeleteModal onCancel={() => setDeleteOpen(false)} onConfirm={deleteAccount} />}
         {filtersOpen && <FiltersModal onClose={() => setFiltersOpen(false)} onApply={applyFilters} />}
         {offClockOpen && <OffTheClockModal onClose={() => setOffClockOpen(false)} onToggle={toggleOffClock} />}
-        {timeZonesOpen && <TimeZonesModal current={travelCity} onPick={(c) => { setTravelCity(c); setTimeZonesOpen(false); setTab("discover"); reloadDeck(); }} onClose={() => setTimeZonesOpen(false)} />}
+        {timeZonesOpen && <TimeZonesModal current={travelCity} onPick={(c) => { setTravelCity(c); setTimeZonesOpen(false); reloadDeck(); }} onClose={() => setTimeZonesOpen(false)} />}
         {primeTimeOpen && <PrimeTimeModal onClose={() => setPrimeTimeOpen(false)} onActivate={startPrimeTime} boostUntil={boostUntil} />}
         {emailSettings && <EmailSettingsModal onClose={() => setEmailSettings(false)} />}
         {unsubDone && (
