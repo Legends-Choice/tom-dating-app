@@ -4081,15 +4081,14 @@ function TomAppInner() {
 
   React.useEffect(() => {
     if (screen !== "main") return;
-    setLoadError(null);  // Clear any previous error banner before loading
     const isGuest = !api.user || api.user.isGuest || !api.user.id;
     if (isGuest) {
       // Guests see the real deck, browse only. No invented profiles.
       setDeckLoading(true);
       (async () => {
         const r = await api.loadDeck();
-        // Show error only if the load call failed, not based on deck size
-        setLoadError(r.error || null);
+        // Only show error if the response doesn't have a cards array; ignore r.error if cards exist
+        setLoadError(!Array.isArray(r.cards) ? (r.error || "Failed to load deck") : null);
         setDeck(r.cards || []);
         setDeckLoading(false);
       })();
@@ -4115,8 +4114,8 @@ function TomAppInner() {
     });
     (async () => {
       const r = await api.loadDeck();
-      // Show error only if the load call failed, not based on deck size
-      setLoadError(r.error || null);
+      // Only show error if the response doesn't have a cards array; ignore r.error if cards exist
+      setLoadError(!Array.isArray(r.cards) ? (r.error || "Failed to load deck") : null);
       setDeck(r.cards || []);
       setDeckLoading(false);
       if (api.user) {
@@ -4149,8 +4148,8 @@ function TomAppInner() {
           if (r.ok && !locSaved) {
             setLocSaved(true);
             const fresh = await api.loadDeck();
-            // Show error only if the load call failed, not based on deck size
-            setLoadError(fresh.error || null);
+            // Only show error if the response doesn't have a cards array; ignore fresh.error if cards exist
+            setLoadError(!Array.isArray(fresh.cards) ? (fresh.error || "Failed to load deck") : null);
             setDeck(fresh.cards || []);
           }
         }
