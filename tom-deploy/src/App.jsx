@@ -2047,7 +2047,7 @@ const STRINGS = {
     roadmap1: "Make connections",
     roadmap2: "Propose a date",
     roadmap3: "Or send a mission",
-    roadmap4: "Use our Free Tonight button",
+    roadmap4: "Use our \"Free Tonight\" button",
     roadmap5: "Rate the time you spent",
     personThinks: "person thinks you're worth their time", peopleThink: "people think you're worth their time", seeWhoLikes: "See who likes you with TOM+",
     loadTrouble: "Trouble loading. Tap retry.", retry: "Retry",
@@ -2173,7 +2173,7 @@ const STRINGS = {
     roadmap1: "Ba\u011flant\u0131 kur",
     roadmap2: "Bulu\u015fma \u00f6ner",
     roadmap3: "Ya da bir g\u00f6rev g\u00f6nder",
-    roadmap4: "Bu Ak\u015fam M\u00fcsaitim d\u00fc\u011fmesini kullan",
+    roadmap4: "Bu \"Ak\u015fam M\u00fcsaitim\" d\u00fc\u011fmesini kullan",
     roadmap5: "Ge\u00e7irdi\u011fin zaman\u0131 puanla",
     personThinks: "ki\u015fi zaman\u0131na de\u011fer buluyor", peopleThink: "ki\u015fi zaman\u0131na de\u011fer buluyor", seeWhoLikes: "TOM+ ile seni be\u011fenenleri g\u00f6r",
     loadTrouble: "Y\u00fckleme sorunu. Yeniden dene.", retry: "Yeniden dene",
@@ -2299,7 +2299,7 @@ const STRINGS = {
     roadmap1: "Haz conexiones",
     roadmap2: "Propon una cita",
     roadmap3: "O env\u00eda una misi\u00f3n",
-    roadmap4: "Usa el bot\u00f3n Libre esta noche",
+    roadmap4: "Usa el bot\u00f3n \"Libre esta noche\"",
     roadmap5: "Califica el tiempo que pasaron",
     personThinks: "persona cree que vales su tiempo", peopleThink: "personas creen que vales su tiempo", seeWhoLikes: "Ve qui\u00e9n te quiere con TOM+",
     loadTrouble: "Problema al cargar. Reintenta.", retry: "Reintentar",
@@ -4081,14 +4081,15 @@ function TomAppInner() {
 
   React.useEffect(() => {
     if (screen !== "main") return;
+    setLoadError(null);  // Clear any previous error banner before loading
     const isGuest = !api.user || api.user.isGuest || !api.user.id;
     if (isGuest) {
       // Guests see the real deck, browse only. No invented profiles.
       setDeckLoading(true);
       (async () => {
         const r = await api.loadDeck();
-        // Only show error if we failed to load cards; clear error on success
-        setLoadError(r.cards && r.cards.length > 0 ? null : (r.error || null));
+        // Show error only if the load call failed, not based on deck size
+        setLoadError(r.error || null);
         setDeck(r.cards || []);
         setDeckLoading(false);
       })();
@@ -4114,8 +4115,8 @@ function TomAppInner() {
     });
     (async () => {
       const r = await api.loadDeck();
-      // Only show error if we failed to load cards; clear error on success
-      setLoadError(r.cards && r.cards.length > 0 ? null : (r.error || null));
+      // Show error only if the load call failed, not based on deck size
+      setLoadError(r.error || null);
       setDeck(r.cards || []);
       setDeckLoading(false);
       if (api.user) {
@@ -4148,8 +4149,8 @@ function TomAppInner() {
           if (r.ok && !locSaved) {
             setLocSaved(true);
             const fresh = await api.loadDeck();
-            // Only show error if we failed to load cards; clear error on success
-            setLoadError(fresh.cards && fresh.cards.length > 0 ? null : (fresh.error || null));
+            // Show error only if the load call failed, not based on deck size
+            setLoadError(fresh.error || null);
             setDeck(fresh.cards || []);
           }
         }
