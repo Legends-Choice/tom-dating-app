@@ -397,11 +397,6 @@ const api = {
     const otherIds = active.map((r) => (r.user_id_1 === myId ? r.user_id_2 : r.user_id_1));
     const { data: profs, error: profErr } = await supabase.from("profiles").select("*").in("id", otherIds);
     if (profErr) return { matches: [], error: profErr.message };
-    // Match rows exist but no partner profile came back. That is row security
-    // hiding people, not an empty inbox, so say so instead of showing "none".
-    if (!profs || profs.length === 0) {
-      return { matches: [], error: "Your connections could not load. Pull down to retry." };
-    }
     const matchIdByUser = {};
     active.forEach((r) => { matchIdByUser[r.user_id_1 === myId ? r.user_id_2 : r.user_id_1] = r.id; });
     return { matches: (profs || []).map((p) => ({ ...dbRowToCard(p), matchId: matchIdByUser[p.id] })) };
@@ -1710,7 +1705,7 @@ function GuestPrompt({ onSignUp, onClose }) {
 }
 
 // ================= Full profile view (before or after matching) =================
-function ProfileDetailModal({ profile, myLoc, onClose, onSwipe, onMessage, onLikeBack }) {
+function ProfileDetailModal({ profile, myLoc, onClose, onSwipe, onMessage, onLikeBack, onReport }) {
   const { t } = useLang();
   const L = useLabel();
   const ideaText = useIdeaText();
@@ -1839,6 +1834,11 @@ function ProfileDetailModal({ profile, myLoc, onClose, onSwipe, onMessage, onLik
           )}
           {onLikeBack && <PrimaryBtn onClick={() => onLikeBack(profile)}>{t("spendTimeWith")} {profile.name}</PrimaryBtn>}
           {onMessage && <PrimaryBtn onClick={() => onMessage(profile)}>{t("messageBtn")} {profile.name}</PrimaryBtn>}
+          {onReport && (
+            <button onClick={() => onReport(profile)} style={{ marginTop: 2, width: "100%", border: `1.5px solid ${T.lilacDeep}`, background: T.white, borderRadius: 999, padding: "11px 14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, ...nu(800, 13, T.soft) }}>
+              <Ic.Flag s={15} c={T.soft} />{t("blockOrReport")}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -2095,6 +2095,9 @@ const STRINGS = {
     pass: "PASS", goldenHour: "GOLDEN HOUR", spendTime: "SPEND TIME",
     seenEveryone: "You've seen everyone nearby",
     newPeopleDaily: "New people join TOM every day. Check back soon.",
+    blockOrReport: "Block or report",
+    connLoadFailed: "Your connections did not load",
+    connLoadFailedBody: "This is a connection problem on our side, not an empty inbox.",
     hiddenTitle: "You are not in anyone's deck yet",
     hiddenBody: "Add your {bits} and people will start seeing you.",
     hiddenCta: "Finish my profile",
@@ -2115,7 +2118,7 @@ const STRINGS = {
     locationOff: "Location is off, so distances are hidden. Turn it on in your browser or phone settings to see who's nearby.",
     viewProfile: "View profile", distanceUnavailable: "Distance unavailable",
     away: "away", bothLove: "You both love", freeDateIdea: "Free date idea",
-    yourDates: "Your connections", noDatesYet: "No connections yet",
+    yourDates: "Your connections", noDatesYet: "Make connections and they will show up here",
     noDatesSub: "Swipe right on someone whose time you'd like to share.",
     tapToMessage: "Tap to message", worthTheirTime: "Worth their time",
     admirersSub: "These people already said yes to spending time with you.",
@@ -2218,6 +2221,9 @@ const STRINGS = {
     pass: "GEÇ", goldenHour: "ALTIN SAAT", spendTime: "ZAMAN AYIR",
     seenEveryone: "Yakındaki herkesi gördün",
     newPeopleDaily: "TOM'a her gün yeni kişiler katılıyor. Yakında tekrar bak.",
+    blockOrReport: "Engelle veya bildir",
+    connLoadFailed: "Bağlantıların yüklenemedi",
+    connLoadFailedBody: "Bu bizim tarafımızda bir sorun, kutun boş olduğu için değil.",
     hiddenTitle: "Henüz kimsenin destesinde değilsin",
     hiddenBody: "{bits} ekle, insanlar seni görmeye başlasın.",
     hiddenCta: "Profilimi tamamla",
@@ -2238,7 +2244,7 @@ const STRINGS = {
     locationOff: "Konum kapalı, bu yüzden mesafeler gizli. Yakındakileri görmek için tarayıcı veya telefon ayarlarından aç.",
     viewProfile: "Profili gör", distanceUnavailable: "Mesafe bilinmiyor",
     away: "uzakta", bothLove: "İkiniz de seviyorsunuz", freeDateIdea: "Ücretsiz buluşma fikri",
-    yourDates: "Bağlantıların", noDatesYet: "Henüz bağlantı yok",
+    yourDates: "Bağlantıların", noDatesYet: "Bağlantı kur, burada görünsünler",
     noDatesSub: "Zamanını paylaşmak istediğin birine sağa kaydır.",
     tapToMessage: "Mesaj için dokun", worthTheirTime: "Zamanına değer",
     admirersSub: "Bu kişiler seninle zaman geçirmeye çoktan evet dedi.",
@@ -2341,6 +2347,9 @@ const STRINGS = {
     pass: "PASAR", goldenHour: "HORA DORADA", spendTime: "DAR TIEMPO",
     seenEveryone: "Ya viste a todos cerca de ti",
     newPeopleDaily: "Cada día se une gente nueva a TOM. Vuelve pronto.",
+    blockOrReport: "Bloquear o reportar",
+    connLoadFailed: "Tus conexiones no se cargaron",
+    connLoadFailedBody: "Es un problema nuestro, no que no tengas conexiones.",
     hiddenTitle: "Aún no estás en el mazo de nadie",
     hiddenBody: "Añade tu {bits} y la gente empezará a verte.",
     hiddenCta: "Completar mi perfil",
@@ -2361,7 +2370,7 @@ const STRINGS = {
     locationOff: "La ubicación está desactivada, así que las distancias están ocultas. Actívala en tu navegador o teléfono para ver quién está cerca.",
     viewProfile: "Ver perfil", distanceUnavailable: "Distancia no disponible",
     away: "de distancia", bothLove: "A los dos les gusta", freeDateIdea: "Idea de cita gratis",
-    yourDates: "Tus conexiones", noDatesYet: "Aún no hay conexiones",
+    yourDates: "Tus conexiones", noDatesYet: "Haz conexiones y aparecerán aquí",
     noDatesSub: "Desliza a la derecha en alguien con quien quieras compartir tu tiempo.",
     tapToMessage: "Toca para escribir", worthTheirTime: "Vales su tiempo",
     admirersSub: "Estas personas ya dijeron que sí a pasar tiempo contigo.",
@@ -3313,7 +3322,7 @@ function Roadmap({ label }) {
   );
 }
 
-function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat, loading, unreadBy = {} }) {
+function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat, loading, unreadBy = {}, matchesError = null, onRetry }) {
   const { t } = useLang();
   const [viewing, setViewing] = useState(null);
   return (
@@ -3333,6 +3342,13 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
       )}
       {loading ? (
         <Roadmap label={t("loadingDates")} />
+      ) : matchesError ? (
+        <div style={{ background: T.white, border: `2px solid ${T.lilacDeep}`, borderRadius: 18, padding: 20, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginTop: 8 }}>
+          <Ic.Rain s={34} c={T.soft} />
+          <div style={{ ...fr(600, 17, T.ink) }}>{t("connLoadFailed")}</div>
+          <div style={{ ...nu(700, 12.5, T.soft) }}>{t("connLoadFailedBody")}</div>
+          <button onClick={onRetry} style={{ marginTop: 4, border: "none", background: T.royal, borderRadius: 999, padding: "10px 20px", cursor: "pointer", ...nu(800, 13, T.white) }}>{t("retry")}</button>
+        </div>
       ) : matches.length === 0 ? (
         <Roadmap label={t("noDatesYet")} />
       ) : (
@@ -3356,7 +3372,7 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
                   </div>
                 </div>
               </button>
-              <button onClick={() => onReport(p)} aria-label="Report or unmatch" style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Flag s={15} c={T.lilacDeep} /></button>
+              <button onClick={() => onReport(p)} aria-label="Block or report" style={{ border: `1.5px solid ${T.lilacDeep}`, background: T.white, borderRadius: 999, cursor: "pointer", padding: 7, display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Flag s={17} c={T.soft} /></button>
               <span style={{ ...fr(700, 13, T.green), background: "#E8F8EF", borderRadius: 999, padding: "5px 10px" }}>$0</span>
             </div>
             );
@@ -3369,6 +3385,7 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
           myLoc={myLoc}
           onClose={() => setViewing(null)}
           onMessage={(p) => { setViewing(null); onOpenChat && onOpenChat(p); }}
+          onReport={(p) => { setViewing(null); onReport(p); }}
         />
       )}
     </div>
@@ -3782,6 +3799,7 @@ function TomAppInner() {
   const [deckLoading, setDeckLoading] = useState(true);
   const [matchesLoading, setMatchesLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
+  const [matchesError, setMatchesError] = useState(null);
   const [matches, setMatches] = useState([]);
   const [admirerCount, setAdmirerCount] = useState(0);
   const [tab, setTab] = useState("discover");
@@ -3960,18 +3978,19 @@ function TomAppInner() {
 
   // Reload connections each time the tab is opened. A single failed fetch
   // should never leave someone staring at an empty list.
+  const reloadMatches = React.useCallback(async () => {
+    if (!api.user || api.user.isGuest || !api.user.id) return;
+    setMatchesLoading(true);
+    const r = await api.loadMatches();
+    if (r.error) setMatchesError(r.error);
+    else { setMatchesError(null); setMatches(r.matches || []); }
+    setMatchesLoading(false);
+  }, []);
+
   React.useEffect(() => {
     if (screen !== "main" || tab !== "matches") return;
-    if (!api.user || api.user.isGuest || !api.user.id) return;
-    let cancelled = false;
-    api.loadMatches().then((r) => {
-      if (cancelled) return;
-      if (r.error) setLoadError(r.error);
-      else { setLoadError(null); setMatches(r.matches || []); }
-      setMatchesLoading(false);
-    });
-    return () => { cancelled = true; };
-  }, [screen, tab]);
+    reloadMatches();
+  }, [screen, tab, reloadMatches]);
 
   const inviteFriend = async () => {
     const url = "https://www.tomdates.com";
@@ -4068,7 +4087,7 @@ function TomAppInner() {
       setDeckLoading(true);
       (async () => {
         const r = await api.loadDeck();
-        if (r.error) setLoadError(r.error);
+        setLoadError(r.error || null);
         setDeck(r.cards || []);
         setDeckLoading(false);
       })();
@@ -4079,8 +4098,10 @@ function TomAppInner() {
     // Each query lands on its own. Waiting for all of them meant the Dates
     // tab sat on its empty state until the slowest one finished.
     api.loadMatches().then((r) => {
-      if (r.error) setLoadError(r.error);
-      setMatches(r.matches || []);
+      // A transient failure must not blank out connections we already have,
+      // and it belongs on the Connections tab, not as a banner over the app.
+      if (r.error) setMatchesError(r.error);
+      else { setMatchesError(null); setMatches(r.matches || []); }
       setMatchesLoading(false);
     });
     api.countAdmirers().then(setAdmirerCount);
@@ -4092,7 +4113,7 @@ function TomAppInner() {
     });
     (async () => {
       const r = await api.loadDeck();
-      if (r.error) setLoadError(r.error);
+      setLoadError(r.error || null);
       setDeck(r.cards || []);
       setDeckLoading(false);
       if (api.user) {
@@ -4231,7 +4252,7 @@ function TomAppInner() {
             {tab === "missions" && <Missions matches={matches} onSend={(idea) => setMissionToSend(idea)} />}
             {tab === "matches" && (chatWith
               ? <Chat profile={chatWith} onBack={() => setChatWith(null)} onDateCompleted={onDateCompleted} myLoc={myLoc} isPlus={isPlus} />
-              : <Matches unreadBy={unreadBy} matches={matches} myLoc={myLoc} admirerCount={admirerCount} onUpgrade={openAdmirers} onReport={(p) => setReporting({ profile: p, from: "matches" })} onOpenChat={(p) => setChatWith(p)} loading={matchesLoading} />
+              : <Matches matchesError={matchesError} onRetry={() => { setMatchesError(null); reloadMatches(); }} unreadBy={unreadBy} matches={matches} myLoc={myLoc} admirerCount={admirerCount} onUpgrade={openAdmirers} onReport={(p) => setReporting({ profile: p, from: "matches" })} onOpenChat={(p) => setChatWith(p)} loading={matchesLoading} />
             )}
             {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} onLogout={logout} onOffClock={() => requirePlus("Off the Clock", "Go invisible without deleting anything. A TOM+ perk.", () => setOffClockOpen(true))} onEmailSettings={() => setEmailSettings(true)} onLanguage={() => setLanguageOpen(true)} myRep={myRep} onFreeTonight={toggleFreeTonight} />}
             <nav style={{ display: "flex", justifyContent: "space-around", padding: "10px 8px 16px", background: T.white, borderTop: `1px solid ${T.lilac}` }}>
@@ -4286,11 +4307,12 @@ function TomAppInner() {
             </div>
           </div>
         )}
-        {loadError && (
+        {loadError && tab === "discover" && (
           <div style={{ position: "absolute", left: 12, right: 12, top: 8, zIndex: 70, background: "#FFF4D6", border: "1px solid #E8C86A", borderRadius: 14, padding: "9px 12px", display: "flex", alignItems: "center", gap: 8 }}>
             <Ic.Flag s={14} c="#8A6400" />
             <span style={{ flex: 1, ...nu(700, 11.5, "#8A6400") }}>{t("loadTrouble")}</span>
-            <button onClick={() => { setLoadError(null); setScreen("main"); }} style={{ border: "none", background: "#8A6400", borderRadius: 999, padding: "5px 10px", cursor: "pointer", ...fr(600, 11, T.white) }}>{t("retry")}</button>
+            <button onClick={async () => { setDeckLoading(true); const r = await api.loadDeck(); setLoadError(r.error || null); setDeck(r.cards || []); setDeckLoading(false); }} style={{ border: "none", background: "#8A6400", borderRadius: 999, padding: "5px 10px", cursor: "pointer", ...fr(600, 11, T.white) }}>{t("retry")}</button>
+            <button onClick={() => setLoadError(null)} aria-label="Dismiss" style={{ border: "none", background: "none", cursor: "pointer", padding: 2, display: "flex" }}><Ic.Cross s={13} c="#8A6400" /></button>
           </div>
         )}
         {undoNote && (
