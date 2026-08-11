@@ -3171,15 +3171,31 @@ function Chat({ profile, onBack, onDateCompleted, myLoc, isPlus = false }) {
           </div>
         ) : messages.map((m, i) => {
           const mine = m.sender_id === myId;
-          // Read receipts are a TOM+ perk, and only on the newest message
-          // you sent, so the thread does not fill up with markers.
           const lastMine = mine && !messages.slice(i + 1).some((x) => x.sender_id === myId);
           const showReceipt = isPlus && lastMine && Boolean(m.read_at);
+          
+          // Detect mission date ideas in messages
+          const isMissionIdea = m.body && m.body.startsWith("Mission Date idea: ");
+          const missionIdea = isMissionIdea ? m.body.replace("Mission Date idea: ", "") : null;
+          
           return (
-            <div key={m.id} style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "78%", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-              <div style={{ background: mine ? T.royal : T.lilac, color: mine ? T.white : T.ink, borderRadius: 16, padding: "9px 13px", ...nu(600, 14, mine ? T.white : T.ink) }}>
-                {m.body}
-              </div>
+            <div key={m.id} style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "85%", display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start" }}>
+              {isMissionIdea && !mine ? (
+                // Mission idea card with action buttons
+                <div style={{ background: T.lilac, borderRadius: 16, padding: "12px 13px", marginBottom: 8 }}>
+                  <p style={{ ...nu(600, 13, T.ink), margin: "0 0 10px" }}>{missionIdea}</p>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button onClick={() => send(`I'm in! Let's do: ${missionIdea}`)} style={{ flex: 1, minWidth: 70, padding: "7px 10px", borderRadius: 8, border: "none", background: T.royal, ...nu(700, 12, T.white), cursor: "pointer" }}>Accept</button>
+                    <button onClick={() => send(`Pass on that one.`)} style={{ flex: 1, minWidth: 70, padding: "7px 10px", borderRadius: 8, border: "none", background: T.soft, ...nu(700, 12, T.ink), cursor: "pointer" }}>Decline</button>
+                    <button onClick={() => send(`What if we ${missionIdea.toLowerCase()}?`)} style={{ flex: 1, minWidth: 70, padding: "7px 10px", borderRadius: 8, border: "none", background: T.lilacDeep, ...nu(700, 12, T.royal), cursor: "pointer" }}>Counter</button>
+                  </div>
+                </div>
+              ) : (
+                // Regular message
+                <div style={{ background: mine ? T.royal : T.lilac, color: mine ? T.white : T.ink, borderRadius: 16, padding: "9px 13px", ...nu(600, 14, mine ? T.white : T.ink) }}>
+                  {m.body}
+                </div>
+              )}
               {showReceipt && <span style={{ ...nu(700, 10.5, T.soft), marginTop: 3 }}>{t("readReceipt")}</span>}
             </div>
           );
@@ -4081,14 +4097,14 @@ function TomAppInner() {
 
   React.useEffect(() => {
     if (screen !== "main") return;
+    setLoadError(null);  // Clear any old error banner from previous session
     const isGuest = !api.user || api.user.isGuest || !api.user.id;
     if (isGuest) {
       // Guests see the real deck, browse only. No invented profiles.
       setDeckLoading(true);
       (async () => {
         const r = await api.loadDeck();
-        // Only show error if the response doesn't have a cards array; ignore r.error if cards exist
-        setLoadError(!Array.isArray(r.cards) ? (r.error || "Failed to load deck") : null);
+        setLoadError(r.cards ? null : (r.error || "Failed to load"));
         setDeck(r.cards || []);
         setDeckLoading(false);
       })();
@@ -4114,8 +4130,8 @@ function TomAppInner() {
     });
     (async () => {
       const r = await api.loadDeck();
-      // Only show error if the response doesn't have a cards array; ignore r.error if cards exist
-      setLoadError(!Array.isArray(r.cards) ? (r.error || "Failed to load deck") : null);
+      // If cards array exists (even if empty), clear error. Only show error if cards is missing.
+      setLoadError(r.cards ? null : (r.error || "Failed to load"));
       setDeck(r.cards || []);
       setDeckLoading(false);
       if (api.user) {
@@ -4148,8 +4164,7 @@ function TomAppInner() {
           if (r.ok && !locSaved) {
             setLocSaved(true);
             const fresh = await api.loadDeck();
-            // Only show error if the response doesn't have a cards array; ignore fresh.error if cards exist
-            setLoadError(!Array.isArray(fresh.cards) ? (fresh.error || "Failed to load deck") : null);
+            setLoadError(fresh.cards ? null : (fresh.error || "Failed to load"));
             setDeck(fresh.cards || []);
           }
         }
@@ -4315,7 +4330,7 @@ function TomAppInner() {
           <div style={{ position: "absolute", left: 12, right: 12, top: 8, zIndex: 70, background: "#FFF4D6", border: "1px solid #E8C86A", borderRadius: 14, padding: "9px 12px", display: "flex", alignItems: "center", gap: 8 }}>
             <Ic.Flag s={14} c="#8A6400" />
             <span style={{ flex: 1, ...nu(700, 11.5, "#8A6400") }}>{t("loadTrouble")}</span>
-            <button onClick={async () => { setDeckLoading(true); const r = await api.loadDeck(); setLoadError(r.error || null); setDeck(r.cards || []); setDeckLoading(false); }} style={{ border: "none", background: "#8A6400", borderRadius: 999, padding: "5px 10px", cursor: "pointer", ...fr(600, 11, T.white) }}>{t("retry")}</button>
+            <button onClick={async () => { setDeckLoading(true); const r = await api.loadDeck(); setLoadError(r.cards ? null : (r.error || "Failed to load")); setDeck(r.cards || []); setDeckLoading(false); }} style={{ border: "none", background: "#8A6400", borderRadius: 999, padding: "5px 10px", cursor: "pointer", ...fr(600, 11, T.white) }}>{t("retry")}</button>
             <button onClick={() => setLoadError(null)} aria-label="Dismiss" style={{ border: "none", background: "none", cursor: "pointer", padding: 2, display: "flex" }}><Ic.Cross s={13} c="#8A6400" /></button>
           </div>
         )}
