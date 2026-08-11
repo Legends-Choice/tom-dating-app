@@ -2764,7 +2764,7 @@ function SearchClock({ size = 68 }) {
   );
 }
 
-function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlus, onUpgrade, onReport, locDenied, loading, onPrimeTime, onUndo, canUndo, admirerCount = 0, onAdmirers, onTimeZones, onInvite }) {
+function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlus, onUpgrade, onReport, locDenied, loading, onPrimeTime, onUndo, canUndo, admirerCount = 0, onAdmirers, onTimeZones, onInvite, onFilters }) {
   const { t } = useLang();
   const [viewing, setViewing] = useState(null);
   const outOfLikes = !isPlus && likesLeft !== undefined && likesLeft <= 0;
@@ -2791,10 +2791,10 @@ function Discover({ deck, onSwipe, myLoc, onGolden, goldenLeft, likesLeft, isPlu
 
   // Points people at the filters button when the deck runs dry
   const tuneHint = (
-    <div style={{ background: T.lilac, borderRadius: 14, padding: "11px 13px", display: "flex", alignItems: "center", gap: 8, textAlign: "left", maxWidth: 300 }}>
+    <button onClick={onFilters} style={{ background: T.lilac, border: "none", borderRadius: 14, padding: "11px 13px", display: "flex", alignItems: "center", gap: 8, textAlign: "left", maxWidth: 300, cursor: "pointer", width: "100%", justifyContent: "center" }}>
       <Ic.Sliders s={18} c={T.royal} />
       <span style={{ ...nu(700, 12.5, T.royal) }}>{t("tuneHint")}</span>
-    </div>
+    </button>
   );
 
   let body;
@@ -4087,7 +4087,8 @@ function TomAppInner() {
       setDeckLoading(true);
       (async () => {
         const r = await api.loadDeck();
-        setLoadError(r.error || null);
+        // Only show error if we failed to load cards; clear error on success
+        setLoadError(r.cards && r.cards.length > 0 ? null : (r.error || null));
         setDeck(r.cards || []);
         setDeckLoading(false);
       })();
@@ -4113,7 +4114,8 @@ function TomAppInner() {
     });
     (async () => {
       const r = await api.loadDeck();
-      setLoadError(r.error || null);
+      // Only show error if we failed to load cards; clear error on success
+      setLoadError(r.cards && r.cards.length > 0 ? null : (r.error || null));
       setDeck(r.cards || []);
       setDeckLoading(false);
       if (api.user) {
@@ -4146,6 +4148,8 @@ function TomAppInner() {
           if (r.ok && !locSaved) {
             setLocSaved(true);
             const fresh = await api.loadDeck();
+            // Only show error if we failed to load cards; clear error on success
+            setLoadError(fresh.cards && fresh.cards.length > 0 ? null : (fresh.error || null));
             setDeck(fresh.cards || []);
           }
         }
@@ -4248,7 +4252,7 @@ function TomAppInner() {
         {screen === "main" && (
           <>
             {tab === "discover" && showAdmirers && <AdmirersPanel admirers={admirers} myLoc={deckOrigin} onLikeBack={likeBackAdmirer} onBack={() => setShowAdmirers(false)} onReport={(p) => setReporting({ profile: p, from: "admirers" })} />}
-            {tab === "discover" && !showAdmirers && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={deckOrigin} onGolden={onGolden} goldenLeft={goldenLeft} likesLeft={likesLeft} isPlus={isPlus} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "deck" })} locDenied={locDenied && !travelCity} loading={deckLoading} onPrimeTime={() => requirePlus("Weekly Prime Time", "Rise to the top of nearby decks for 7 days. A TOM+ perk.", () => setPrimeTimeOpen(true))} onUndo={undoLastSwipe} canUndo={Boolean(lastSwipe)} admirerCount={admirerCount} onAdmirers={openAdmirers} onTimeZones={() => setTimeZonesOpen(true)} onInvite={inviteFriend} />}
+            {tab === "discover" && !showAdmirers && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={deckOrigin} onGolden={onGolden} goldenLeft={goldenLeft} likesLeft={likesLeft} isPlus={isPlus} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "deck" })} locDenied={locDenied && !travelCity} loading={deckLoading} onPrimeTime={() => requirePlus("Weekly Prime Time", "Rise to the top of nearby decks for 7 days. A TOM+ perk.", () => setPrimeTimeOpen(true))} onUndo={undoLastSwipe} canUndo={Boolean(lastSwipe)} admirerCount={admirerCount} onAdmirers={openAdmirers} onTimeZones={() => setTimeZonesOpen(true)} onInvite={inviteFriend} onFilters={() => setFiltersOpen(true)} />}
             {tab === "missions" && <Missions matches={matches} onSend={(idea) => setMissionToSend(idea)} />}
             {tab === "matches" && (chatWith
               ? <Chat profile={chatWith} onBack={() => setChatWith(null)} onDateCompleted={onDateCompleted} myLoc={myLoc} isPlus={isPlus} />
