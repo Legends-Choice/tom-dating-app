@@ -1226,7 +1226,7 @@ const MISSIONS = [
     "Explore a neighborhood neither of you has ever walked",
     "Urban treasure hunt: find five hidden details most people miss",
     "Walk on ferry ride at golden hour, best story wins",
-    "Follow a street cat and see where it takes you",
+    "Follow a street cat and see where it takes us",
     "Find the highest free viewpoint in the city together",
     "Get deliberately lost, then find your way home with no maps",
     "Ride a bus to the last stop and explore whatever is there",
@@ -1349,7 +1349,7 @@ const IDEA_LABELS = {
   "Explore a neighborhood neither of you has ever walked": { tr: "İkinizin de hiç yürümediği bir mahalleyi keşfedin", es: "Exploren un barrio que ninguno haya caminado" },
   "Urban treasure hunt: find five hidden details most people miss": { tr: "Şehir hazine avı: çoğu kişinin görmediği beş detay bulun", es: "Búsqueda urbana del tesoro: encuentren cinco detalles que casi nadie ve" },
   "Walk on ferry ride at golden hour, best story wins": { tr: "Gün batımında vapur yolculuğu, en iyi hikaye kazanır", es: "Paseo en ferry al atardecer, gana la mejor historia" },
-  "Follow a street cat and see where it takes you": { tr: "Bir sokak kedisini takip edin, sizi nereye götürüyor görün", es: "Sigan a un gato callejero y vean a dónde los lleva" },
+  "Follow a street cat and see where it takes us": { tr: "Bir sokak kedisini takip edin, sizi nereye götürüyor görün", es: "Sigan a un gato callejero y vean a dónde los lleva" },
   "Find the highest free viewpoint in the city together": { tr: "Şehrin en yüksek ücretsiz manzarasını birlikte bulun", es: "Encuentren juntos el mirador gratuito más alto" },
   "Get deliberately lost, then find your way home with no maps": { tr: "Bilerek kaybolun, sonra haritasız eve dönün", es: "Piérdanse a propósito y vuelvan sin mapas" },
   "Ride a bus to the last stop and explore whatever is there": { tr: "Otobüse binip son durağa gidin ve orası neyse keşfedin", es: "Tomen un autobús hasta la última parada y exploren lo que haya" },
@@ -2129,6 +2129,8 @@ const STRINGS = {
     missionSub: "Curated $0 dates. Pick one, send it to a match. Always optional.",
     send: "Send", matchFirst: "Match with someone first, then send them a mission.",
     sendMissionTo: "Send this mission to", cancel: "Cancel",
+    sentMissionDate: "sent you a mission date", youSentMissionDate: "You sent a mission date",
+    accept: "Accept", decline: "Decline", counter: "Counter",
     planADate: "Plan a date", ideas: "Ideas", proposeADate: "Propose a $0 date",
     whatsThePlan: "What's the plan?", propose: "Propose",
     timeHint: "Adding a time lets TOM check in afterwards. You can skip it.",
@@ -2255,6 +2257,8 @@ const STRINGS = {
     missionSub: "Seçilmiş 0 TL buluşmalar. Birini seç, eşleşmene gönder. Her zaman isteğe bağlı.",
     send: "Gönder", matchFirst: "Önce biriyle eşleş, sonra ona bir görev gönder.",
     sendMissionTo: "Bu görevi şuna gönder", cancel: "İptal",
+    sentMissionDate: "sana bir görev buluşması gönderdi", youSentMissionDate: "Bir görev buluşması gönderdin",
+    accept: "Kabul et", decline: "Reddet", counter: "Karşı öneri",
     planADate: "Buluşma planla", ideas: "Fikirler", proposeADate: "0 TL buluşma öner",
     whatsThePlan: "Plan ne?", propose: "Öner",
     timeHint: "Saat eklersen TOM sonrasında nasıl geçtiğini sorar. Atlayabilirsin.",
@@ -2381,6 +2385,8 @@ const STRINGS = {
     missionSub: "Citas de $0 seleccionadas. Elige una y envíala. Siempre opcional.",
     send: "Enviar", matchFirst: "Primero haz match con alguien y luego envíale una misión.",
     sendMissionTo: "Enviar esta misión a", cancel: "Cancelar",
+    sentMissionDate: "te envió una cita misión", youSentMissionDate: "Enviaste una cita misión",
+    accept: "Aceptar", decline: "Rechazar", counter: "Contrapropuesta",
     planADate: "Planear una cita", ideas: "Ideas", proposeADate: "Propón una cita de $0",
     whatsThePlan: "¿Cuál es el plan?", propose: "Proponer",
     timeHint: "Añadir una hora permite que TOM pregunte después. Puedes omitirlo.",
@@ -3020,6 +3026,7 @@ function Chat({ profile, onBack, onDateCompleted, myLoc, isPlus = false }) {
   const [planDouble, setPlanDouble] = useState(false);
   const [viewing, setViewing] = useState(null);
   const endRef = useRef(null);
+  const inputRef = useRef(null);
   const myId = api.user && api.user.id;
 
   const refresh = React.useCallback(async () => {
@@ -3045,15 +3052,18 @@ function Chat({ profile, onBack, onDateCompleted, myLoc, isPlus = false }) {
     if (endRef.current) endRef.current.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
-  const send = async () => {
-    const text = draft.trim();
+  // Accepts optional preset text (mission Accept/Decline/Counter buttons).
+  // onClick handlers pass a MouseEvent, so only a real string counts as an
+  // override. Everything else falls back to the draft box.
+  const send = async (overrideText) => {
+    const text = (typeof overrideText === "string" ? overrideText : draft).trim();
     if (!text || sending) return;
     setSending(true);
     setError(null);
     const r = await api.sendMessage(profile.matchId, text);
     setSending(false);
     if (r.error) { setError(r.error); return; }
-    setDraft("");
+    if (typeof overrideText !== "string") setDraft("");
     setMessages((m) => [...m, r.message]);
   };
 
@@ -3180,15 +3190,24 @@ function Chat({ profile, onBack, onDateCompleted, myLoc, isPlus = false }) {
           
           return (
             <div key={m.id} style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "85%", display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start" }}>
-              {isMissionIdea && !mine ? (
-                // Mission idea card with action buttons
-                <div style={{ background: T.lilac, borderRadius: 16, padding: "12px 13px", marginBottom: 8 }}>
-                  <p style={{ ...nu(600, 13, T.ink), margin: "0 0 10px" }}>{missionIdea}</p>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <button onClick={() => send(`I'm in! Let's do: ${missionIdea}`)} style={{ flex: 1, minWidth: 70, padding: "7px 10px", borderRadius: 8, border: "none", background: T.royal, ...nu(700, 12, T.white), cursor: "pointer" }}>Accept</button>
-                    <button onClick={() => send(`Pass on that one.`)} style={{ flex: 1, minWidth: 70, padding: "7px 10px", borderRadius: 8, border: "none", background: T.soft, ...nu(700, 12, T.ink), cursor: "pointer" }}>Decline</button>
-                    <button onClick={() => send(`What if we ${missionIdea.toLowerCase()}?`)} style={{ flex: 1, minWidth: 70, padding: "7px 10px", borderRadius: 8, border: "none", background: T.lilacDeep, ...nu(700, 12, T.royal), cursor: "pointer" }}>Counter</button>
+              {isMissionIdea ? (
+                // Mission idea card. The receiver gets action buttons; the
+                // sender sees the same card so the thread reads consistently.
+                <div style={{ background: T.lilac, borderRadius: 16, padding: "12px 13px", marginBottom: 8, border: `2px solid ${T.lilacDeep}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7 }}>
+                    <Ic.Compass s={13} c={T.royal} />
+                    <span style={{ ...nu(800, 11, T.royal), letterSpacing: .4, textTransform: "uppercase" }}>
+                      {mine ? t("youSentMissionDate") : `${profile.name} ${t("sentMissionDate")}`}
+                    </span>
                   </div>
+                  <p style={{ ...nu(700, 14, T.ink), margin: mine ? 0 : "0 0 10px" }}>{missionIdea}</p>
+                  {!mine && (
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button onClick={() => send(`I'm in. Let's do: ${missionIdea}`)} disabled={sending} style={{ flex: 1, minWidth: 70, padding: "7px 10px", borderRadius: 8, border: "none", background: T.royal, ...nu(700, 12, T.white), cursor: sending ? "default" : "pointer" }}>{t("accept")}</button>
+                      <button onClick={() => send("Not that one, but keep them coming.")} disabled={sending} style={{ flex: 1, minWidth: 70, padding: "7px 10px", borderRadius: 8, border: "none", background: T.soft, ...nu(700, 12, T.ink), cursor: sending ? "default" : "pointer" }}>{t("decline")}</button>
+                      <button onClick={() => { setDraft("How about this instead: "); if (inputRef.current) inputRef.current.focus(); }} disabled={sending} style={{ flex: 1, minWidth: 70, padding: "7px 10px", borderRadius: 8, border: "none", background: T.lilacDeep, ...nu(700, 12, T.royal), cursor: sending ? "default" : "pointer" }}>{t("counter")}</button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 // Regular message
@@ -3206,6 +3225,7 @@ function Chat({ profile, onBack, onDateCompleted, myLoc, isPlus = false }) {
       {error && <p style={{ ...nu(700, 12.5, T.red), margin: "0 16px 6px" }}>{error}</p>}
       <div style={{ display: "flex", gap: 8, padding: "10px 16px 14px", borderTop: `1px solid ${T.lilacDeep}` }}>
         <input
+          ref={inputRef}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") send(); }}
