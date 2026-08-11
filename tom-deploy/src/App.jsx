@@ -93,6 +93,23 @@ function hashStr(s) {
   for (let i = 0; i < String(s).length; i++) h = (h * 31 + String(s).charCodeAt(i)) >>> 0;
   return h;
 }
+// A profile only enters other people's decks once there is something to judge.
+// Empty shells hurt everyone: they waste swipes and they make the whole app
+// feel dead. Kept deliberately low so it filters shells, not shy people.
+const MIN_BIO_CHARS = 20;
+function profileComplete(row) {
+  if (!row) return false;
+  const bio = (row.bio || "").trim();
+  return Boolean(row.name) && Boolean(row.age) && Boolean(row.avatar_url) && bio.length >= MIN_BIO_CHARS;
+}
+function missingProfileBits(row) {
+  const missing = [];
+  if (!row || !row.avatar_url) missing.push("photo");
+  if (!row || (row.bio || "").trim().length < MIN_BIO_CHARS) missing.push("bio");
+  if (!row || !row.age) missing.push("age");
+  return missing;
+}
+
 function dbRowToCard(row) {
   const h = hashStr(row.id);
   const likes = [...(row.interests || []), ...(row.hobbies || []), ...(row.things_i_like_to_do || [])];
@@ -292,7 +309,7 @@ const api = {
       const { data: guestRows } = await supabase.from("profiles").select("*").limit(50);
       const guestCards = (guestRows || [])
         // NULL is not false in SQL, so these checks live here, not in the query
-        .filter((p) => p.name && p.is_deleted !== true && p.off_the_clock !== true)
+        .filter((p) => profileComplete(p) && p.is_deleted !== true && p.off_the_clock !== true)
         .map(dbRowToCard);
       const guestReps = await this.loadReputations(guestCards.map((c) => c.id));
       return { cards: guestCards.map((c) => ({ ...c, rep: guestReps[c.id] || null })) };
@@ -2078,6 +2095,10 @@ const STRINGS = {
     pass: "PASS", goldenHour: "GOLDEN HOUR", spendTime: "SPEND TIME",
     seenEveryone: "You've seen everyone nearby",
     newPeopleDaily: "New people join TOM every day. Check back soon.",
+    hiddenTitle: "You are not in anyone's deck yet",
+    hiddenBody: "Add your {bits} and people will start seeing you.",
+    hiddenCta: "Finish my profile",
+    bit_photo: "photo", bit_bio: "short bio", bit_age: "age",
     oneNewMessage: "1 new message",
     newMessages: "{n} new messages",
     planWaiting: "A date plan is waiting on you",
@@ -2197,6 +2218,10 @@ const STRINGS = {
     pass: "GEÇ", goldenHour: "ALTIN SAAT", spendTime: "ZAMAN AYIR",
     seenEveryone: "Yakındaki herkesi gördün",
     newPeopleDaily: "TOM'a her gün yeni kişiler katılıyor. Yakında tekrar bak.",
+    hiddenTitle: "Henüz kimsenin destesinde değilsin",
+    hiddenBody: "{bits} ekle, insanlar seni görmeye başlasın.",
+    hiddenCta: "Profilimi tamamla",
+    bit_photo: "fotoğraf", bit_bio: "kısa biyografi", bit_age: "yaş",
     oneNewMessage: "1 yeni mesaj",
     newMessages: "{n} yeni mesaj",
     planWaiting: "Bir buluşma planı seni bekliyor",
@@ -2316,6 +2341,10 @@ const STRINGS = {
     pass: "PASAR", goldenHour: "HORA DORADA", spendTime: "DAR TIEMPO",
     seenEveryone: "Ya viste a todos cerca de ti",
     newPeopleDaily: "Cada día se une gente nueva a TOM. Vuelve pronto.",
+    hiddenTitle: "Aún no estás en el mazo de nadie",
+    hiddenBody: "Añade tu {bits} y la gente empezará a verte.",
+    hiddenCta: "Completar mi perfil",
+    bit_photo: "foto", bit_bio: "biografía breve", bit_age: "edad",
     oneNewMessage: "1 mensaje nuevo",
     newMessages: "{n} mensajes nuevos",
     planWaiting: "Un plan de cita te está esperando",
@@ -3396,6 +3425,18 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
   }
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "6px 20px 20px" }}>
+      {!profileComplete({ name: u.name, age: u.age, avatar_url: u.profilePhoto, bio: u.bio }) && (
+        <div style={{ background: "#FFFBEF", border: `2px solid ${T.sun}`, borderRadius: 18, padding: 14, marginBottom: 14, display: "flex", gap: 11, alignItems: "flex-start" }}>
+          <Ic.Eye s={20} c={T.sun} />
+          <div style={{ flex: 1 }}>
+            <div style={{ ...fr(700, 15, T.ink) }}>{t("hiddenTitle")}</div>
+            <div style={{ ...nu(700, 12.5, T.soft), marginTop: 3 }}>
+              {t("hiddenBody").replace("{bits}", missingProfileBits({ avatar_url: u.profilePhoto, bio: u.bio, age: u.age }).map((b) => t("bit_" + b)).join(", "))}
+            </div>
+            <button onClick={onEditProfile} style={{ marginTop: 9, border: "none", background: T.royal, color: T.white, borderRadius: 999, padding: "8px 15px", cursor: "pointer", ...nu(800, 12.5, T.white) }}>{t("hiddenCta")}</button>
+          </div>
+        </div>
+      )}
       <div style={{ textAlign: "center", marginBottom: 16 }}>
         <div style={{ display: "flex", justifyContent: "center", margin: "8px 0 10px" }}>
           {u.profilePhoto ? <PhotoThumb src={u.profilePhoto} size={92} round /> : (
