@@ -3889,6 +3889,9 @@ function TomAppInner() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [ageFilter, setAgeFilter] = useState({ min: 18, max: 99 });
   const [interestFilter, setInterestFilter] = useState([]);
+  // Radius must live in state. It used to be read straight off api.user, which
+  // is a plain object, so changing it never triggered a re-render.
+  const [radiusKm, setRadiusKm] = useState(() => (api.user && api.user.searchRadiusKm) ?? 50);
   const [offClockOpen, setOffClockOpen] = useState(false);
   const [timeZonesOpen, setTimeZonesOpen] = useState(false);
   const [travelCity, setTravelCity] = useState(null); // null = my current area
@@ -3950,9 +3953,20 @@ function TomAppInner() {
     () => { setTab("discover"); setShowAdmirers(true); }
   );
 
+  // Pull a fresh deck from the server. Used when the search area changes, so
+  // people who were outside the old settings actually show up.
+  const reloadDeck = useCallback(async () => {
+    setDeckLoading(true);
+    const r = await api.loadDeck();
+    setLoadError(r.cards ? null : (r.error || "Failed to load"));
+    setDeck(r.cards || []);
+    setDeckLoading(false);
+  }, []);
+
   const applyFilters = async ({ minAge, maxAge, radius, interests }) => {
     setAgeFilter({ min: minAge, max: maxAge });
     setInterestFilter(interests);
+    setRadiusKm(radius);
     setFiltersOpen(false);
     if (api.user && !api.user.isGuest) {
       api.user.filterMinAge = minAge;
@@ -3961,6 +3975,9 @@ function TomAppInner() {
       api.user.searchRadiusKm = radius;
       await api.saveProfile();
     }
+    // Refresh Discover under the new settings
+    setTab("discover");
+    reloadDeck();
   };
 
   const toggleOffClock = async () => {
@@ -4200,17 +4217,17 @@ function TomAppInner() {
   const sortedDeck = React.useMemo(() => {
     const isReal = api.user && !api.user.isGuest;
     // When travelling with Time Zones, the radius follows the destination city
-    const radiusKm = isReal ? (api.user.searchRadiusKm ?? 50) : Infinity;
+    const radius = isReal ? radiusKm : Infinity;
     return deck
       .filter((p) => {
         const km = haversineKm(deckOrigin, p.loc);
         // Unknown distance is not a reason to hide someone; it ranks last instead.
-        return km === null || km <= radiusKm;
+        return km === null || km <= radius;
       })
       .filter((p) => !isReal || (p.age >= ageFilter.min && p.age <= ageFilter.max))
       .filter((p) => interestFilter.length === 0 || (p.likes || []).some((l) => interestFilter.includes(l)))
       .sort((a, b) => rankScore(deckOrigin, a) - rankScore(deckOrigin, b));
-  }, [deck, myLoc, travelCity, ageFilter, interestFilter]);
+  }, [deck, myLoc, travelCity, ageFilter, interestFilter, radiusKm]);
 
   const onSwipe = (dir) => {
     if (sortedDeck.length === 0) return;
@@ -4329,7 +4346,7 @@ function TomAppInner() {
         {deleteOpen && <DeleteModal onCancel={() => setDeleteOpen(false)} onConfirm={deleteAccount} />}
         {filtersOpen && <FiltersModal onClose={() => setFiltersOpen(false)} onApply={applyFilters} />}
         {offClockOpen && <OffTheClockModal onClose={() => setOffClockOpen(false)} onToggle={toggleOffClock} />}
-        {timeZonesOpen && <TimeZonesModal current={travelCity} onPick={(c) => { setTravelCity(c); setTimeZonesOpen(false); }} onClose={() => setTimeZonesOpen(false)} />}
+        {timeZonesOpen && <TimeZonesModal current={travelCity} onPick={(c) => { setTravelCity(c); setTimeZonesOpen(false); setTab("discover"); reloadDeck(); }} onClose={() => setTimeZonesOpen(false)} />}
         {primeTimeOpen && <PrimeTimeModal onClose={() => setPrimeTimeOpen(false)} onActivate={startPrimeTime} boostUntil={boostUntil} />}
         {emailSettings && <EmailSettingsModal onClose={() => setEmailSettings(false)} />}
         {unsubDone && (
