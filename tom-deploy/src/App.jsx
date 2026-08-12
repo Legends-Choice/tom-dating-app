@@ -3379,7 +3379,7 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
       )}
       {loading ? (
         <Roadmap label={t("loadingDates")} />
-      ) : matchesError ? (
+      ) : matchesError && matches.length === 0 ? (
         <div style={{ background: T.white, border: `2px solid ${T.lilacDeep}`, borderRadius: 18, padding: 20, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginTop: 8 }}>
           <Ic.Rain s={34} c={T.soft} />
           <div style={{ ...fr(600, 17, T.ink) }}>{t("connLoadFailed")}</div>
@@ -3976,20 +3976,22 @@ function TomAppInner() {
     setDeckLoading(false);
   }, []);
 
-  const applyFilters = async ({ minAge, maxAge, radius, interests }) => {
+  const applyFilters = ({ minAge, maxAge, radius, interests }) => {
     setAgeFilter({ min: minAge, max: maxAge });
     setInterestFilter(interests);
     setRadiusKm(radius);
     setFiltersOpen(false);
+    // Refresh Discover first. This used to run after awaiting the profile
+    // save, so a slow network delayed the re-search, and a failed save meant
+    // it never happened at all.
+    reloadDeck();
     if (api.user && !api.user.isGuest) {
       api.user.filterMinAge = minAge;
       api.user.filterMaxAge = maxAge;
       api.user.filterInterests = interests;
       api.user.searchRadiusKm = radius;
-      await api.saveProfile();
+      api.saveProfile();
     }
-    // Refresh Discover under the new settings
-    reloadDeck();
   };
 
   const toggleOffClock = async () => {
@@ -4026,8 +4028,9 @@ function TomAppInner() {
       if (pr) setPendingReview(pr);
     }
     const [m, d] = await Promise.all([api.loadMatches(), api.loadDeck()]);
-    setMatches(m.matches || []);
-    if (!m.error) hasLoadedMatches.current = true;
+    // A failed refresh here used to blank the whole connections list, since
+    // m.matches is undefined on error and this wrote an empty array.
+    if (!m.error) { setMatches(m.matches || []); hasLoadedMatches.current = true; }
     setDeck(d.cards || []);
   };
 
@@ -4048,11 +4051,42 @@ function TomAppInner() {
   // showing the full loading screen on every tab visit made the app feel slow
   // for data we already had. Show the loader only when there is nothing to
   // show yet; otherwise refresh quietly underneath the existing list.
-  const reloadMatches = React.useCallback(async () => {    if (!api.user || api.user.isGuest || !api.user.id) return;
+  //
+  // Connections is the only screen that fires several queries at once (the
+  // match rows, then the profiles, plus the unread counts), and two of them
+  // could be in flight together. A late failure used to overwrite a result
+  // that had already succeeded, which is why the error card appeared even
+  // though the data was fine and a manual retry always worked.
+  const matchesRef = useRef([]);
+  const matchReqId = useRef(0);
+  React.useEffect(() => { matchesRef.current = matches; }, [matches]);
+
+  const reloadMatches = React.useCallback(async () => {
+    if (!api.user || api.user.isGuest || !api.user.id) return;
+    const reqId = ++matchReqId.current;
     if (!hasLoadedMatches.current) setMatchesLoading(true);
-    const r = await api.loadMatches();
-    if (r.error) setMatchesError(r.error);
-    else { setMatchesError(null); setMatches(r.matches || []); hasLoadedMatches.current = true; }
+
+    // Retry once, quietly, before showing anyone an error. Most of these
+    // failures are a single dropped request, not a real outage.
+    let r = await api.loadMatches();
+    if (r.error) {
+      await new Promise((res) => setTimeout(res, 1000));
+      if (reqId !== matchReqId.current) return;
+      r = await api.loadMatches();
+    }
+
+    // A newer request started while this one was in flight. Its answer is the
+    // current one, so drop this result instead of overwriting it.
+    if (reqId !== matchReqId.current) return;
+
+    if (r.error) {
+      // Never replace connections we already have with an error screen.
+      if (matchesRef.current.length === 0) setMatchesError(r.error);
+    } else {
+      setMatchesError(null);
+      setMatches(r.matches || []);
+      hasLoadedMatches.current = true;
+    }
     setMatchesLoading(false);
   }, []);
 
@@ -4175,16 +4209,9 @@ function TomAppInner() {
       return;
     }
     setDeckLoading(true);
-    setMatchesLoading(true);
-    // Each query lands on its own. Waiting for all of them meant the Dates
-    // tab sat on its empty state until the slowest one finished.
-    api.loadMatches().then((r) => {
-      // A transient failure must not blank out connections we already have,
-      // and it belongs on the Connections tab, not as a banner over the app.
-      if (r.error) setMatchesError(r.error);
-      else { setMatchesError(null); setMatches(r.matches || []); hasLoadedMatches.current = true; }
-      setMatchesLoading(false);
-    });
+    // Goes through the same guarded loader as the tab, so the boot fetch and a
+    // tab visit can no longer overwrite each other's results.
+    reloadMatches();
     api.countAdmirers().then(setAdmirerCount);
     api.loadAdmirers().then(setAdmirers);
     api.myReputation().then(setMyRep);
