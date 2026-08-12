@@ -3008,7 +3008,7 @@ function VerifyModal({ onClose, onSubmit }) {
   );
 }
 
-function Chat({ profile, onBack, onDateCompleted, myLoc, isPlus = false }) {
+function Chat({ profile, onBack, onDateCompleted, myLoc, isPlus = false, onReport }) {
   const { t } = useLang();
   const ideaText = useIdeaText();
   const [messages, setMessages] = useState([]);
@@ -3241,6 +3241,7 @@ function Chat({ profile, onBack, onDateCompleted, myLoc, isPlus = false }) {
           profile={viewing}
           myLoc={myLoc}
           onClose={() => setViewing(null)}
+          onReport={onReport ? (p) => { setViewing(null); onReport(p); } : undefined}
         />
       )}
     </div>
@@ -4120,6 +4121,9 @@ function TomAppInner() {
     if (!reporting) return;
     if (reporting.from === "deck") setDeck((d) => d.filter((p) => p.id !== reporting.profile.id));
     else setMatches((m) => m.filter((p) => p.id !== reporting.profile.id));
+    // Blocking someone must take you out of their conversation. Otherwise you
+    // stay sitting in the thread of a person you just blocked.
+    if (chatWith && chatWith.id === reporting.profile.id) setChatWith(null);
     if (api.user && !api.user.isGuest) {
       api.reportAndBlock(reporting.profile.id, reason);
     }
@@ -4330,7 +4334,7 @@ function TomAppInner() {
             {tab === "discover" && !showAdmirers && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={deckOrigin} onGolden={onGolden} goldenLeft={goldenLeft} likesLeft={likesLeft} isPlus={isPlus} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "deck" })} locDenied={locDenied && !travelCity} loading={deckLoading} onPrimeTime={() => requirePlus("Weekly Prime Time", "Rise to the top of nearby decks for 7 days. A TOM+ perk.", () => setPrimeTimeOpen(true))} onUndo={undoLastSwipe} canUndo={Boolean(lastSwipe)} admirerCount={admirerCount} onAdmirers={openAdmirers} onTimeZones={() => setTimeZonesOpen(true)} onInvite={inviteFriend} onFilters={() => setFiltersOpen(true)} />}
             {tab === "missions" && <Missions matches={matches} onSend={(idea) => setMissionToSend(idea)} />}
             {tab === "matches" && (chatWith
-              ? <Chat profile={chatWith} onBack={() => setChatWith(null)} onDateCompleted={onDateCompleted} myLoc={myLoc} isPlus={isPlus} />
+              ? <Chat profile={chatWith} onBack={() => setChatWith(null)} onDateCompleted={onDateCompleted} myLoc={myLoc} isPlus={isPlus} onReport={(p) => setReporting({ profile: p, from: "chat" })} />
               : <Matches matchesError={matchesError} onRetry={() => { setMatchesError(null); reloadMatches(); }} unreadBy={unreadBy} matches={matches} myLoc={myLoc} admirerCount={admirerCount} onUpgrade={openAdmirers} onReport={(p) => setReporting({ profile: p, from: "matches" })} onOpenChat={(p) => setChatWith(p)} loading={matchesLoading} />
             )}
             {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} onLogout={logout} onOffClock={() => requirePlus("Off the Clock", "Go invisible without deleting anything. A TOM+ perk.", () => setOffClockOpen(true))} onEmailSettings={() => setEmailSettings(true)} onLanguage={() => setLanguageOpen(true)} myRep={myRep} onFreeTonight={toggleFreeTonight} onSearchPrefsSaved={() => { setRadiusKm((api.user && api.user.searchRadiusKm) ?? 50); reloadDeck(); }} />}
