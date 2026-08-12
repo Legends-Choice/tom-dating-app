@@ -1803,6 +1803,14 @@ function ProfileDetailModal({ profile, myLoc, onClose, onSwipe, onMessage, onLik
             <span style={{ ...nu(700, 13, T.soft), marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4 }}><Ic.Pin s={13} c={T.soft} />{distPhrase(myLoc, profile)}</span>
           </div>
 
+          {profile.freeTonight && (
+            <div style={{ display: "flex" }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: T.royal, borderRadius: 999, padding: "6px 12px", ...nu(800, 12.5, T.white) }}>
+                <Ic.Moon s={13} c={T.white} />{t("freeTonightBadge")}
+              </span>
+            </div>
+          )}
+
           {profile.rep && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               <span style={{ ...fr(700, 12, T.green), background: "#E8F8EF", borderRadius: 999, padding: "4px 10px", display: "inline-flex", alignItems: "center", gap: 4 }}><Ic.Hourglass s={12} c={T.green} />{profile.rep.pct}% {t("timeWellSpentPct")}</span>
@@ -3431,6 +3439,11 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
               <button onClick={() => onOpenChat && onOpenChat(p)} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, border: "none", background: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={fr(waiting ? 700 : 600, 17, T.ink)}>{p.name} <span style={{ ...nu(700, 12, T.soft), display: "inline-flex", alignItems: "center", gap: 3 }}>· <Ic.Pin s={11} c={T.soft} />{distLabel(myLoc, p)}</span></div>
+                  {p.freeTonight && (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 4, background: T.lilac, borderRadius: 999, padding: "2px 8px", margin: "3px 0 1px", ...nu(800, 11, T.royal) }}>
+                      <Ic.Moon s={11} c={T.royal} />{t("freeTonightBadge")}
+                    </div>
+                  )}
                   <div style={{ ...nu(waiting ? 800 : 700, 12.5, waiting ? T.violet : T.royal), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {u.unread > 0 ? (u.unread === 1 ? t("oneNewMessage") : t("newMessages").replace("{n}", u.unread)) : u.action ? t("planWaiting") : t("tapToMessage")}
                   </div>
