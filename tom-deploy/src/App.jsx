@@ -3500,6 +3500,8 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
   const rerender = () => force((n) => n + 1);
   const [managingPhotos, setManagingPhotos] = useState(false);
   const [managingSearch, setManagingSearch] = useState(false);
+  // Index into [main photo, ...gallery]; null means the viewer is closed
+  const [viewingPhoto, setViewingPhoto] = useState(null);
   const chronoLabel = CHRONO.find(([v]) => v === u.chronotype)?.[1] || "";
   const ftLabel = (cm) => { const t = Math.round(cm / 2.54); return `${Math.floor(t / 12)}'${t % 12}"`; };
   const heightLabel = u.heightCm ? `${u.heightCm} cm (${ftLabel(u.heightCm)})` : null;
@@ -3533,7 +3535,11 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
       )}
       <div style={{ textAlign: "center", marginBottom: 16 }}>
         <div style={{ display: "flex", justifyContent: "center", margin: "8px 0 10px" }}>
-          {u.profilePhoto ? <PhotoThumb src={u.profilePhoto} size={92} round /> : (
+          {u.profilePhoto ? (
+            <button onClick={() => setViewingPhoto(0)} aria-label="View profile photo" style={{ border: "none", background: "none", padding: 0, cursor: "pointer" }}>
+              <PhotoThumb src={u.profilePhoto} size={92} round />
+            </button>
+          ) : (
             <div style={{ width: 92, height: 92, borderRadius: "50%", background: `linear-gradient(135deg, ${T.royal}, ${T.violet})`, display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Person s={44} c={T.white} /></div>
           )}
         </div>
@@ -3545,7 +3551,11 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
       </div>
       {u.photos.length > 0 && (
         <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 12 }}>
-          {u.photos.map((src, i) => <PhotoThumb key={i} src={src} size={70} />)}
+          {u.photos.map((src, i) => (
+            <button key={i} onClick={() => setViewingPhoto(i + 1)} aria-label={`View photo ${i + 2}`} style={{ border: "none", background: "none", padding: 0, cursor: "pointer", flexShrink: 0 }}>
+              <PhotoThumb src={src} size={70} />
+            </button>
+          ))}
         </div>
       )}
       {[
@@ -3650,6 +3660,13 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
           <Ic.Chevron s={14} c={T.red} />
         </button>
       </div>
+      {viewingPhoto !== null && (
+        <MyPhotoViewer
+          startIndex={viewingPhoto}
+          onClose={() => setViewingPhoto(null)}
+          onChanged={rerender}
+        />
+      )}
       {managingPhotos && (
         <PhotoManagerModal
           onClose={() => setManagingPhotos(false)}
@@ -3667,6 +3684,108 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
           }}
         />
       )}
+    </div>
+  );
+}
+
+// Full-size viewer for your own photos. Opens from the avatar or any gallery
+// thumbnail, steps through the whole set, and edits in place so you don't have
+// to go hunting for the Manage photos screen just to delete a bad shot.
+function MyPhotoViewer({ startIndex = 0, onClose, onChanged }) {
+  const u = api.user;
+  const [order, setOrder] = useState([u.profilePhoto, ...(u.photos || [])].filter(Boolean));
+  const [idx, setIdx] = useState(Math.min(startIndex, Math.max(0, [u.profilePhoto, ...(u.photos || [])].filter(Boolean).length - 1)));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [broken, setBroken] = useState(false);
+
+  const persist = async (next) => {
+    setSaving(true);
+    setError(null);
+    const prevMain = u.profilePhoto;
+    const prevGallery = u.photos;
+    u.profilePhoto = next[0] || null;
+    u.photos = next.slice(1);
+    const r = await api.saveProfile();
+    setSaving(false);
+    if (r.error) {
+      // Put it back rather than leaving the screen showing a change that
+      // never actually saved.
+      u.profilePhoto = prevMain;
+      u.photos = prevGallery;
+      setOrder([prevMain, ...(prevGallery || [])].filter(Boolean));
+      setError(r.error);
+      return;
+    }
+    setOrder(next);
+    if (onChanged) onChanged();
+  };
+
+  const makeMain = async () => {
+    if (idx === 0) return;
+    const next = [order[idx], ...order.slice(0, idx), ...order.slice(idx + 1)];
+    await persist(next);
+    setIdx(0);
+  };
+
+  const remove = async () => {
+    const next = order.filter((_, j) => j !== idx);
+    if (next.length === 0) { setError("Keep at least one photo."); return; }
+    await persist(next);
+    setIdx((i) => Math.min(i, next.length - 1));
+    setBroken(false);
+  };
+
+  const go = (delta) => {
+    setBroken(false);
+    setIdx((i) => (i + delta + order.length) % order.length);
+  };
+
+  if (order.length === 0) return null;
+  const src = order[idx];
+
+  return (
+    <div style={{ position: "absolute", inset: 0, zIndex: 70, background: "rgba(20,12,38,.94)", display: "flex", flexDirection: "column", animation: "popIn .2s ease" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px" }}>
+        <span style={{ ...nu(800, 12.5, "#C9BCE8") }}>{idx === 0 ? "Main photo" : `Photo ${idx + 1} of ${order.length}`}</span>
+        <button onClick={onClose} aria-label="Close" style={{ border: "none", background: "rgba(255,255,255,.14)", borderRadius: 999, width: 32, height: 32, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Cross s={15} c={T.white} /></button>
+      </div>
+
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 12px", minHeight: 0, position: "relative" }}>
+        {order.length > 1 && (
+          <button onClick={() => go(-1)} aria-label="Previous photo" style={{ position: "absolute", left: 10, zIndex: 2, border: "none", background: "rgba(255,255,255,.16)", borderRadius: 999, width: 38, height: 38, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ display: "inline-flex", transform: "rotate(180deg)" }}><Ic.Chevron s={19} c={T.white} /></span>
+          </button>
+        )}
+        {broken ? (
+          <div style={{ ...nu(700, 13, "#C9BCE8"), textAlign: "center", padding: 30 }}>
+            <Ic.Camera s={40} c="#C9BCE8" />
+            <div style={{ marginTop: 10 }}>This photo can't preview in your browser, but it is saved.</div>
+          </div>
+        ) : (
+          <img src={src} alt="" onError={() => setBroken(true)} style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 18, objectFit: "contain" }} />
+        )}
+        {order.length > 1 && (
+          <button onClick={() => go(1)} aria-label="Next photo" style={{ position: "absolute", right: 10, zIndex: 2, border: "none", background: "rgba(255,255,255,.16)", borderRadius: 999, width: 38, height: 38, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Ic.Chevron s={19} c={T.white} />
+          </button>
+        )}
+      </div>
+
+      {order.length > 1 && (
+        <div style={{ display: "flex", justifyContent: "center", gap: 6, padding: "10px 0 2px" }}>
+          {order.map((_, i) => (
+            <span key={i} style={{ width: i === idx ? 18 : 6, height: 6, borderRadius: 999, background: i === idx ? T.white : "rgba(255,255,255,.34)", transition: "width .2s" }} />
+          ))}
+        </div>
+      )}
+
+      {error && <p style={{ ...nu(700, 12.5, "#FFB4B4"), textAlign: "center", margin: "8px 16px 0" }}>{error}</p>}
+
+      <div style={{ display: "flex", gap: 8, padding: "12px 16px 20px" }}>
+        <button onClick={makeMain} disabled={idx === 0 || saving} style={{ flex: 1, border: "none", borderRadius: 14, padding: "12px 0", cursor: idx === 0 || saving ? "default" : "pointer", opacity: idx === 0 || saving ? 0.4 : 1, background: T.royal, ...nu(800, 13, T.white) }}>Make main</button>
+        <button onClick={remove} disabled={saving} style={{ flex: 1, border: "none", borderRadius: 14, padding: "12px 0", cursor: saving ? "default" : "pointer", opacity: saving ? 0.5 : 1, background: "rgba(255,255,255,.16)", ...nu(800, 13, T.white) }}>{saving ? "Saving..." : "Delete"}</button>
+      </div>
     </div>
   );
 }
