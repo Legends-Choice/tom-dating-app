@@ -84,6 +84,13 @@ const isAllowedFile = (file) =>
   ALLOWED.includes(file.type) || /\.(heic|heif)$/i.test(file.name);
 
 // Maps a Supabase profiles row into the card shape Discover/Matches/Card expect
+// Photos are stored as base64 data URLs inside the profiles table, so a plain
+// select("*") drags every image byte across the network. gallery_photos is the
+// worst offender: several full-size images per person. List views only need the
+// single avatar, so they use this column list and fetch the gallery on demand
+// when someone actually opens a profile.
+const LIST_COLUMNS = "id,name,age,verified,bio,location,latitude,longitude,avatar_url,interests,hobbies,things_i_like_to_do,availability,height_cm,gender,chronotype,free_tonight_until,open_to_doubles,off_the_clock,is_deleted";
+
 const CARD_GRADIENTS = [
   ["#7C3AED", "#B197F0"], ["#5B21B6", "#8B5CF6"], ["#9333EA", "#F0ABFC"],
   ["#6D28D9", "#67E8F9"], ["#7E22CE", "#FDA4AF"], ["#6B21A8", "#FDBA74"],
@@ -306,7 +313,7 @@ const api = {
   async loadDeck() {
     // Guests browse real people too. TOM never shows invented profiles.
     if (!this.user || this.user.isGuest || !this.user.id) {
-      const { data: guestRows } = await supabase.from("profiles").select("*").limit(50);
+      const { data: guestRows } = await supabase.from("profiles").select(LIST_COLUMNS).limit(50);
       const guestCards = (guestRows || [])
         // NULL is not false in SQL, so these checks live here, not in the query
         .filter((p) => profileComplete(p) && p.is_deleted !== true && p.off_the_clock !== true)
@@ -316,7 +323,7 @@ const api = {
     }
     const myId = this.user.id;
     const [{ data: allProfiles, error: profErr }, { data: myLikes }, { data: myBlocks }, { data: likedMe }] = await Promise.all([
-      supabase.from("profiles").select("*").neq("id", myId),
+      supabase.from("profiles").select(LIST_COLUMNS).neq("id", myId),
       supabase.from("likes").select("liked_user_id, action, created_at").eq("user_id", myId),
       supabase.from("blocks").select("blocked_user_id").eq("user_id", myId),
       // People who gave me their time; used for second chances after a pass
@@ -395,11 +402,19 @@ const api = {
     const active = (rows || []).filter((r) => r.is_active !== false);
     if (active.length === 0) return { matches: [] };
     const otherIds = active.map((r) => (r.user_id_1 === myId ? r.user_id_2 : r.user_id_1));
-    const { data: profs, error: profErr } = await supabase.from("profiles").select("*").in("id", otherIds);
+    const { data: profs, error: profErr } = await supabase.from("profiles").select(LIST_COLUMNS).in("id", otherIds);
     if (profErr) return { matches: [], error: profErr.message };
     const matchIdByUser = {};
     active.forEach((r) => { matchIdByUser[r.user_id_1 === myId ? r.user_id_2 : r.user_id_1] = r.id; });
     return { matches: (profs || []).map((p) => ({ ...dbRowToCard(p), matchId: matchIdByUser[p.id] })) };
+  },
+  // Galleries are excluded from list queries because they are base64 blobs.
+  // Fetch one person's photos only when their profile is actually opened.
+  async loadGallery(userId) {
+    if (!userId) return { photos: [] };
+    const { data, error } = await supabase.from("profiles").select("gallery_photos").eq("id", userId).single();
+    if (error) return { photos: [], error: error.message };
+    return { photos: (data && data.gallery_photos) || [] };
   },
   async swipe(profileId, action) {
     if (!this.user || !this.user.id) return { matched: false };
@@ -450,7 +465,7 @@ const api = {
     const blockedIds = new Set((myBlocks || []).map((b) => b.blocked_user_id));
     const admirerIds = [...new Set((likes || []).map((l) => l.user_id))].filter((id) => !matchedIds.has(id) && !blockedIds.has(id));
     if (admirerIds.length === 0) return [];
-    const { data: profs } = await supabase.from("profiles").select("*").in("id", admirerIds).eq("is_deleted", false);
+    const { data: profs } = await supabase.from("profiles").select(LIST_COLUMNS).in("id", admirerIds).eq("is_deleted", false);
     return (profs || []).map(dbRowToCard);
   },
   // Batch 2: Weekly Prime Time boost (7 days at the top of the deck)
@@ -1710,8 +1725,20 @@ function ProfileDetailModal({ profile, myLoc, onClose, onSwipe, onMessage, onLik
   const L = useLabel();
   const ideaText = useIdeaText();
   const [idx, setIdx] = useState(0);
+  // List queries skip gallery photos to keep them fast, so pull this person's
+  // gallery only now that their profile is actually open.
+  const [lazyPhotos, setLazyPhotos] = useState(null);
+  const pid = profile && profile.id;
+  React.useEffect(() => {
+    let cancelled = false;
+    setLazyPhotos(null);
+    if (!pid) return;
+    api.loadGallery(pid).then((r) => { if (!cancelled) setLazyPhotos(r.photos || []); });
+    return () => { cancelled = true; };
+  }, [pid]);
   if (!profile) return null;
-  const gallery = [profile.photo, ...(profile.photos || [])].filter(Boolean);
+  const extraPhotos = (profile.photos && profile.photos.length) ? profile.photos : (lazyPhotos || []);
+  const gallery = [profile.photo, ...extraPhotos].filter(Boolean);
   const hasPhotos = gallery.length > 0;
   const shared = sharedLikes(profile);
 
@@ -4066,14 +4093,7 @@ function TomAppInner() {
     const reqId = ++matchReqId.current;
     if (!hasLoadedMatches.current) setMatchesLoading(true);
 
-    // Retry once, quietly, before showing anyone an error. Most of these
-    // failures are a single dropped request, not a real outage.
-    let r = await api.loadMatches();
-    if (r.error) {
-      await new Promise((res) => setTimeout(res, 1000));
-      if (reqId !== matchReqId.current) return;
-      r = await api.loadMatches();
-    }
+    const r = await api.loadMatches();
 
     // A newer request started while this one was in flight. Its answer is the
     // current one, so drop this result instead of overwriting it.
