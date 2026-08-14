@@ -436,6 +436,65 @@ const api = {
     if (!data || !data.publicUrl) return { error: "Upload succeeded but no URL came back" };
     return { url: data.publicUrl };
   },
+  // One-time cleanup for photos saved before Storage existed. Anything still
+  // held as a base64 data URL gets uploaded to the bucket and replaced with a
+  // short link. Runs quietly in the background after login and becomes a no-op
+  // once there is nothing left to convert. A photo that fails to convert is
+  // left exactly as it was, so nothing is ever lost.
+  async migrateBase64Photos() {
+    if (!this.user || !this.user.id || this.user.isGuest) return { migrated: 0 };
+    // React re-invokes effects in development, and a second pass would upload
+    // every photo again. Once per session is enough.
+    if (this._photoMigrationRan) return { migrated: 0 };
+    this._photoMigrationRan = true;
+    const isData = (v) => typeof v === "string" && v.startsWith("data:");
+    const main = this.user.profilePhoto;
+    const gallery = Array.isArray(this.user.photos) ? this.user.photos : [];
+    if (!isData(main) && !gallery.some(isData)) return { migrated: 0 };
+
+    const convert = async (dataUrl) => {
+      try {
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        if (!blob || !blob.size) return null;
+        const sub = (blob.type && blob.type.split("/")[1]) || "jpg";
+        const ext = sub === "jpeg" ? "jpg" : sub.replace(/[^a-z0-9]/g, "") || "jpg";
+        const file = new File([blob], `migrated.${ext}`, { type: blob.type || "image/jpeg" });
+        const up = await this.uploadPhoto(file);
+        return up && up.url ? up.url : null;
+      } catch {
+        return null;
+      }
+    };
+
+    let migrated = 0;
+    let nextMain = main;
+    if (isData(main)) {
+      const url = await convert(main);
+      if (url) { nextMain = url; migrated++; }
+    }
+    const nextGallery = [];
+    for (const photo of gallery) {
+      if (!isData(photo)) { nextGallery.push(photo); continue; }
+      const url = await convert(photo);
+      if (url) { nextGallery.push(url); migrated++; }
+      else nextGallery.push(photo);
+    }
+
+    if (migrated === 0) return { migrated: 0 };
+    const prevMain = this.user.profilePhoto;
+    const prevGallery = this.user.photos;
+    this.user.profilePhoto = nextMain;
+    this.user.photos = nextGallery;
+    const r = await this.saveProfile();
+    if (r.error) {
+      // Leave the in-memory copy matching what is actually stored.
+      this.user.profilePhoto = prevMain;
+      this.user.photos = prevGallery;
+      return { migrated: 0, error: r.error };
+    }
+    return { migrated };
+  },
   async swipe(profileId, action) {
     if (!this.user || !this.user.id) return { matched: false };
     // Server-side function checks the mutual like and creates the match in one
@@ -4017,6 +4076,8 @@ function TomAppInner() {
       const r = await api.restoreSession();
       if (r.ok) setScreen(r.complete ? "main" : "builder");
       setBooting(false);
+      // Fire and forget. Converting old photos must never hold up the app.
+      if (r.ok) api.migrateBase64Photos().catch(() => {});
     })();
   }, []);
   const [authMode, setAuthMode] = useState("signup");
