@@ -416,6 +416,26 @@ const api = {
     if (error) return { photos: [], error: error.message };
     return { photos: (data && data.gallery_photos) || [] };
   },
+  // Uploads a file to the photos bucket and returns a short public URL.
+  // The folder is the user's id because the storage policy only allows writing
+  // inside your own folder. The long cache header is what makes the CDN serve
+  // repeat views instead of the database, which is the whole point of moving
+  // photos out of the table.
+  async uploadPhoto(file) {
+    if (!this.user || !this.user.id || this.user.isGuest) return { error: "Sign in to upload photos" };
+    const rawExt = (file.name && file.name.includes(".")) ? file.name.split(".").pop().toLowerCase() : "";
+    const ext = /^[a-z0-9]{1,5}$/.test(rawExt) ? rawExt : "jpg";
+    const path = `${this.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error } = await supabase.storage.from("photos").upload(path, file, {
+      cacheControl: "31536000",
+      upsert: false,
+      contentType: file.type || undefined,
+    });
+    if (error) return { error: error.message };
+    const { data } = supabase.storage.from("photos").getPublicUrl(path);
+    if (!data || !data.publicUrl) return { error: "Upload succeeded but no URL came back" };
+    return { url: data.publicUrl };
+  },
   async swipe(profileId, action) {
     if (!this.user || !this.user.id) return { matched: false };
     // Server-side function checks the mutual like and creates the match in one
@@ -2596,6 +2616,7 @@ function Builder({ onDone, editMode }) {
   const [, force] = useState(0);
   const rerender = () => force((n) => n + 1);
   const [photoError, setPhotoError] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [heightUnit, setHeightUnit] = useState("cm");
   const [ftIn, setFtIn] = useState({ ft: "", inch: "" });
@@ -2616,7 +2637,7 @@ function Builder({ onDone, editMode }) {
     rerender();
   };
 
-  const handleFiles = (files, asProfile) => {
+  const handleFiles = async (files, asProfile) => {
     setPhotoError(null);
     for (const file of Array.from(files)) {
       const err = api.validatePhoto(file);
@@ -2625,17 +2646,16 @@ function Builder({ onDone, editMode }) {
         setPhotoError(`Gallery is full (max ${MAX_PHOTOS} photos). Delete one first.`);
         break;
       }
-      const reader = new FileReader();
-      reader.onload = () => {
-        const url = reader.result; // data URL, works inside the preview sandbox
-        if (asProfile) { u.profilePhoto = url; }
-        else {
-          const r = api.addGalleryPhoto(url);
-          if (r.error) setPhotoError(r.error);
-        }
-        rerender();
-      };
-      reader.readAsDataURL(file);
+      setUploading(true);
+      const up = await api.uploadPhoto(file);
+      setUploading(false);
+      if (up.error) { setPhotoError(up.error); continue; }
+      if (asProfile) { u.profilePhoto = up.url; }
+      else {
+        const r = api.addGalleryPhoto(up.url);
+        if (r.error) setPhotoError(r.error);
+      }
+      rerender();
     }
   };
   const toggle = (arrKey, item) => {
@@ -2679,6 +2699,7 @@ function Builder({ onDone, editMode }) {
           )}
         </div>
       </Field>
+      {uploading && <p style={{ ...nu(700, 13, T.royal), margin: 0 }}>Uploading photo...</p>}
       {photoError && <p style={{ ...nu(700, 13, T.red), margin: 0 }}>{photoError}</p>}
     </div>,
 
@@ -2756,7 +2777,7 @@ function Builder({ onDone, editMode }) {
           <button onClick={() => setStep(step - 1)} style={{ padding: "14px 18px", borderRadius: 16, border: `2px solid ${T.lilacDeep}`, background: T.white, ...fr(600, 15, T.royal), cursor: "pointer" }}>{t("back")}</button>
         )}
         <div style={{ flex: 1 }}>
-          <PrimaryBtn disabled={!canNext || saving} onClick={async () => {
+          <PrimaryBtn disabled={!canNext || saving || uploading} onClick={async () => {
             if (step < 3) { setStep(step + 1); return; }
             setSaving(true);
             const r = await api.saveProfile();
@@ -3795,6 +3816,7 @@ function PhotoManagerModal({ onClose, onSaved }) {
   const [order, setOrder] = useState([u.profilePhoto, ...u.photos].filter(Boolean));
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const MAX_TOTAL = MAX_PHOTOS + 1;
 
   const makeMain = (i) => {
@@ -3810,15 +3832,17 @@ function PhotoManagerModal({ onClose, onSaved }) {
     setOrder((o) => { const n = [...o]; [n[i + 1], n[i]] = [n[i], n[i + 1]]; return n; });
   };
   const remove = (i) => setOrder((o) => o.filter((_, j) => j !== i));
-  const addFiles = (files) => {
+  const addFiles = async (files) => {
     setError(null);
     for (const file of Array.from(files)) {
       const err = api.validatePhoto(file);
       if (err) { setError(err); continue; }
       if (order.length >= MAX_TOTAL) { setError(`You can have up to ${MAX_TOTAL} photos total. Remove one first.`); break; }
-      const reader = new FileReader();
-      reader.onload = () => setOrder((o) => [...o, reader.result]);
-      reader.readAsDataURL(file);
+      setUploading(true);
+      const up = await api.uploadPhoto(file);
+      setUploading(false);
+      if (up.error) { setError(up.error); continue; }
+      setOrder((o) => [...o, up.url]);
     }
   };
   const save = async () => {
@@ -3859,8 +3883,9 @@ function PhotoManagerModal({ onClose, onSaved }) {
             </label>
           )}
         </div>
+        {uploading && <p style={{ ...nu(700, 13, T.royal), margin: "0 0 12px" }}>Uploading photo...</p>}
         {error && <p style={{ ...nu(700, 13, T.red), margin: "0 0 12px" }}>{error}</p>}
-        <PrimaryBtn disabled={saving} onClick={save}>{saving ? "Saving..." : "Save changes"}</PrimaryBtn>
+        <PrimaryBtn disabled={saving || uploading} onClick={save}>{saving ? "Saving..." : "Save changes"}</PrimaryBtn>
         <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Cancel</button>
       </div>
     </div>
