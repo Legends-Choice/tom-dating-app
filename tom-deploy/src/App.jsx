@@ -248,6 +248,30 @@ const api = {
     this.user = rowToUser(row, mail);
     return { ok: true, complete: Boolean(this.user.bio && this.user.profilePhoto) };
   },
+  // Sends the reset link. Always reports success, even for an address that
+  // has no account, so this can't be used to find out who is on TOM.
+  async requestPasswordReset(email) {
+    const mail = (email || "").trim().toLowerCase();
+    if (!mail || !mail.includes("@")) return { error: "Enter your email address" };
+    const redirectTo = `${window.location.origin}${window.location.pathname}?recovery=1`;
+    const { error } = await supabase.auth.resetPasswordForEmail(mail, { redirectTo });
+    if (error && /rate|limit|seconds/i.test(error.message || "")) {
+      return { error: "Too many attempts. Wait a minute and try again." };
+    }
+    return { ok: true };
+  },
+  // Called from the recovery screen. Supabase has already put the user in a
+  // temporary session from the emailed link, so updateUser is enough.
+  async setNewPassword(password) {
+    if (!password || password.length < 8) return { error: "Password must be at least 8 characters" };
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) return { error: error.message };
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) return { ok: true, signedIn: false };
+    const { data: row } = await supabase.from("profiles").select("*").eq("id", data.session.user.id).single();
+    if (row) this.user = rowToUser(row, data.session.user.email);
+    return { ok: true, signedIn: Boolean(row), complete: Boolean(row && row.bio && row.avatar_url) };
+  },
   async restoreSession() {
     const { data } = await supabase.auth.getSession();
     if (!data.session) return { ok: false };
@@ -2177,6 +2201,21 @@ const STRINGS = {
     onlyFreeTonight: "Only people free tonight",
     datingCosts: "Dating costs $200 to $500 now.", datingCostsSub: "On TOM it costs nothing. Don't spend money. Spend time.",
     welcomeBack: "Welcome back", timeWaiting: "Your time is waiting.",
+    forgotPassword: "Forgot your password?",
+    forgotTitle: "Reset your password",
+    forgotSub: "We'll email you a link to set a new one.",
+    sendResetLink: "Send reset link",
+    backToSignIn: "Back to sign in",
+    checkYourEmail: "Check your email",
+    resetSentBody: "If {email} has a TOM account, a link to set a new password is on its way.",
+    resetSpamHint: "The link expires in an hour. Check your spam folder if it hasn't arrived.",
+    resendReset: "Send it again",
+    chooseNewPassword: "Choose a new password",
+    chooseNewPasswordSub: "Almost there.",
+    newPassword: "New password",
+    confirmPassword: "Confirm new password",
+    passwordsDontMatch: "Those passwords don't match",
+    savePassword: "Save new password",
     yourName: "Your name", namePlaceholder: "What should we call you?",
     emailLabel: "Email", passwordLabel: "Password", pw8: "8+ characters", yourPassword: "Your password",
     ageLabel: "Age", pleaseWait: "Please wait...", createAccount: "Create my account", signIn: "Sign in",
@@ -2305,6 +2344,21 @@ const STRINGS = {
     onlyFreeTonight: "Sadece bu ak\u015fam m\u00fcsait olanlar",
     datingCosts: "Fl\u00f6rt art\u0131k 200 ile 500 dolar aras\u0131.", datingCostsSub: "TOM'da hi\u00e7bir \u015fey tutmaz. Para de\u011fil, zaman harcay\u0131n.",
     welcomeBack: "Tekrar ho\u015f geldin", timeWaiting: "Zaman\u0131n seni bekliyor.",
+    forgotPassword: "\u015eifreni mi unuttun?",
+    forgotTitle: "\u015eifreni s\u0131f\u0131rla",
+    forgotSub: "Yeni bir \u015fifre belirlemen i\u00e7in sana bir ba\u011flant\u0131 g\u00f6nderece\u011fiz.",
+    sendResetLink: "S\u0131f\u0131rlama ba\u011flant\u0131s\u0131 g\u00f6nder",
+    backToSignIn: "Giri\u015fe d\u00f6n",
+    checkYourEmail: "E-postan\u0131 kontrol et",
+    resetSentBody: "{email} adresine ait bir TOM hesab\u0131 varsa, yeni \u015fifre belirleme ba\u011flant\u0131s\u0131 yolda.",
+    resetSpamHint: "Ba\u011flant\u0131 bir saat i\u00e7inde ge\u00e7ersiz olur. Gelmediyse spam klas\u00f6r\u00fcne bak.",
+    resendReset: "Tekrar g\u00f6nder",
+    chooseNewPassword: "Yeni \u015fifre se\u00e7",
+    chooseNewPasswordSub: "Neredeyse bitti.",
+    newPassword: "Yeni \u015fifre",
+    confirmPassword: "Yeni \u015fifreyi onayla",
+    passwordsDontMatch: "\u015eifreler e\u015fle\u015fmiyor",
+    savePassword: "Yeni \u015fifreyi kaydet",
     yourName: "Ad\u0131n", namePlaceholder: "Sana nas\u0131l hitap edelim?",
     emailLabel: "E-posta", passwordLabel: "\u015eifre", pw8: "En az 8 karakter", yourPassword: "\u015eifren",
     ageLabel: "Ya\u015f", pleaseWait: "L\u00fctfen bekleyin...", createAccount: "Hesab\u0131m\u0131 olu\u015ftur", signIn: "Giri\u015f yap",
@@ -2433,6 +2487,21 @@ const STRINGS = {
     onlyFreeTonight: "Solo gente libre esta noche",
     datingCosts: "Salir cuesta ahora entre $200 y $500.", datingCostsSub: "En TOM no cuesta nada. No gastes dinero. Dedica tiempo.",
     welcomeBack: "Bienvenido de nuevo", timeWaiting: "Tu tiempo te espera.",
+    forgotPassword: "\u00bfOlvidaste tu contrase\u00f1a?",
+    forgotTitle: "Restablece tu contrase\u00f1a",
+    forgotSub: "Te enviaremos un enlace para crear una nueva.",
+    sendResetLink: "Enviar enlace",
+    backToSignIn: "Volver a iniciar sesi\u00f3n",
+    checkYourEmail: "Revisa tu correo",
+    resetSentBody: "Si {email} tiene una cuenta en TOM, el enlace para crear una nueva contrase\u00f1a va en camino.",
+    resetSpamHint: "El enlace caduca en una hora. Revisa tu carpeta de spam si no llega.",
+    resendReset: "Enviar de nuevo",
+    chooseNewPassword: "Elige una nueva contrase\u00f1a",
+    chooseNewPasswordSub: "Ya casi est\u00e1.",
+    newPassword: "Nueva contrase\u00f1a",
+    confirmPassword: "Confirma la nueva contrase\u00f1a",
+    passwordsDontMatch: "Las contrase\u00f1as no coinciden",
+    savePassword: "Guardar contrase\u00f1a",
     yourName: "Tu nombre", namePlaceholder: "\u00bfC\u00f3mo te llamamos?",
     emailLabel: "Correo", passwordLabel: "Contrase\u00f1a", pw8: "8 caracteres o m\u00e1s", yourPassword: "Tu contrase\u00f1a",
     ageLabel: "Edad", pleaseWait: "Un momento...", createAccount: "Crear mi cuenta", signIn: "Iniciar sesi\u00f3n",
@@ -2622,9 +2691,48 @@ function Home({ onPick, onLegal }) {
   );
 }
 
+// Shown after someone clicks the reset link in their email. Supabase has
+// already exchanged the link for a temporary session by this point, so all
+// this screen has to do is collect and set the new password.
+function ResetPasswordScreen({ onDone }) {
+  const { t } = useLang();
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    setError(null);
+    if (password !== confirm) { setError(t("passwordsDontMatch")); return; }
+    setBusy(true);
+    const r = await api.setNewPassword(password);
+    setBusy(false);
+    if (r.error) { setError(r.error); return; }
+    onDone(r.signedIn ? (r.complete ? "main" : "builder") : "welcome");
+  };
+
+  return (
+    <div style={{ flex: 1, overflowY: "auto", padding: "10px 24px 24px" }}>
+      <div style={{ textAlign: "center", margin: "16px 0 20px" }}>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}><Ic.ShieldCheck s={54} c={T.royal} /></div>
+        <h2 style={{ ...fr(700, 25, T.ink), margin: 0 }}>{t("chooseNewPassword")}</h2>
+        <p style={{ ...nu(700, 14, T.royal), margin: "6px 0 0" }}>{t("chooseNewPasswordSub")}</p>
+      </div>
+      <Field label={t("newPassword")}>
+        <input style={inputStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t("pw8")} />
+      </Field>
+      <Field label={t("confirmPassword")}>
+        <input style={inputStyle} type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={t("pw8")} />
+      </Field>
+      {error && <p style={{ ...nu(700, 13, T.red), margin: "0 0 12px" }}>{error}</p>}
+      <PrimaryBtn disabled={busy || !password || !confirm} onClick={submit}>{busy ? t("pleaseWait") : t("savePassword")}</PrimaryBtn>
+    </div>
+  );
+}
+
 function Welcome({ onDone, initialMode }) {
   const { t } = useLang();
-  const [mode, setMode] = useState(initialMode || "signup"); // signup | signin
+  const [mode, setMode] = useState(initialMode || "signup"); // signup | signin | forgot | sent
   const [form, setForm] = useState({ name: "", email: "", password: "", age: "" });
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -2632,6 +2740,12 @@ function Welcome({ onDone, initialMode }) {
   const submit = async () => {
     setError(null);
     setBusy(true);
+    if (mode === "forgot") {
+      const r = await api.requestPasswordReset(form.email);
+      setBusy(false);
+      if (r.error) setError(r.error); else setMode("sent");
+      return;
+    }
     if (mode === "signup") {
       const r = await api.signup(form);
       setBusy(false);
@@ -2642,26 +2756,55 @@ function Welcome({ onDone, initialMode }) {
       if (r.error) setError(r.error); else onDone(r.complete ? "main" : "builder");
     }
   };
+
+  // Confirmation that the email is on its way. Deliberately does not say
+  // whether the address had an account, so nobody can probe for members.
+  if (mode === "sent") {
+    return (
+      <div style={{ flex: 1, overflowY: "auto", padding: "10px 24px 24px" }}>
+        <div style={{ textAlign: "center", margin: "16px 0 20px" }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}><Ic.Bubble s={54} c={T.royal} /></div>
+          <h2 style={{ ...fr(700, 24, T.ink), margin: 0 }}>{t("checkYourEmail")}</h2>
+          <p style={{ ...nu(600, 14, T.soft), margin: "10px 0 0", lineHeight: 1.5 }}>
+            {t("resetSentBody").replace("{email}", (form.email || "").trim().toLowerCase())}
+          </p>
+          <p style={{ ...nu(600, 12.5, T.soft), margin: "12px 0 0" }}>{t("resetSpamHint")}</p>
+        </div>
+        <PrimaryBtn onClick={() => { setMode("signin"); setError(null); }}>{t("backToSignIn")}</PrimaryBtn>
+        <button onClick={() => { setMode("forgot"); setError(null); }}
+          style={{ width: "100%", marginTop: 12, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13.5, T.royal) }}>
+          {t("resendReset")}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "10px 24px 24px" }}>
       <div style={{ textAlign: "center", margin: "16px 0 20px" }}>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}><ZeroStamp size={70} /></div>
         <h2 style={{ ...fr(700, 26, T.ink), margin: 0 }}>
-          {mode === "signup" ? t("datingCosts") : t("welcomeBack")}
+          {mode === "forgot" ? t("forgotTitle") : mode === "signup" ? t("datingCosts") : t("welcomeBack")}
         </h2>
         <p style={{ ...nu(700, 15, T.royal), margin: "6px 0 0" }}>
-          {mode === "signup" ? t("datingCostsSub") : t("timeWaiting")}
+          {mode === "forgot" ? t("forgotSub") : mode === "signup" ? t("datingCostsSub") : t("timeWaiting")}
         </p>
       </div>
       {mode === "signup" && <Field label={t("yourName")}><input style={inputStyle} value={form.name} onChange={set("name")} placeholder={t("namePlaceholder")} /></Field>}
       <Field label={t("emailLabel")}><input style={inputStyle} type="email" value={form.email} onChange={set("email")} placeholder="you@example.com" /></Field>
-      <Field label={t("passwordLabel")}><input style={inputStyle} type="password" value={form.password} onChange={set("password")} placeholder={mode === "signup" ? t("pw8") : t("yourPassword")} /></Field>
+      {mode !== "forgot" && <Field label={t("passwordLabel")}><input style={inputStyle} type="password" value={form.password} onChange={set("password")} placeholder={mode === "signup" ? t("pw8") : t("yourPassword")} /></Field>}
       {mode === "signup" && <Field label={t("ageLabel")}><input style={inputStyle} type="number" value={form.age} onChange={set("age")} placeholder="18+" /></Field>}
       {error && <p style={{ ...nu(700, 13, T.red), margin: "0 0 12px" }}>{error}</p>}
-      <PrimaryBtn disabled={busy} onClick={submit}>{busy ? t("pleaseWait") : (mode === "signup" ? t("createAccount") : t("signIn"))}</PrimaryBtn>
-      <button onClick={() => { setMode(mode === "signup" ? "signin" : "signup"); setError(null); }}
-        style={{ width: "100%", marginTop: 12, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13.5, T.royal) }}>
-        {mode === "signup" ? t("alreadyOnTom") : t("newHere")}
+      <PrimaryBtn disabled={busy} onClick={submit}>{busy ? t("pleaseWait") : (mode === "forgot" ? t("sendResetLink") : mode === "signup" ? t("createAccount") : t("signIn"))}</PrimaryBtn>
+      {mode === "signin" && (
+        <button onClick={() => { setMode("forgot"); setError(null); }}
+          style={{ width: "100%", marginTop: 12, padding: "8px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>
+          {t("forgotPassword")}
+        </button>
+      )}
+      <button onClick={() => { setMode(mode === "signup" ? "signin" : mode === "forgot" ? "signin" : "signup"); setError(null); }}
+        style={{ width: "100%", marginTop: mode === "signin" ? 2 : 12, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13.5, T.royal) }}>
+        {mode === "forgot" ? t("backToSignIn") : mode === "signup" ? t("alreadyOnTom") : t("newHere")}
       </button>
       <p style={{ ...nu(600, 11.5, T.soft), textAlign: "center", marginTop: 8 }}>{t("publicPlaces")}</p>
     </div>
@@ -4073,6 +4216,20 @@ function TomAppInner() {
         window.history.replaceState({}, "", window.location.pathname);
         setUnsubDone(data ? "done" : "failed");
       }
+      // A reset link lands here. Supabase puts the recovery token in the URL
+      // hash and exchanges it for a temporary session, so this has to be
+      // checked BEFORE restoreSession, or the person is dropped straight into
+      // the app on that session and never gets to set a password.
+      const hash = window.location.hash || "";
+      const isRecovery = params.get("recovery") === "1" || hash.includes("type=recovery");
+      if (isRecovery) {
+        // Give Supabase a moment to turn the link into a session.
+        await new Promise((res) => setTimeout(res, 400));
+        window.history.replaceState({}, "", window.location.pathname);
+        setScreen("reset");
+        setBooting(false);
+        return;
+      }
       const r = await api.restoreSession();
       if (r.ok) setScreen(r.complete ? "main" : "builder");
       setBooting(false);
@@ -4591,6 +4748,7 @@ function TomAppInner() {
             setScreen("welcome");
           }
         }} />}
+        {screen === "reset" && <ResetPasswordScreen onDone={(target) => setScreen(target)} />}
         {screen === "welcome" && <Welcome initialMode={authMode} onDone={(target) => setScreen(target)} />}
         {screen === "builder" && <Builder editMode={editingProfile} onDone={() => { setEditingProfile(false); setScreen("main"); }} />}
         {screen === "main" && (
