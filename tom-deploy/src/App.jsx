@@ -3617,11 +3617,21 @@ function Roadmap({ label }) {
   );
 }
 
-function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat, loading, unreadBy = {}, matchesError = null, onRetry }) {
+function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat, loading, unreadBy = {}, matchesError = null, onRetry, pendingOutcome = null, onAnswerOutcome }) {
   const { t } = useLang();
   const [viewing, setViewing] = useState(null);
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "6px 16px 16px" }}>
+      {pendingOutcome && (
+        <button onClick={onAnswerOutcome} style={{ width: "100%", display: "flex", alignItems: "center", gap: 11, background: "#FFF8E5", border: `2px solid ${T.sun}`, borderRadius: 18, padding: "13px 14px", marginBottom: 12, cursor: "pointer", textAlign: "left" }}>
+          <Ic.Hourglass s={20} c="#8A6400" />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ ...nu(800, 13.5, "#6B4E00") }}>How did your plan with {pendingOutcome.other_name} go?</div>
+            <div style={{ ...nu(700, 12, "#8A6400" ) }}>Tap to answer, so you can both rate the time</div>
+          </div>
+          <Ic.Chevron s={16} c="#8A6400" />
+        </button>
+      )}
       {admirerCount > 0 && (
       <button onClick={onUpgrade} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, background: `linear-gradient(135deg, ${T.royal}, ${T.violet})`, border: "none", borderRadius: 18, padding: 14, marginBottom: 12, cursor: "pointer", textAlign: "left" }}>
         <div style={{ display: "flex" }}>
@@ -4202,6 +4212,12 @@ function TomAppInner() {
   const showToast = useToast();
   const [screen, setScreen] = useState("home"); // home -> welcome -> builder -> main
   const [booting, setBooting] = useState(true);
+  // Set when someone arrives from the "how did it go?" email link
+  const cameFromRateLink = useRef(false);
+  // date_id the person tapped "Ask me later" on, and the prompt kept in a
+  // banner rather than a modal because of it
+  const snoozedOutcome = useRef(null);
+  const [quietOutcome, setQuietOutcome] = useState(null);
 
   const [unsubDone, setUnsubDone] = useState(null);
 
@@ -4220,6 +4236,12 @@ function TomAppInner() {
       // hash and exchanges it for a temporary session, so this has to be
       // checked BEFORE restoreSession, or the person is dropped straight into
       // the app on that session and never gets to set a password.
+      // Our "how did it go?" email can point at /?rate=1 to jump straight to
+      // the prompt. Strip it from the address bar so a refresh doesn't repeat.
+      if (params.get("rate") === "1") {
+        window.history.replaceState({}, "", window.location.pathname);
+        cameFromRateLink.current = true;
+      }
       const hash = window.location.hash || "";
       const isRecovery = params.get("recovery") === "1" || hash.includes("type=recovery");
       if (isRecovery) {
@@ -4407,6 +4429,33 @@ function TomAppInner() {
     const r = await api.activateWeeklyBoost();
     if (r.ok) setBoostUntil(r.expiresAt);
   };
+
+  // Ask what happened first, then ask for a review of a confirmed date.
+  // This used to run only on a cold boot, which meant the "how did it go?"
+  // link in our email led nowhere whenever the app was already open in a tab.
+  const checkPendingPrompts = useCallback(async () => {
+    if (!api.user || api.user.isGuest || !api.user.id) return;
+    const po = await api.loadPendingOutcome();
+    if (po) {
+      cameFromRateLink.current = false;
+      // "Ask me later" has to mean later. Without this the prompt would
+      // reappear the moment the app regained focus, which is nagging, not
+      // asking. It stays reachable from the Connections banner instead.
+      if (snoozedOutcome.current === po.date_id) { setQuietOutcome(po); return; }
+      setPendingOutcome(po);
+      return;
+    }
+    setQuietOutcome(null);
+    const pr = await api.loadPendingReview();
+    if (pr) { setPendingReview(pr); cameFromRateLink.current = false; return; }
+    // Arrived from the email link but there is nothing waiting. Say so rather
+    // than dropping the person into the app with no explanation, which reads
+    // as a dead link.
+    if (cameFromRateLink.current) {
+      cameFromRateLink.current = false;
+      showToast("Nothing to rate right now. You may have already answered, or the date hasn't happened yet.", 5000);
+    }
+  }, [showToast]);
 
   const sendMissionTo = async (p, idea) => {
     setMissionToSend(null);
@@ -4624,13 +4673,28 @@ function TomAppInner() {
         setAgeFilter({ min: api.user.filterMinAge ?? 18, max: api.user.filterMaxAge ?? 99 });
         setInterestFilter(api.user.filterInterests || []);
       }
-      // Ask what happened first, then ask for a review of a confirmed date
-      const po = await api.loadPendingOutcome();
-      if (po) { setPendingOutcome(po); return; }
-      const pr = await api.loadPendingReview();
-      if (pr) setPendingReview(pr);
     })();
+    // Not chained to the deck. This used to run after loadDeck resolved, so
+    // "How did it go?" sat waiting on the slowest query on the screen.
+    checkPendingPrompts();
   }, [screen]);
+
+  // Coming back to the app from our own email is the single most likely moment
+  // for a "how did it go?" answer, so re-check then. Safari usually restores
+  // the existing tab rather than booting fresh, which is exactly the case the
+  // boot-only check missed.
+  React.useEffect(() => {
+    if (screen !== "main") return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") checkPendingPrompts();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [screen, checkPendingPrompts]);
 
   // Location: read the phone's GPS, save it to the profile so OTHER people can
   // measure their distance to us, then refresh the deck with real coordinates.
@@ -4758,7 +4822,7 @@ function TomAppInner() {
             {tab === "missions" && <Missions matches={matches} onSend={(idea) => setMissionToSend(idea)} />}
             {tab === "matches" && (chatWith
               ? <Chat profile={chatWith} onBack={() => setChatWith(null)} onDateCompleted={onDateCompleted} myLoc={myLoc} isPlus={isPlus} onReport={(p) => setReporting({ profile: p, from: "chat" })} />
-              : <Matches matchesError={matchesError} onRetry={() => { setMatchesError(null); reloadMatches(); }} unreadBy={unreadBy} matches={matches} myLoc={myLoc} admirerCount={admirerCount} onUpgrade={openAdmirers} onReport={(p) => setReporting({ profile: p, from: "matches" })} onOpenChat={(p) => setChatWith(p)} loading={matchesLoading} />
+              : <Matches matchesError={matchesError} onRetry={() => { setMatchesError(null); reloadMatches(); }} unreadBy={unreadBy} matches={matches} myLoc={myLoc} admirerCount={admirerCount} onUpgrade={openAdmirers} onReport={(p) => setReporting({ profile: p, from: "matches" })} onOpenChat={(p) => setChatWith(p)} loading={matchesLoading} pendingOutcome={quietOutcome} onAnswerOutcome={() => { setPendingOutcome(quietOutcome); snoozedOutcome.current = null; }} />
             )}
             {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} onLogout={logout} onOffClock={() => requirePlus("Off the Clock", "Go invisible without deleting anything. A TOM+ perk.", () => setOffClockOpen(true))} onEmailSettings={() => setEmailSettings(true)} onLanguage={() => setLanguageOpen(true)} myRep={myRep} onFreeTonight={toggleFreeTonight} onSearchPrefsSaved={() => { setRadiusKm((api.user && api.user.searchRadiusKm) ?? 50); reloadDeck(); }} />}
             <nav style={{ display: "flex", justifyContent: "space-around", padding: "10px 8px 16px", background: T.white, borderTop: `1px solid ${T.lilac}` }}>
@@ -4830,7 +4894,7 @@ function TomAppInner() {
         {guestPrompt && <GuestPrompt onSignUp={() => { setGuestPrompt(false); setAuthMode("signup"); setScreen("welcome"); }} onClose={() => setGuestPrompt(false)} />}
         {plusGate && <PlusGate title={plusGate.title} blurb={plusGate.blurb} onClose={() => setPlusGate(null)} onUpgrade={() => { setPlusGate(null); setPaywall(true); }} />}
         {missionToSend && <SendMissionModal idea={missionToSend} matches={matches} onPick={(p) => sendMissionTo(p, missionToSend)} onClose={() => setMissionToSend(null)} />}
-        {pendingOutcome && <OutcomeModal pending={pendingOutcome} onAnswer={onOutcomeAnswered} onLater={() => setPendingOutcome(null)} />}
+        {pendingOutcome && <OutcomeModal pending={pendingOutcome} onAnswer={onOutcomeAnswered} onLater={() => { snoozedOutcome.current = pendingOutcome.date_id; setQuietOutcome(pendingOutcome); setPendingOutcome(null); setTab("matches"); }} />}
         {pendingReview && <ReviewModal pending={pendingReview} onDone={() => { setPendingReview(null); onDateCompleted(); }} onSkip={() => setPendingReview(null)} />}
       </div>
     </div>
