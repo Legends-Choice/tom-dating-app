@@ -89,6 +89,10 @@ const isAllowedFile = (file) =>
 // worst offender: several full-size images per person. List views only need the
 // single avatar, so they use this column list and fetch the gallery on demand
 // when someone actually opens a profile.
+// The one place password reset links point to, regardless of where the
+// request was made from (see api.requestPasswordReset).
+const PRODUCTION_ORIGIN = "https://tomdates.com";
+
 const LIST_COLUMNS = "id,name,age,verified,bio,location,latitude,longitude,avatar_url,interests,hobbies,things_i_like_to_do,availability,height_cm,gender,chronotype,free_tonight_until,open_to_doubles,off_the_clock,is_deleted";
 
 const CARD_GRADIENTS = [
@@ -253,7 +257,11 @@ const api = {
   async requestPasswordReset(email) {
     const mail = (email || "").trim().toLowerCase();
     if (!mail || !mail.includes("@")) return { error: "Enter your email address" };
-    const redirectTo = `${window.location.origin}${window.location.pathname}?recovery=1`;
+    // Always point at production, never at wherever the request happened to
+    // come from. Deriving this from window.location.origin meant a reset
+    // requested while testing on localhost emailed a localhost link, which
+    // only works on that one machine and strands anyone else.
+    const redirectTo = `${PRODUCTION_ORIGIN}/?recovery=1`;
     const { error } = await supabase.auth.resetPasswordForEmail(mail, { redirectTo });
     if (error && /rate|limit|seconds/i.test(error.message || "")) {
       return { error: "Too many attempts. Wait a minute and try again." };
@@ -2282,6 +2290,7 @@ const STRINGS = {
     missionSub: "Curated $0 dates. Pick one, send it to a match. Always optional.",
     send: "Send", matchFirst: "Match with someone first, then send them a mission.",
     sendMissionTo: "Send this mission to", cancel: "Cancel",
+    cancelSignupConfirm: "Stop creating your account? Anything you've entered will be discarded.",
     sentMissionDate: "sent you a mission date", youSentMissionDate: "You sent a mission date",
     accept: "Accept", decline: "Decline", counter: "Counter",
     planADate: "Plan a date", ideas: "Ideas", proposeADate: "Propose a $0 date",
@@ -2425,6 +2434,7 @@ const STRINGS = {
     missionSub: "Seçilmiş 0 TL buluşmalar. Birini seç, eşleşmene gönder. Her zaman isteğe bağlı.",
     send: "Gönder", matchFirst: "Önce biriyle eşleş, sonra ona bir görev gönder.",
     sendMissionTo: "Bu görevi şuna gönder", cancel: "İptal",
+    cancelSignupConfirm: "Hesap oluşturmayı durdurmak mı istiyorsun? Girdiğin bilgiler silinecek.",
     sentMissionDate: "sana bir görev buluşması gönderdi", youSentMissionDate: "Bir görev buluşması gönderdin",
     accept: "Kabul et", decline: "Reddet", counter: "Karşı öneri",
     planADate: "Buluşma planla", ideas: "Fikirler", proposeADate: "0 TL buluşma öner",
@@ -2568,6 +2578,7 @@ const STRINGS = {
     missionSub: "Citas de $0 seleccionadas. Elige una y envíala. Siempre opcional.",
     send: "Enviar", matchFirst: "Primero haz match con alguien y luego envíale una misión.",
     sendMissionTo: "Enviar esta misión a", cancel: "Cancelar",
+    cancelSignupConfirm: "¿Detener la creación de tu cuenta? Se descartará lo que hayas ingresado.",
     sentMissionDate: "te envió una cita misión", youSentMissionDate: "Enviaste una cita misión",
     accept: "Aceptar", decline: "Rechazar", counter: "Contrapropuesta",
     planADate: "Planear una cita", ideas: "Ideas", proposeADate: "Propón una cita de $0",
@@ -2811,7 +2822,7 @@ function Welcome({ onDone, initialMode }) {
   );
 }
 
-function Builder({ onDone, editMode }) {
+function Builder({ onDone, onExit, editMode }) {
   const { t } = useLang();
   const L = useLabel();
   const [step, setStep] = useState(0);
@@ -2970,6 +2981,26 @@ function Builder({ onDone, editMode }) {
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", padding: "6px 18px 0" }}>
+        <div style={{ flex: 1 }} />
+        {!editMode && (
+          <button
+            onClick={async () => {
+              if (!window.confirm(t("cancelSignupConfirm"))) return;
+              // A half-finished signup has already created an auth user and a
+              // profile row (see api.signup). Leaving without cleaning up
+              // would strand that email — trying to sign up again with it
+              // later would collide with the abandoned account.
+              await api.deleteAccount();
+              onExit();
+            }}
+            aria-label={t("cancel")}
+            style={{ border: "none", background: T.lilac, borderRadius: 999, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+          >
+            <Ic.Cross s={15} c={T.soft} />
+          </button>
+        )}
+      </div>
       <div style={{ display: "flex", gap: 6, justifyContent: "center", padding: "6px 0 12px" }}>
         {steps.map((_, i) => <div key={i} style={{ width: i === step ? 22 : 8, height: 8, borderRadius: 999, background: i <= step ? T.royal : T.lilacDeep, transition: "width .2s" }} />)}
       </div>
@@ -4814,7 +4845,7 @@ function TomAppInner() {
         }} />}
         {screen === "reset" && <ResetPasswordScreen onDone={(target) => setScreen(target)} />}
         {screen === "welcome" && <Welcome initialMode={authMode} onDone={(target) => setScreen(target)} />}
-        {screen === "builder" && <Builder editMode={editingProfile} onDone={() => { setEditingProfile(false); setScreen("main"); }} />}
+        {screen === "builder" && <Builder editMode={editingProfile} onDone={() => { setEditingProfile(false); setScreen("main"); }} onExit={() => { setAuthMode("signin"); setScreen("welcome"); }} />}
         {screen === "main" && (
           <>
             {tab === "discover" && showAdmirers && <AdmirersPanel admirers={admirers} myLoc={deckOrigin} onLikeBack={likeBackAdmirer} onBack={() => setShowAdmirers(false)} onReport={(p) => setReporting({ profile: p, from: "admirers" })} />}
