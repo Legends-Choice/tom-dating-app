@@ -4275,12 +4275,26 @@ function TomAppInner() {
       }
       const hash = window.location.hash || "";
       const isRecovery = params.get("recovery") === "1" || hash.includes("type=recovery");
+      // A used or expired reset link doesn't come back as a recovery session
+      // — Supabase appends an error to the hash instead (e.g. otp_expired).
+      // That used to fall straight through to the ordinary sign-up screen
+      // with no explanation, which is indistinguishable from the link simply
+      // not working.
+      const isRecoveryError = /[?&#]error(_code)?=/.test(hash) && !isRecovery;
       if (isRecovery) {
         // Give Supabase a moment to turn the link into a session.
         await new Promise((res) => setTimeout(res, 400));
         window.history.replaceState({}, "", window.location.pathname);
         setScreen("reset");
         setBooting(false);
+        return;
+      }
+      if (isRecoveryError) {
+        window.history.replaceState({}, "", window.location.pathname);
+        setAuthMode("forgot");
+        setScreen("welcome");
+        setBooting(false);
+        showToast("That reset link already expired or was used. Request a new one below.", 6000);
         return;
       }
       const r = await api.restoreSession();
