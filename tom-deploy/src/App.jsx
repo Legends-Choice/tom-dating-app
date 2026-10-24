@@ -70,6 +70,20 @@ const FONT = (
     @keyframes heartBlink { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .25; transform: scale(.82); } }
     button:active { animation: buttonPress 0.15s ease; }
     @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important } }
+    /* The app frame. On a computer it is a phone-sized card. On a phone it fills the screen, measured
+       with dvh so Safari's own address bar can never sit on top of the bottom menu. */
+    .tom-shell { min-height: 100vh; min-height: 100dvh; }
+    .tom-card { height: min(780px, 94vh); height: min(780px, calc(100dvh - 32px)); }
+    @media (max-width: 500px) {
+      .tom-shell { padding: 0 !important; align-items: stretch !important; height: 100vh; height: 100dvh; }
+      .tom-card { max-width: none !important; height: 100vh; height: 100dvh; border-radius: 0 !important; box-shadow: none !important; }
+      .tom-nav { padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important; }
+    }
+    .tom-tabbody > * { min-height: 0; }
+    @media (max-width: 500px) {
+      /* 16px stops iPhones zooming into a field when it is tapped */
+      input, textarea, select { font-size: 16px !important; }
+    }
   `}</style>
 );
 
@@ -93,7 +107,7 @@ const isAllowedFile = (file) =>
 // request was made from (see api.requestPasswordReset).
 const PRODUCTION_ORIGIN = "https://tomdates.com";
 
-const LIST_COLUMNS = "id,name,age,verified,bio,location,latitude,longitude,avatar_url,interests,hobbies,things_i_like_to_do,availability,height_cm,gender,chronotype,free_tonight_until,open_to_doubles,off_the_clock,is_deleted";
+const LIST_COLUMNS = "id,name,age,verified,bio,location,latitude,longitude,avatar_url,interests,hobbies,things_i_like_to_do,availability,height_cm,gender,interested_in,chronotype,free_tonight_until,open_to_doubles,off_the_clock,is_deleted";
 
 const CARD_GRADIENTS = [
   ["#7C3AED", "#B197F0"], ["#5B21B6", "#8B5CF6"], ["#9333EA", "#F0ABFC"],
@@ -142,6 +156,7 @@ function dbRowToCard(row) {
     city: row.location || null,
     heightCm: row.height_cm ?? null,
     gender: row.gender || null,
+    interestedIn: row.interested_in || null,
     chronotype: row.chronotype || null,
     interests: row.interests || [],
     hobbies: row.hobbies || [],
@@ -345,7 +360,8 @@ const api = {
   async loadDeck() {
     // Guests browse real people too. TOM never shows invented profiles.
     if (!this.user || this.user.isGuest || !this.user.id) {
-      const { data: guestRows } = await supabase.from("profiles").select(LIST_COLUMNS).limit(50);
+      const { data: guestRows, error: guestErr } = await supabase.from("profiles").select(LIST_COLUMNS).limit(50);
+      if (guestErr) return { error: guestErr.message };
       const guestCards = (guestRows || [])
         // NULL is not false in SQL, so these checks live here, not in the query
         .filter((p) => profileComplete(p) && p.is_deleted !== true && p.off_the_clock !== true)
@@ -386,7 +402,8 @@ const api = {
       }
     });
 
-    if (profErr) return { cards: [], error: profErr.message };
+    // No cards on failure, so the screen shows the retry banner instead of a false "you've seen everyone".
+    if (profErr) return { error: profErr.message };
     let cards = (allProfiles || [])
       // A row with no name is a half finished signup, not a person to show.
       // is_deleted and off_the_clock are checked against true, because NULL
@@ -897,6 +914,14 @@ const myLikes = () => new Set([
 ]);
 const sharedLikes = (p) => { const mine = myLikes(); return (p.likes || []).filter((l) => mine.has(l)); };
 // No known distance sorts to the back of the deck, but is never hidden.
+// "Show me" works both ways: you see someone only if they are who you asked to see,
+// and you are who they asked to see. A missing answer never hides anyone.
+function wantsToSee(pref, gender) {
+  if (!pref || pref === "everyone" || !gender) return true;
+  if (pref === "men") return gender === "man";
+  if (pref === "women") return gender === "woman";
+  return true;
+}
 const rankScore = (from, p) => {
   const km = haversineKm(from, p.loc);
   const base = km === null ? 100000 : km;
@@ -985,6 +1010,13 @@ const Ic = {
   Infinity: ({ s = 20, c = "#5B21B6" }) => (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M12 12c-2-2.8-3.3-4-5.3-4a4 4 0 0 0 0 8c2 0 3.3-1.2 5.3-4zm0 0c2 2.8 3.3 4 5.3 4a4 4 0 0 0 0-8c-2 0-3.3 1.2-5.3 4z" stroke={c} strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  ),
+  EyeOff: ({ s = 20, c = "#5B21B6" }) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M2.5 12S6 5.8 12 5.8 21.5 12 21.5 12 18 18.2 12 18.2 2.5 12 2.5 12z" stroke={c} strokeWidth="2" strokeLinejoin="round" />
+      <circle cx="12" cy="12" r="2.6" fill={c} />
+      <path d="M4 4l16 16" stroke={c} strokeWidth="2.2" strokeLinecap="round" />
     </svg>
   ),
   Eye: ({ s = 20, c = "#5B21B6" }) => (
@@ -1138,6 +1170,21 @@ function Field({ label, children }) {
     <div style={{ marginBottom: 14 }}>
       <div style={{ ...nu(800, 11.5, T.soft), letterSpacing: ".6px", textTransform: "uppercase", marginBottom: 6 }}>{label}</div>
       {children}
+    </div>
+  );
+}
+// A password box with an eye button, so people can check what they typed.
+function PasswordInput({ value, onChange, placeholder, autoComplete }) {
+  const { t } = useLang();
+  const [show, setShow] = useState(false);
+  return (
+    <div style={{ position: "relative" }}>
+      <input style={{ ...inputStyle, paddingRight: 48 }} type={show ? "text" : "password"} value={value} onChange={onChange}
+        placeholder={placeholder} autoComplete={autoComplete} autoCapitalize="off" autoCorrect="off" spellCheck={false} />
+      <button type="button" onClick={() => setShow((v) => !v)} aria-label={show ? t("hidePassword") : t("showPassword")} aria-pressed={show}
+        style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", width: 38, height: 38, borderRadius: 12, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {show ? <Ic.EyeOff s={20} c={T.royal} /> : <Ic.Eye s={20} c={T.soft} />}
+      </button>
     </div>
   );
 }
@@ -2225,6 +2272,7 @@ const STRINGS = {
     passwordsDontMatch: "Those passwords don't match",
     savePassword: "Save new password",
     yourName: "Your name", namePlaceholder: "What should we call you?",
+    showPassword: "Show password", hidePassword: "Hide password",
     emailLabel: "Email", passwordLabel: "Password", pw8: "8+ characters", yourPassword: "Your password",
     ageLabel: "Age", pleaseWait: "Please wait...", createAccount: "Create my account", signIn: "Sign in",
     alreadyOnTom: "Already on TOM? Sign in", newHere: "New here? Create an account",
@@ -2369,6 +2417,7 @@ const STRINGS = {
     passwordsDontMatch: "\u015eifreler e\u015fle\u015fmiyor",
     savePassword: "Yeni \u015fifreyi kaydet",
     yourName: "Ad\u0131n", namePlaceholder: "Sana nas\u0131l hitap edelim?",
+    showPassword: "\u015eifreyi g\u00f6ster", hidePassword: "\u015eifreyi gizle",
     emailLabel: "E-posta", passwordLabel: "\u015eifre", pw8: "En az 8 karakter", yourPassword: "\u015eifren",
     ageLabel: "Ya\u015f", pleaseWait: "L\u00fctfen bekleyin...", createAccount: "Hesab\u0131m\u0131 olu\u015ftur", signIn: "Giri\u015f yap",
     alreadyOnTom: "Zaten TOM'da m\u0131s\u0131n? Giri\u015f yap", newHere: "Yeni misin? Hesap olu\u015ftur",
@@ -2513,6 +2562,7 @@ const STRINGS = {
     passwordsDontMatch: "Las contrase\u00f1as no coinciden",
     savePassword: "Guardar contrase\u00f1a",
     yourName: "Tu nombre", namePlaceholder: "\u00bfC\u00f3mo te llamamos?",
+    showPassword: "Mostrar contrase\u00f1a", hidePassword: "Ocultar contrase\u00f1a",
     emailLabel: "Correo", passwordLabel: "Contrase\u00f1a", pw8: "8 caracteres o m\u00e1s", yourPassword: "Tu contrase\u00f1a",
     ageLabel: "Edad", pleaseWait: "Un momento...", createAccount: "Crear mi cuenta", signIn: "Iniciar sesi\u00f3n",
     alreadyOnTom: "\u00bfYa est\u00e1s en TOM? Inicia sesi\u00f3n", newHere: "\u00bfNuevo aqu\u00ed? Crea una cuenta",
@@ -2730,10 +2780,10 @@ function ResetPasswordScreen({ onDone }) {
         <p style={{ ...nu(700, 14, T.royal), margin: "6px 0 0" }}>{t("chooseNewPasswordSub")}</p>
       </div>
       <Field label={t("newPassword")}>
-        <input style={inputStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t("pw8")} />
+        <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t("pw8")} autoComplete="new-password" />
       </Field>
       <Field label={t("confirmPassword")}>
-        <input style={inputStyle} type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={t("pw8")} />
+        <PasswordInput value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={t("pw8")} autoComplete="new-password" />
       </Field>
       {error && <p style={{ ...nu(700, 13, T.red), margin: "0 0 12px" }}>{error}</p>}
       <PrimaryBtn disabled={busy || !password || !confirm} onClick={submit}>{busy ? t("pleaseWait") : t("savePassword")}</PrimaryBtn>
@@ -2803,7 +2853,7 @@ function Welcome({ onDone, initialMode }) {
       </div>
       {mode === "signup" && <Field label={t("yourName")}><input style={inputStyle} value={form.name} onChange={set("name")} placeholder={t("namePlaceholder")} /></Field>}
       <Field label={t("emailLabel")}><input style={inputStyle} type="email" value={form.email} onChange={set("email")} placeholder="you@example.com" /></Field>
-      {mode !== "forgot" && <Field label={t("passwordLabel")}><input style={inputStyle} type="password" value={form.password} onChange={set("password")} placeholder={mode === "signup" ? t("pw8") : t("yourPassword")} /></Field>}
+      {mode !== "forgot" && <Field label={t("passwordLabel")}><PasswordInput value={form.password} onChange={set("password")} placeholder={mode === "signup" ? t("pw8") : t("yourPassword")} autoComplete={mode === "signup" ? "new-password" : "current-password"} /></Field>}
       {mode === "signup" && <Field label={t("ageLabel")}><input style={inputStyle} type="number" value={form.age} onChange={set("age")} placeholder="18+" /></Field>}
       {error && <p style={{ ...nu(700, 13, T.red), margin: "0 0 12px" }}>{error}</p>}
       <PrimaryBtn disabled={busy} onClick={submit}>{busy ? t("pleaseWait") : (mode === "forgot" ? t("sendResetLink") : mode === "signup" ? t("createAccount") : t("signIn"))}</PrimaryBtn>
@@ -4193,7 +4243,7 @@ function BootScreen() {
   // One line chosen per appearance, so it rotates between loads
   const line = useRef(BOOT_LINES[Math.floor(Math.random() * BOOT_LINES.length)]).current;
   return (
-    <div style={{ minHeight: "100vh", background: `linear-gradient(180deg, ${T.lilac} 0%, #F7F4FD 100%)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px 28px", fontFamily: "Nunito, sans-serif" }}>
+    <div className="tom-shell" style={{ background: `linear-gradient(180deg, ${T.lilac} 0%, #F7F4FD 100%)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px 28px", fontFamily: "Nunito, sans-serif" }}>
       {FONT}
       <style>{`
         @keyframes tomBreathe {
@@ -4527,7 +4577,7 @@ function TomAppInner() {
     // A failed refresh here used to blank the whole connections list, since
     // m.matches is undefined on error and this wrote an empty array.
     if (!m.error) { setMatches(m.matches || []); hasLoadedMatches.current = true; }
-    setDeck(d.cards || []);
+    if (d.cards) setDeck(d.cards); else setLoadError(d.error || "Failed to load");
   };
 
   // Undo the last swipe. TOM+ perk: convenience, never the difference
@@ -4783,6 +4833,7 @@ function TomAppInner() {
         return km === null || km <= radius;
       })
       .filter((p) => !isReal || (p.age >= ageFilter.min && p.age <= ageFilter.max))
+      .filter((p) => !isReal || (wantsToSee(api.user.interestedIn, p.gender) && wantsToSee(p.interestedIn, api.user.gender)))
       .filter((p) => interestFilter.length === 0 || (p.likes || []).some((l) => interestFilter.includes(l)))
       .sort((a, b) => rankScore(deckOrigin, a) - rankScore(deckOrigin, b));
   }, [deck, myLoc, travelCity, ageFilter, interestFilter, radiusKm]);
@@ -4819,9 +4870,9 @@ function TomAppInner() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: `linear-gradient(180deg, ${T.lilac} 0%, #F7F4FD 100%)`, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, fontFamily: "Nunito, sans-serif" }}>
+    <div className="tom-shell" style={{ background: `linear-gradient(180deg, ${T.lilac} 0%, #F7F4FD 100%)`, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, fontFamily: "Nunito, sans-serif" }}>
       {FONT}
-      <div style={{ width: "100%", maxWidth: 390, height: "min(780px, 94vh)", background: "#FBFAFE", borderRadius: 34, overflow: "hidden", boxShadow: "0 24px 60px rgba(42,27,74,.22)", position: "relative", display: "flex", flexDirection: "column" }}>
+      <div className="tom-card" style={{ width: "100%", maxWidth: 390, background: "#FBFAFE", borderRadius: 34, overflow: "hidden", boxShadow: "0 24px 60px rgba(42,27,74,.22)", position: "relative", display: "flex", flexDirection: "column" }}>
         {screen !== "home" && (
           <header style={{ padding: "18px 20px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
@@ -4862,6 +4913,8 @@ function TomAppInner() {
         {screen === "builder" && <Builder editMode={editingProfile} onDone={() => { setEditingProfile(false); setScreen("main"); }} onExit={() => { setAuthMode("signin"); setScreen("welcome"); }} />}
         {screen === "main" && (
           <>
+            {/* Tab content scrolls inside this box, so the bottom menu can never be pushed off screen */}
+            <div className="tom-tabbody" style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", display: "flex", flexDirection: "column" }}>
             {tab === "discover" && showAdmirers && <AdmirersPanel admirers={admirers} myLoc={deckOrigin} onLikeBack={likeBackAdmirer} onBack={() => setShowAdmirers(false)} onReport={(p) => setReporting({ profile: p, from: "admirers" })} />}
             {tab === "discover" && !showAdmirers && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={deckOrigin} onGolden={onGolden} goldenLeft={goldenLeft} likesLeft={likesLeft} isPlus={isPlus} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "deck" })} locDenied={locDenied && !travelCity} loading={deckLoading} onPrimeTime={() => requirePlus("Weekly Prime Time", "Rise to the top of nearby decks for 7 days. A TOM+ perk.", () => setPrimeTimeOpen(true))} onUndo={undoLastSwipe} canUndo={Boolean(lastSwipe)} admirerCount={admirerCount} onAdmirers={openAdmirers} onTimeZones={() => setTimeZonesOpen(true)} onInvite={inviteFriend} onFilters={() => setFiltersOpen(true)} />}
             {tab === "missions" && <Missions matches={matches} onSend={(idea) => setMissionToSend(idea)} />}
@@ -4870,7 +4923,8 @@ function TomAppInner() {
               : <Matches matchesError={matchesError} onRetry={() => { setMatchesError(null); reloadMatches(); }} unreadBy={unreadBy} matches={matches} myLoc={myLoc} admirerCount={admirerCount} onUpgrade={openAdmirers} onReport={(p) => setReporting({ profile: p, from: "matches" })} onOpenChat={(p) => setChatWith(p)} loading={matchesLoading} pendingOutcome={quietOutcome} onAnswerOutcome={() => { setPendingOutcome(quietOutcome); snoozedOutcome.current = null; }} />
             )}
             {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} onLogout={logout} onOffClock={() => requirePlus("Off the Clock", "Go invisible without deleting anything. A TOM+ perk.", () => setOffClockOpen(true))} onEmailSettings={() => setEmailSettings(true)} onLanguage={() => setLanguageOpen(true)} myRep={myRep} onFreeTonight={toggleFreeTonight} onSearchPrefsSaved={() => { setRadiusKm((api.user && api.user.searchRadiusKm) ?? 50); reloadDeck(); }} />}
-            <nav style={{ display: "flex", justifyContent: "space-around", padding: "10px 8px 16px", background: T.white, borderTop: `1px solid ${T.lilac}` }}>
+            </div>
+            <nav className="tom-nav" style={{ flexShrink: 0, display: "flex", justifyContent: "space-around", padding: "10px 8px 16px", background: T.white, borderTop: `1px solid ${T.lilac}` }}>
               {tabs.map((t) => (
                 <button key={t.id} onClick={() => { setTab(t.id); setChatWith(null); }} style={{ position: "relative", border: "none", background: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "4px 14px" }}>
                   <span style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, opacity: tab === t.id ? 1 : 0.45 }}>
