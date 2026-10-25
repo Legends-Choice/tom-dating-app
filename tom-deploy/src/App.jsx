@@ -1,3 +1,4 @@
+// TOM App.jsx version: tom-v2026-10-25-welcome-tr-2nd-date (new welcome screens, guest mode removed, Turkish default, second date question)
 import React, { useState, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 
@@ -674,6 +675,17 @@ const api = {
       p_date_id: dateId, p_time_well_spent: timeWellSpent, p_traits: traits, p_flag: flag || null,
     });
     return error ? { error: error.message } : { ok: true };
+  },
+  // Second date: each person answers privately; only the result is shared
+  async answerSecondDate(dateId, wants) {
+    const { data, error } = await supabase.rpc("answer_second_date", { p_date_id: dateId, p_wants: Boolean(wants) });
+    return error ? { error: error.message } : { ok: true, state: data && data.state };
+  },
+  async secondDateStatus(matchId) {
+    if (!matchId) return null;
+    const { data, error } = await supabase.rpc("second_date_status", { p_match_id: matchId });
+    if (error || !data) return null;
+    return data; // { date_id, state: "need_answer" | "waiting" | "both_yes" | "not_this_time" }
   },
   async loadPendingReview() {
     // Returns the oldest completed date this user has not reviewed yet, or null
@@ -1781,42 +1793,128 @@ function ReviewModal({ pending, onDone, onSkip }) {
   const { t } = useLang();
   const L = useLabel();
   const [well, setWell] = useState(null); // true | false
+  const [second, setSecond] = useState(null); // true | false
   const [traits, setTraits] = useState([]);
   const [flag, setFlag] = useState(null);
   const [saving, setSaving] = useState(false);
-  const toggle = (t) => setTraits((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : prev.length < 3 ? [...prev, t] : prev);
+  const [mutual, setMutual] = useState(false);
+  const name = pending.other_name || "";
+  const toggle = (x) => setTraits((prev) => prev.includes(x) ? prev.filter((y) => y !== x) : prev.length < 3 ? [...prev, x] : prev);
   const submit = async () => {
-    if (well === null || saving) return;
+    if (well === null || second === null || saving) return;
     setSaving(true);
     await api.submitReview(pending.date_id, well, traits, flag);
+    const r = await api.answerSecondDate(pending.date_id, second);
+    // If the other person already said yes too, celebrate right here
+    if (r && r.state === "both_yes") { setSaving(false); setMutual(true); return; }
     setSaving(false);
     onDone();
   };
+  const label = { ...nu(800, 11, T.soft), letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 7 };
+  const yesNo = (value, set, yesKey, noKey) => (
+    <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+      <button onClick={() => set(true)} style={{ flex: 1, padding: "11px 0", borderRadius: 14, border: `2px solid ${value === true ? T.green : T.lilacDeep}`, background: value === true ? "#F0FBF5" : T.white, cursor: "pointer", ...fr(600, 14, value === true ? T.green : T.ink) }}>{t(yesKey)}</button>
+      <button onClick={() => set(false)} style={{ flex: 1, padding: "11px 0", borderRadius: 14, border: `2px solid ${value === false ? T.ink : T.lilacDeep}`, background: value === false ? T.lilac : T.white, cursor: "pointer", ...fr(600, 14, T.ink) }}>{t(noKey)}</button>
+    </div>
+  );
   return (
     <div style={{ position: "absolute", inset: 0, zIndex: 30, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div style={{ background: T.white, borderRadius: 26, padding: "22px 20px", width: "100%", maxWidth: 330, animation: "popIn .3s ease", maxHeight: "88%", overflowY: "auto" }}>
-        <h2 style={{ ...fr(700, 21, T.royal), margin: "0 0 2px", textAlign: "center" }}>Rate your TOM date</h2>
-        <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 14px", textAlign: "center" }}>With {pending.other_name}. About the time, never the looks.</p>
-        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 7 }}>Was it time well spent?</div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-          <button onClick={() => setWell(true)} style={{ flex: 1, padding: "11px 0", borderRadius: 14, border: `2px solid ${well === true ? T.green : T.lilacDeep}`, background: well === true ? "#F0FBF5" : T.white, cursor: "pointer", ...fr(600, 14, well === true ? T.green : T.ink) }}>Yes</button>
-          <button onClick={() => setWell(false)} style={{ flex: 1, padding: "11px 0", borderRadius: 14, border: `2px solid ${well === false ? T.ink : T.lilacDeep}`, background: well === false ? T.lilac : T.white, cursor: "pointer", ...fr(600, 14, T.ink) }}>Not really</button>
-        </div>
-        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 7 }}>What were they like? (pick up to 3)</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 14 }}>
-          {REVIEW_TRAITS.map((x) => <Chip key={x} label={L(x)} active={traits.includes(x)} onClick={() => toggle(x)} />)}
-        </div>
-        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 7 }}>Anything to flag? (optional, private)</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 16 }}>
-          {REVIEW_FLAGS.map((f) => (
-            <button key={f} onClick={() => setFlag(flag === f ? null : f)} style={{ textAlign: "left", padding: "9px 12px", borderRadius: 12, border: `2px solid ${flag === f ? T.royal : T.lilacDeep}`, background: flag === f ? T.lilac : T.white, cursor: "pointer", ...nu(700, 12.5, T.ink) }}>{L(f)}</button>
-          ))}
-        </div>
-        <PrimaryBtn disabled={well === null || saving} onClick={submit}>{saving ? "Sending..." : "Submit review"}</PrimaryBtn>
-        <button onClick={onSkip} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Skip for now</button>
+        {mutual ? (
+          <div style={{ textAlign: "center", padding: "10px 0 4px" }}>
+            <div style={{ display: "flex", justifyContent: "center", gap: 4, marginBottom: 12 }}><Ic.Heart s={34} c={T.royal} /><Ic.Heart s={34} c={T.sun} /></div>
+            <h2 style={{ ...fr(700, 24, T.royal), margin: "0 0 6px" }}>{t("sdMutualHead")}</h2>
+            <p style={{ ...nu(700, 14, T.ink), margin: "0 0 4px" }}>{t("sdBothTitle")}</p>
+            <p style={{ ...nu(700, 13, T.soft), margin: "0 0 18px" }}>{t("sdBothSub")}</p>
+            <PrimaryBtn onClick={onDone}>{t("sdGreat")}</PrimaryBtn>
+          </div>
+        ) : (
+          <>
+            <h2 style={{ ...fr(700, 21, T.royal), margin: "0 0 2px", textAlign: "center" }}>{t("rvTitle")}</h2>
+            <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 14px", textAlign: "center" }}>{t("rvWith").replace("{name}", name)}</p>
+            <div style={label}>{t("rvWell")}</div>
+            {yesNo(well, setWell, "rvYes", "rvNotReally")}
+            <div style={label}>{t("rvSecond")}</div>
+            {yesNo(second, setSecond, "rvYes", "rvNo")}
+            <p style={{ ...nu(700, 11.5, T.soft), margin: "-8px 0 14px", lineHeight: 1.4 }}>{t("rvSecondNote")}</p>
+            <div style={label}>{t("rvTraits")}</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 14 }}>
+              {REVIEW_TRAITS.map((x) => <Chip key={x} label={L(x)} active={traits.includes(x)} onClick={() => toggle(x)} />)}
+            </div>
+            <div style={label}>{t("rvFlag")}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 16 }}>
+              {REVIEW_FLAGS.map((f) => (
+                <button key={f} onClick={() => setFlag(flag === f ? null : f)} style={{ textAlign: "left", padding: "9px 12px", borderRadius: 12, border: `2px solid ${flag === f ? T.royal : T.lilacDeep}`, background: flag === f ? T.lilac : T.white, cursor: "pointer", ...nu(700, 12.5, T.ink) }}>{L(f)}</button>
+              ))}
+            </div>
+            <PrimaryBtn disabled={well === null || second === null || saving} onClick={submit}>{saving ? t("rvSending") : t("rvSubmit")}</PrimaryBtn>
+            <button onClick={onSkip} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{t("rvSkip")}</button>
+          </>
+        )}
       </div>
     </div>
   );
+}
+
+// Shown inside a chat after a completed date. Never reveals the other
+// person's answer before you have given yours, and never shows a raw "no":
+// only "both yes" or "not this time".
+function SecondDateBanner({ status, name, onAnswer, onPlan }) {
+  const { t } = useLang();
+  const [hidden, setHidden] = useState(false);
+  const [busy, setBusy] = useState(false);
+  if (!status || !status.state || hidden) return null;
+  const key = `tom-2nd-seen-${status.date_id}`;
+  if (status.state === "not_this_time") {
+    let seen = false;
+    try { seen = window.localStorage.getItem(key) === "1"; } catch {}
+    if (seen) return null;
+  }
+  const box = (bg, border) => ({ margin: "10px 16px 0", background: bg, border: `2px solid ${border}`, borderRadius: 16, padding: "12px 14px" });
+  const fill = (x) => x.replace("{name}", name || "");
+  if (status.state === "both_yes") {
+    return (
+      <div style={{ ...box("#FFF8E6", T.sun), display: "flex", alignItems: "center", gap: 12 }}>
+        <Ic.Heart s={26} c={T.royal} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={nu(800, 13.5, T.ink)}>{t("sdBothTitle")}</div>
+          <div style={nu(700, 12, "#6B4E00")}>{t("sdBothSub")}</div>
+        </div>
+        <button onClick={onPlan} style={{ border: "none", borderRadius: 999, padding: "8px 14px", background: T.royal, cursor: "pointer", ...fr(600, 12.5, T.white), whiteSpace: "nowrap" }}>{t("sdPlan")}</button>
+      </div>
+    );
+  }
+  if (status.state === "not_this_time") {
+    return (
+      <div style={box(T.lilac, T.lilacDeep)}>
+        <div style={nu(800, 13.5, T.ink)}>{t("sdNotTitle")}</div>
+        <div style={{ ...nu(700, 12, T.soft), margin: "2px 0 8px" }}>{t("sdNotSub")}</div>
+        <button onClick={() => { try { window.localStorage.setItem(key, "1"); } catch {} setHidden(true); }} style={{ border: "none", borderRadius: 999, padding: "7px 14px", background: T.white, cursor: "pointer", ...fr(600, 12.5, T.royal) }}>{t("sdDismiss")}</button>
+      </div>
+    );
+  }
+  if (status.state === "waiting") {
+    return (
+      <div style={box(T.white, T.lilacDeep)}>
+        <div style={nu(800, 13, T.ink)}>{t("sdWaitTitle")}</div>
+        <div style={nu(700, 12, T.soft)}>{fill(t("sdWaitSub"))}</div>
+      </div>
+    );
+  }
+  if (status.state === "need_answer") {
+    const answer = async (v) => { if (busy) return; setBusy(true); await onAnswer(status.date_id, v); setBusy(false); };
+    return (
+      <div style={box(T.white, T.royal)}>
+        <div style={nu(800, 13.5, T.ink)}>{fill(t("sdAskTitle"))}</div>
+        <div style={{ ...nu(700, 11.5, T.soft), margin: "2px 0 9px", lineHeight: 1.4 }}>{t("rvSecondNote")}</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button disabled={busy} onClick={() => answer(true)} style={{ flex: 1, padding: "9px 0", borderRadius: 12, border: `2px solid ${T.green}`, background: "#F0FBF5", cursor: "pointer", ...fr(600, 13.5, T.green) }}>{t("rvYes")}</button>
+          <button disabled={busy} onClick={() => answer(false)} style={{ flex: 1, padding: "9px 0", borderRadius: 12, border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", ...fr(600, 13.5, T.ink) }}>{t("rvNo")}</button>
+        </div>
+      </div>
+    );
+  }
+  return null;
 }
 
 function EmailSettingsModal({ onClose }) {
@@ -2295,6 +2393,33 @@ const STRINGS = {
     undo: "UNDO", gaveYouTime: "Gave you their time",
     tagline: "TIME OVER MONEY", hook: "Dating without the bill.",
     signUp: "Sign Up", logIn: "Log In", guest: "Continue as Guest",
+    rvTitle: "Rate your TOM date", rvWith: "With {name}. About the time, never the looks.",
+    rvWell: "Was it time well spent?", rvYes: "Yes", rvNotReally: "Not really", rvNo: "No",
+    rvSecond: "Would you like a second date?", rvSecondNote: "Only the result is shared: a second date, or not this time.",
+    rvTraits: "What were they like? (pick up to 3)", rvFlag: "Anything to flag? (optional, private)",
+    rvSubmit: "Submit review", rvSending: "Sending...", rvSkip: "Skip for now",
+    sdMutualHead: "It's mutual!", sdGreat: "Great",
+    sdBothTitle: "You both want a second date", sdBothSub: "No guessing. Pick the next free date.", sdPlan: "Plan it",
+    sdNotTitle: "No second date this time", sdNotSub: "Thanks for spending your time. The right one is out there.", sdDismiss: "Okay",
+    sdWaitTitle: "Your answer is in", sdWaitSub: "You'll find out once {name} answers.",
+    sdAskTitle: "Second date with {name}?",
+    wlHook: "Dating without", wlHookEm: "the bill.",
+    wlIntro: "Real people near you. Free dates. No one pays, so no one expects anything.",
+    wlF1: "Free to swipe. Free to match. Free to date.", wlF1s: "No catch. Just match.",
+    wlF2: "Mission Dates", wlF2s: "104 free date ideas. Pick one, send it straight to your match.",
+    wlF3: "Plan it in the chat", wlF3s: "Pick a day and time. They accept or suggest another.",
+    wlF4: "Rate the date", wlF4s: "You both rate it after. Find out if they want a second. No guessing if they liked you or not.",
+    wlCreate: "Create your free profile", wlHave: "Already on TOM?", wlHow: "How TOM works", wlNear: "Who is near me",
+    wlBack: "Back", wlHowLabel: "HOW TOM WORKS", wlHowTitle: "Not just a dating app.", wlHowTitleEm: "A way to actually meet.",
+    wlS1s: "Every date is free. Nobody pays, so nobody expects anything.",
+    wlS2: "Real people near you", wlS2s: "Meet people from your area for real connections, not endless swiping.",
+    wlS3s: "104 free date ideas, ready to go. Pick one and send it straight to your match. No more \"so what do you want to do?\"",
+    wlS4s: "Propose a day and time. They accept, decline or suggest another.",
+    wlS5: "You both rate the date", wlS5s: "After you meet, TOM checks in with both of you. Time well spent? Want a second date? You will know.",
+    wlTwoMin: "Takes about two minutes.",
+    wlNearLabel: "NEAR YOU", wlJoined: "people joined TOM this week", wlNearTitleAlt: "Real people. Real dates.",
+    wlNearSub: "Make a free profile to see who they are.", wlPrivate: "Profiles stay private",
+    wlSending: "FREE DATES PEOPLE ARE SENDING", wlSeeNear: "See who is near you",
     agree: "By continuing, you agree to our", terms: "Terms of Service",
     privacy: "Privacy Policy", and: "and", language: "Language",
     languageSub: "Choose how TOM speaks to you",
@@ -2440,6 +2565,33 @@ const STRINGS = {
     undo: "GERİ AL", gaveYouTime: "Sana zaman ayırdı",
     tagline: "PARA DEĞİL ZAMAN", hook: "Hesap ödemeden flört.",
     signUp: "Kayıt Ol", logIn: "Giriş Yap", guest: "Misafir olarak devam et",
+    rvTitle: "TOM randevunu puanla", rvWith: "{name} ile. Görünüş değil, geçirdiğiniz zaman.",
+    rvWell: "Zaman iyi geçti mi?", rvYes: "Evet", rvNotReally: "Pek değil", rvNo: "Hayır",
+    rvSecond: "İkinci bir randevu ister misin?", rvSecondNote: "Sadece sonuç paylaşılır: ikinci randevu ya da bu sefer değil.",
+    rvTraits: "Nasıl biriydi? (en fazla 3 seç)", rvFlag: "Bildirmek istediğin bir şey var mı? (isteğe bağlı, gizli)",
+    rvSubmit: "Puanı gönder", rvSending: "Gönderiliyor...", rvSkip: "Şimdilik geç",
+    sdMutualHead: "Karşılıklı!", sdGreat: "Harika",
+    sdBothTitle: "İkiniz de ikinci bir randevu istiyorsunuz", sdBothSub: "Tahmin yok. Sıradaki ücretsiz randevuyu seçin.", sdPlan: "Planla",
+    sdNotTitle: "Bu sefer ikinci randevu yok", sdNotSub: "Zaman ayırdığın için teşekkürler. Doğru kişi bir yerlerde.", sdDismiss: "Tamam",
+    sdWaitTitle: "Cevabın alındı", sdWaitSub: "{name} cevap verince öğreneceksin.",
+    sdAskTitle: "{name} ile ikinci randevu?",
+    wlHook: "Hesap derdi olmadan", wlHookEm: "flört.",
+    wlIntro: "Yakınındaki gerçek insanlar. Ücretsiz randevular. Kimse ödemiyor, kimse bir şey beklemiyor.",
+    wlF1: "Kaydırmak ücretsiz. Eşleşmek ücretsiz. Buluşmak ücretsiz.", wlF1s: "Hiçbir tuzak yok. Sadece eşleş.",
+    wlF2: "Görev Randevuları", wlF2s: "104 ücretsiz randevu fikri. Birini seç, doğrudan eşleşmene gönder.",
+    wlF3: "Sohbette planla", wlF3s: "Bir gün ve saat seç. Kabul eder ya da başka bir zaman önerir.",
+    wlF4: "Randevuyu puanla", wlF4s: "Sonrasında ikiniz de puanlıyorsunuz. İkinci bir randevu isteyip istemediğini öğren. Seni beğenip beğenmediğini tahmin etmeye gerek yok.",
+    wlCreate: "Ücretsiz profilini oluştur", wlHave: "Zaten TOM'da mısın?", wlHow: "TOM nasıl çalışır", wlNear: "Yakınımda kimler var",
+    wlBack: "Geri", wlHowLabel: "TOM NASIL ÇALIŞIR", wlHowTitle: "Sadece bir flört uygulaması değil.", wlHowTitleEm: "Gerçekten tanışmanın yolu.",
+    wlS1s: "Her randevu ücretsiz. Kimse ödemiyor, kimse bir şey beklemiyor.",
+    wlS2: "Yakınındaki gerçek insanlar", wlS2s: "Bitmeyen kaydırmalar yerine, çevrendeki insanlarla gerçek bağlar kur.",
+    wlS3s: "104 ücretsiz randevu fikri hazır. Birini seç ve doğrudan eşleşmene gönder. Artık \"ne yapalım?\" yok.",
+    wlS4s: "Bir gün ve saat öner. Kabul eder, reddeder ya da başka bir zaman önerir.",
+    wlS5: "İkiniz de randevuyu puanlıyorsunuz", wlS5s: "Buluştuktan sonra TOM ikinize de soruyor. Zamanınız iyi geçti mi? İkinci bir randevu ister misiniz? Bileceksin.",
+    wlTwoMin: "Yaklaşık iki dakika sürer.",
+    wlNearLabel: "YAKININDA", wlJoined: "kişi bu hafta TOM'a katıldı", wlNearTitleAlt: "Gerçek insanlar. Gerçek randevular.",
+    wlNearSub: "Kim olduklarını görmek için ücretsiz profilini oluştur.", wlPrivate: "Profiller gizli kalır",
+    wlSending: "İNSANLARIN GÖNDERDİĞİ ÜCRETSİZ RANDEVULAR", wlSeeNear: "Yakınındakileri gör",
     agree: "Devam ederek şunları kabul edersiniz:", terms: "Kullanım Şartları",
     privacy: "Gizlilik Politikası", and: "ve", language: "Dil",
     languageSub: "TOM'un sizinle hangi dilde konuşacağını seçin",
@@ -2585,6 +2737,33 @@ const STRINGS = {
     undo: "DESHACER", gaveYouTime: "Te dio su tiempo",
     tagline: "TIEMPO SOBRE DINERO", hook: "Citas sin la cuenta.",
     signUp: "Registrarse", logIn: "Iniciar sesión", guest: "Continuar como invitado",
+    rvTitle: "Califica tu cita TOM", rvWith: "Con {name}. Sobre el tiempo, nunca el físico.",
+    rvWell: "¿Valió la pena el tiempo?", rvYes: "Sí", rvNotReally: "No mucho", rvNo: "No",
+    rvSecond: "¿Te gustaría una segunda cita?", rvSecondNote: "Solo se comparte el resultado: segunda cita, o esta vez no.",
+    rvTraits: "¿Cómo fue? (elige hasta 3)", rvFlag: "¿Algo que reportar? (opcional, privado)",
+    rvSubmit: "Enviar", rvSending: "Enviando...", rvSkip: "Omitir por ahora",
+    sdMutualHead: "¡Es mutuo!", sdGreat: "Genial",
+    sdBothTitle: "Los dos quieren una segunda cita", sdBothSub: "Sin adivinar. Elijan la próxima cita gratis.", sdPlan: "Planearla",
+    sdNotTitle: "Esta vez no hay segunda cita", sdNotSub: "Gracias por tu tiempo. La persona indicada está ahí fuera.", sdDismiss: "Vale",
+    sdWaitTitle: "Tu respuesta está enviada", sdWaitSub: "Lo sabrás cuando {name} responda.",
+    sdAskTitle: "¿Segunda cita con {name}?",
+    wlHook: "Citas sin", wlHookEm: "la cuenta.",
+    wlIntro: "Gente real cerca de ti. Citas gratis. Nadie paga, así que nadie espera nada.",
+    wlF1: "Deslizar es gratis. Hacer match es gratis. Las citas son gratis.", wlF1s: "Sin trampa. Solo haz match.",
+    wlF2: "Citas Misión", wlF2s: "104 ideas de citas gratis. Elige una y envíala directo a tu match.",
+    wlF3: "Planéala en el chat", wlF3s: "Elige día y hora. Acepta o propone otro momento.",
+    wlF4: "Califica la cita", wlF4s: "Los dos la califican después. Descubre si quiere una segunda. Sin adivinar si le gustaste o no.",
+    wlCreate: "Crea tu perfil gratis", wlHave: "¿Ya estás en TOM?", wlHow: "Cómo funciona TOM", wlNear: "Quién está cerca",
+    wlBack: "Atrás", wlHowLabel: "CÓMO FUNCIONA TOM", wlHowTitle: "No es solo una app de citas.", wlHowTitleEm: "Es una forma de conocerse de verdad.",
+    wlS1s: "Todas las citas son gratis. Nadie paga, así que nadie espera nada.",
+    wlS2: "Gente real cerca de ti", wlS2s: "Conoce gente de tu zona y crea conexiones reales, no deslices sin fin.",
+    wlS3s: "104 ideas de citas gratis, listas para usar. Elige una y envíala directo a tu match. Se acabó el \"¿y qué hacemos?\"",
+    wlS4s: "Propón día y hora. Acepta, rechaza o propone otro momento.",
+    wlS5: "Los dos califican la cita", wlS5s: "Después de verse, TOM les pregunta a los dos. ¿Valió la pena? ¿Quieren una segunda cita? Lo sabrás.",
+    wlTwoMin: "Toma unos dos minutos.",
+    wlNearLabel: "CERCA DE TI", wlJoined: "personas se unieron a TOM esta semana", wlNearTitleAlt: "Gente real. Citas reales.",
+    wlNearSub: "Crea un perfil gratis para ver quiénes son.", wlPrivate: "Los perfiles son privados",
+    wlSending: "CITAS GRATIS QUE LA GENTE ESTÁ ENVIANDO", wlSeeNear: "Ver quién está cerca",
     agree: "Al continuar, aceptas nuestros", terms: "Términos del Servicio",
     privacy: "Política de Privacidad", and: "y", language: "Idioma",
     languageSub: "Elige cómo TOM te habla",
@@ -2673,7 +2852,11 @@ const STRINGS = {
   },
 };
 
-const LangCtx = React.createContext({ lang: "en", setLang: () => {}, t: (k) => STRINGS.en[k] });
+// Default language for anyone who has not chosen one yet. Change to "en" when
+// TOM launches outside Turkey.
+const DEFAULT_LANG = "tr";
+
+const LangCtx = React.createContext({ lang: DEFAULT_LANG, setLang: () => {}, t: (k) => STRINGS.en[k] });
 const useLang = () => React.useContext(LangCtx);
 
 function LanguageProvider({ children }) {
@@ -2681,9 +2864,10 @@ function LanguageProvider({ children }) {
     try {
       const saved = window.localStorage.getItem("tom-lang");
       if (saved && STRINGS[saved]) return saved;
-      const browser = (navigator.language || "en").slice(0, 2);
-      return STRINGS[browser] ? browser : "en";
-    } catch { return "en"; }
+      // Launch market is Kadıköy, so everyone starts in Turkish unless they
+      // have already picked a language themselves.
+      return DEFAULT_LANG;
+    } catch { return DEFAULT_LANG; }
   });
   const setLang = (code) => {
     setLangState(code);
@@ -2694,14 +2878,14 @@ function LanguageProvider({ children }) {
 }
 
 // Text codes rather than flag emojis, per the no keyboard emoji rule
-function LanguageSelector() {
+function LanguageSelector({ top = false }) {
   const { lang, setLang } = useLang();
   const [open, setOpen] = useState(false);
   const current = LANGS.find((l) => l.code === lang) || LANGS[0];
   return (
-    <div style={{ position: "absolute", right: 16, bottom: 16, zIndex: 50 }}>
+    <div style={{ position: "absolute", right: 16, ...(top ? { top: 16 } : { bottom: 16 }), zIndex: 50 }}>
       {open && (
-        <div style={{ position: "absolute", bottom: 42, right: 0, background: T.white, borderRadius: 14, boxShadow: "0 8px 24px rgba(42,27,74,.18)", border: `1px solid ${T.lilac}`, overflow: "hidden", minWidth: 132 }}>
+        <div style={{ position: "absolute", ...(top ? { top: 42 } : { bottom: 42 }), right: 0, background: T.white, borderRadius: 14, boxShadow: "0 8px 24px rgba(42,27,74,.18)", border: `1px solid ${T.lilac}`, overflow: "hidden", minWidth: 132 }}>
           {LANGS.map((l) => (
             <button key={l.code} onClick={() => { setLang(l.code); setOpen(false); }}
               style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "10px 13px", border: "none", background: l.code === lang ? T.lilac : T.white, cursor: "pointer", ...nu(700, 13, l.code === lang ? T.royal : T.ink) }}>
@@ -2712,42 +2896,257 @@ function LanguageSelector() {
         </div>
       )}
       <button onClick={() => setOpen((v) => !v)} aria-label="Change language"
-        style={{ display: "flex", alignItems: "center", gap: 6, background: T.royal, border: "none", borderRadius: 999, padding: "8px 14px", cursor: "pointer", boxShadow: "0 4px 12px rgba(91,33,182,.28)" }}>
-        <Ic.Globe s={15} c={T.white} />
-        <span style={fr(600, 13, T.white)}>{current.short}</span>
+        style={{ display: "flex", alignItems: "center", gap: 6, background: top ? T.white : T.royal, border: "none", borderRadius: 999, padding: "8px 14px", minHeight: 36, cursor: "pointer", boxShadow: top ? "0 4px 12px rgba(20,8,50,.25)" : "0 4px 12px rgba(91,33,182,.28)" }}>
+        <Ic.Globe s={15} c={top ? T.royal : T.white} />
+        <span style={fr(600, 13, top ? T.royal : T.white)}>{current.short}</span>
       </button>
     </div>
   );
 }
 
-function Home({ onPick, onLegal }) {
+// ================= Welcome / sign up gate =================
+// No guest browsing: people learn what TOM is here, then sign up to see anyone.
+// The "Who is near me" teaser never shows real photos or names.
+
+// Only show the "X people joined this week" line once the number is worth showing.
+const TEASER_MIN_COUNT = 10;
+
+// Real ideas from the Missions library, translated through useIdeaText()
+const TEASER_IDEAS = [
+  "Walk on ferry ride at golden hour, best story wins",
+  "Follow a street cat and see where it takes us",
+  "Sunset picnic, you each bring something from home",
+];
+
+const WL_DARK = "#2A1060";
+const WL_BODY = "#5A4D73";
+const WL_CARD = "#F5F0FF";
+
+const WlIcon = {
+  Check: ({ s = 24, c = T.royal }) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5" /></svg>
+  ),
+  Calendar: ({ s = 24, c = T.royal }) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M4 10h16" /><path d="M9 3v4" /><path d="M15 3v4" /></svg>
+  ),
+  Star: ({ s = 24, c = T.royal }) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z" /></svg>
+  ),
+  Info: ({ s = 18, c = T.royal }) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><path d="M12 8h.01" /></svg>
+  ),
+  Pin: ({ s = 18, c = T.royal }) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 21s-6-5.6-6-11a6 6 0 0 1 12 0c0 5.4-6 11-6 11z" /><circle cx="12" cy="10" r="2.2" /></svg>
+  ),
+  Back: ({ s = 20, c = T.ink }) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+  ),
+  Lock: ({ s = 20, c = T.royal }) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
+  ),
+};
+
+function WlPrimary({ onClick, children }) {
+  return (
+    <button onClick={onClick} style={{ ...nu(800, 17, T.white), height: 56, width: "100%", border: "none", borderRadius: 28, background: T.royal, cursor: "pointer", boxShadow: "0 6px 16px rgba(91,33,182,.25)" }}>
+      {children}
+    </button>
+  );
+}
+
+function WlSubHeader({ label, onBack }) {
   const { t } = useLang();
   return (
-    <div style={{ flex: 1, background: T.white, display: "flex", flexDirection: "column", padding: "0 28px 26px", textAlign: "center", position: "relative" }}>
-      <LanguageSelector />
-      <div style={{ flex: 1.2, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end" }}>
-        <h1 style={{ ...fr(700, 68, T.royal), margin: 0, lineHeight: 1, letterSpacing: "2px" }}>
-          TOM<span style={{ color: T.sun }}>.</span>
-        </h1>
-        <p style={{ ...nu(800, 15, T.soft), margin: "12px 0 0", letterSpacing: "4px" }}>{t("tagline")}</p>
-        <p style={{ ...fr(600, 23, T.royal), margin: "30px 0 0" }}>{t("hook")}</p>
+    <div style={{ padding: "22px 24px 6px", display: "flex", alignItems: "center", gap: 12 }}>
+      <button onClick={onBack} aria-label={t("wlBack")} style={{ width: 44, height: 44, borderRadius: 22, background: T.white, border: "1px solid #E9E0FB", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+        <WlIcon.Back />
+      </button>
+      <span style={{ ...nu(800, 13, "#6B5B8A"), letterSpacing: "1.6px" }}>{t(label)}</span>
+    </div>
+  );
+}
+
+function WelcomeMain({ onPick, onLegal, go }) {
+  const { t } = useLang();
+  const features = [
+    { icon: <WlIcon.Check />, title: "wlF1", sub: "wlF1s" },
+    { icon: <Ic.Compass s={24} c={T.royal} />, title: "wlF2", sub: "wlF2s" },
+    { icon: <WlIcon.Calendar />, title: "wlF3", sub: "wlF3s" },
+    { icon: <WlIcon.Star />, title: "wlF4", sub: "wlF4s" },
+  ];
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", display: "flex", flexDirection: "column" }}>
+        <div style={{ background: T.royal, borderRadius: "0 0 34px 34px", padding: "54px 28px 30px", display: "flex", flexDirection: "column", gap: 12, position: "relative", overflow: "hidden", flexShrink: 0 }}>
+          <svg aria-hidden="true" width="220" height="220" viewBox="0 0 220 220" style={{ position: "absolute", right: -60, top: -40, opacity: 0.18, pointerEvents: "none" }}>
+            <circle cx="110" cy="110" r="90" fill="none" stroke="#FFFFFF" strokeWidth="3" />
+            <line x1="110" y1="110" x2="110" y2="48" stroke={T.sun} strokeWidth="6" strokeLinecap="round" />
+            <line x1="110" y1="110" x2="152" y2="132" stroke="#FFFFFF" strokeWidth="6" strokeLinecap="round" />
+          </svg>
+          <LanguageSelector top />
+          <h1 style={{ ...fr(700, 60, T.white), margin: 0, lineHeight: 1, letterSpacing: "1px" }}>TOM<span style={{ color: T.sun }}>.</span></h1>
+          <p style={{ ...fr(600, 25, T.white), margin: 0, lineHeight: 1.15 }}>{t("wlHook")} <span style={{ color: T.sun }}>{t("wlHookEm")}</span></p>
+          <p style={{ ...nu(600, 14.5, "#EDE4FF"), margin: 0, lineHeight: 1.45, maxWidth: 300 }}>{t("wlIntro")}</p>
+        </div>
+
+        <div style={{ padding: "18px 20px 0", display: "flex", flexDirection: "column", gap: 9 }}>
+          {features.map((f) => (
+            <div key={f.title} style={{ display: "flex", alignItems: "center", gap: 12, background: WL_CARD, borderRadius: 18, padding: "11px 14px" }}>
+              <span style={{ flexShrink: 0, display: "flex" }}>{f.icon}</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 2, textAlign: "left" }}>
+                <span style={nu(800, 15, T.ink)}>{t(f.title)}</span>
+                <span style={{ ...nu(600, 13, WL_BODY), lineHeight: 1.35 }}>{t(f.sub)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ flex: 1, minHeight: 18 }} />
+
+        <div style={{ padding: "0 24px 12px", display: "flex", flexDirection: "column", gap: 10, alignItems: "center" }}>
+          <WlPrimary onClick={() => onPick("signup")}>{t("wlCreate")}</WlPrimary>
+          <div style={{ display: "flex", gap: 6, alignItems: "center", ...nu(600, 14, WL_BODY) }}>
+            {t("wlHave")}
+            <button onClick={() => onPick("signin")} style={{ ...nu(800, 14, T.royal), border: "none", background: "none", cursor: "pointer", padding: "8px 2px" }}>{t("logIn")}</button>
+          </div>
+          <p style={{ ...nu(600, 11.5, T.soft), margin: 0, lineHeight: 1.5, textAlign: "center" }}>
+            {t("agree")}{" "}
+            <button onClick={() => onLegal("terms")} style={{ ...nu(800, 11.5, T.soft), border: "none", background: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>{t("terms")}</button>{" "}{t("and")}{" "}<button onClick={() => onLegal("privacy")} style={{ ...nu(800, 11.5, T.soft), border: "none", background: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>{t("privacy")}</button>
+          </p>
+        </div>
       </div>
-      <div style={{ flex: 1 }} />
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <button onClick={() => onPick("signup")} style={{ ...fr(600, 18, T.white), background: T.royal, border: "none", borderRadius: 16, padding: "16px 0", cursor: "pointer", boxShadow: "0 6px 16px rgba(91,33,182,.25)" }}>
-          {t("signUp")}
+
+      <div style={{ display: "flex", borderTop: "1px solid #EFE8FC", flexShrink: 0, background: T.white }}>
+        <button onClick={() => go("how")} style={{ flex: 1, height: 56, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, border: "none", borderRight: "1px solid #EFE8FC", background: "none", cursor: "pointer", ...nu(800, 14, T.royal) }}>
+          <WlIcon.Info /> {t("wlHow")}
         </button>
-        <button onClick={() => onPick("signin")} style={{ ...fr(600, 18, T.royal), background: T.white, border: `2px solid ${T.royal}`, borderRadius: 16, padding: "14px 0", cursor: "pointer" }}>
-          {t("logIn")}
-        </button>
-        <button onClick={() => onPick("guest")} style={{ ...fr(600, 16, T.royal), background: "none", border: "none", cursor: "pointer", padding: "10px 0", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
-          {t("guest")} <Ic.Chevron s={13} c={T.royal} />
+        <button onClick={() => go("near")} style={{ flex: 1, height: 56, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, border: "none", background: "none", cursor: "pointer", ...nu(800, 14, T.royal) }}>
+          <WlIcon.Pin /> {t("wlNear")}
         </button>
       </div>
-      <p style={{ ...nu(600, 12, T.soft), margin: "14px 0 0", lineHeight: 1.6 }}>
-        {t("agree")}<br />
-        <button onClick={() => onLegal("terms")} style={{ ...nu(800, 12, T.soft), border: "none", background: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>{t("terms")}</button>&nbsp;&nbsp;{t("and")}&nbsp;&nbsp;<button onClick={() => onLegal("privacy")} style={{ ...nu(800, 12, T.soft), border: "none", background: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>{t("privacy")}</button>
-      </p>
+    </div>
+  );
+}
+
+function WelcomeHow({ onPick, go }) {
+  const { t } = useLang();
+  const steps = [
+    { title: "wlF1", sub: "wlS1s" },
+    { title: "wlS2", sub: "wlS2s" },
+    { title: "wlF2", sub: "wlS3s" },
+    { title: "wlF3", sub: "wlS4s" },
+    { title: "wlS5", sub: "wlS5s", dark: true },
+  ];
+  return (
+    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", background: "#FBF9FF", display: "flex", flexDirection: "column", textAlign: "left" }}>
+      <WlSubHeader label="wlHowLabel" onBack={() => go("main")} />
+      <h2 style={{ ...fr(600, 28, T.ink), margin: 0, padding: "10px 24px 16px", lineHeight: 1.12 }}>
+        {t("wlHowTitle")} <span style={{ color: T.royal }}>{t("wlHowTitleEm")}</span>
+      </h2>
+      <div style={{ padding: "0 20px", display: "flex", flexDirection: "column", gap: 10 }}>
+        {steps.map((s, i) => (
+          <div key={s.title + i} style={{ display: "flex", gap: 14, background: s.dark ? WL_DARK : T.white, border: s.dark ? "none" : "1px solid #EEE7FC", borderRadius: 20, padding: 14 }}>
+            <span style={{ flex: "0 0 40px", height: 40, borderRadius: 20, background: s.dark ? T.sun : T.royal, ...fr(700, 18, s.dark ? WL_DARK : T.white), display: "flex", alignItems: "center", justifyContent: "center" }}>{i + 1}</span>
+            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              <span style={nu(800, 15, s.dark ? T.white : T.ink)}>{t(s.title)}</span>
+              <span style={{ ...nu(600, 13, s.dark ? "#E3D8FA" : WL_BODY), lineHeight: 1.4 }}>{t(s.sub)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ flex: 1, minHeight: 20 }} />
+      <div style={{ padding: "0 24px 26px", display: "flex", flexDirection: "column", gap: 10, alignItems: "center" }}>
+        <WlPrimary onClick={() => onPick("signup")}>{t("wlCreate")}</WlPrimary>
+        <span style={nu(600, 13, "#6B5B8A")}>{t("wlTwoMin")}</span>
+      </div>
+    </div>
+  );
+}
+
+function WelcomeNear({ onPick, go }) {
+  const { t } = useLang();
+  const ideaText = useIdeaText();
+  const [count, setCount] = useState(null);
+
+  React.useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+        const { count: n, error } = await supabase
+          .from("profiles")
+          .select("id", { count: "exact", head: true })
+          .gte("created_at", since)
+          .not("is_deleted", "is", true);
+        if (alive && !error && typeof n === "number") setCount(n);
+      } catch { /* the count is optional; the screen works without it */ }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  const showCount = typeof count === "number" && count >= TEASER_MIN_COUNT;
+  const tiles = [
+    ["#E7DBFF", "#9F7AEA", "#7C3AED"],
+    ["#FDE9C4", "#D9A04A", "#B4772A"],
+    ["#DCE6FF", "#7E93D6", "#4C5FAF"],
+    ["#F6DDF0", "#C77DB4", "#9B4E89"],
+  ];
+  const ideas = TEASER_IDEAS
+    .map((idea) => ALL_IDEAS.find((i) => i.idea === idea))
+    .filter(Boolean);
+
+  return (
+    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", background: T.white, display: "flex", flexDirection: "column", textAlign: "left" }}>
+      <WlSubHeader label="wlNearLabel" onBack={() => go("main")} />
+      <div style={{ padding: "8px 24px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
+        <h2 style={{ ...fr(600, 28, T.ink), margin: 0, lineHeight: 1.1 }}>
+          {showCount
+            ? <><span style={{ color: T.royal }}>{count}</span> {t("wlJoined")}</>
+            : t("wlNearTitleAlt")}
+        </h2>
+        <span style={nu(600, 14, WL_BODY)}>{t("wlNearSub")}</span>
+      </div>
+
+      <div style={{ padding: "0 20px", position: "relative" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }} aria-hidden="true">
+          {tiles.map(([bg, head, body], i) => (
+            <div key={i} style={{ height: 140, borderRadius: 22, background: bg, overflow: "hidden", position: "relative" }}>
+              <div style={{ position: "absolute", left: "50%", top: 30, width: 56, height: 56, marginLeft: -28, borderRadius: 28, background: head, filter: "blur(9px)" }} />
+              <div style={{ position: "absolute", left: "50%", bottom: -30, width: 120, height: 80, marginLeft: -60, borderRadius: 60, background: body, filter: "blur(11px)" }} />
+            </div>
+          ))}
+        </div>
+        <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", background: T.white, borderRadius: 30, padding: "12px 20px", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 10px 30px rgba(42,16,96,0.22)", whiteSpace: "nowrap" }}>
+          <WlIcon.Lock />
+          <span style={nu(800, 14, T.ink)}>{t("wlPrivate")}</span>
+        </div>
+      </div>
+
+      <span style={{ ...nu(800, 12.5, "#6B5B8A"), letterSpacing: "1.4px", padding: "20px 24px 8px" }}>{t("wlSending")}</span>
+      <div style={{ padding: "0 20px", display: "flex", flexDirection: "column", gap: 8 }}>
+        {ideas.map((i) => (
+          <div key={i.idea} style={{ display: "flex", alignItems: "center", gap: 12, border: "1px solid #EEE7FC", borderRadius: 18, padding: "12px 14px" }}>
+            <span style={{ flexShrink: 0, display: "flex" }}>{React.createElement(Ic[i.icon] || Ic.Compass, { s: 22, c: T.royal })}</span>
+            <span style={{ ...nu(700, 14, T.ink), lineHeight: 1.35 }}>{ideaText(i.idea)}</span>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ flex: 1, minHeight: 20 }} />
+      <div style={{ padding: "0 24px 26px" }}>
+        <WlPrimary onClick={() => onPick("signup")}>{t("wlSeeNear")}</WlPrimary>
+      </div>
+    </div>
+  );
+}
+
+function Home({ onPick, onLegal }) {
+  const [view, setView] = useState("main");
+  return (
+    <div style={{ flex: 1, minHeight: 0, background: T.white, display: "flex", flexDirection: "column", position: "relative" }}>
+      {view === "main" && <WelcomeMain onPick={onPick} onLegal={onLegal} go={setView} />}
+      {view === "how" && <WelcomeHow onPick={onPick} go={setView} />}
+      {view === "near" && <WelcomeNear onPick={onPick} go={setView} />}
     </div>
   );
 }
@@ -3364,18 +3763,21 @@ function Chat({ profile, onBack, onDateCompleted, myLoc, isPlus = false, onRepor
   const [ideaCat, setIdeaCat] = useState("all");
   const [planDouble, setPlanDouble] = useState(false);
   const [viewing, setViewing] = useState(null);
+  const [secondDate, setSecondDate] = useState(null);
   const endRef = useRef(null);
   const inputRef = useRef(null);
   const myId = api.user && api.user.id;
 
   const refresh = React.useCallback(async () => {
     if (!profile.matchId) { setLoading(false); return; }
-    const [rows, p] = await Promise.all([
+    const [rows, p, sd] = await Promise.all([
       api.loadMessages(profile.matchId),
       api.getPlannedDate(profile.matchId),
+      api.secondDateStatus(profile.matchId),
     ]);
     setMessages(rows);
     setPlan(p && p.status !== "completed" ? p : null);
+    setSecondDate(sd);
     setLoading(false);
   }, [profile.matchId]);
 
@@ -3461,6 +3863,11 @@ function Chat({ profile, onBack, onDateCompleted, myLoc, isPlus = false, onRepor
         )}
       </div>
       <PlanBanner plan={plan} myId={myId} profileName={profile.name} onConfirm={confirmPlan} onComplete={completePlan} />
+      {!plan && !planning && (
+        <SecondDateBanner status={secondDate} name={profile.name}
+          onAnswer={async (dateId, wants) => { await api.answerSecondDate(dateId, wants); refresh(); }}
+          onPlan={() => { setPlanDraft(""); setPlanning(true); }} />
+      )}
       {planning && (
         <div style={{ margin: "10px 16px 0", background: T.white, border: `2px solid ${T.lilacDeep}`, borderRadius: 16, padding: "11px 13px" }}>
           <div style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".5px", textTransform: "uppercase", marginBottom: 6 }}>{t("proposeADate")}</div>
@@ -4900,13 +5307,9 @@ function TomAppInner() {
         )}
 
         {screen === "home" && <Home onLegal={setLegal} onPick={(mode) => {
-          if (mode === "guest") {
-            api.user = { name: "Guest", age: null, isGuest: true, heightCm: null, gender: null, orientation: null, interestedIn: null, chronotype: null, bio: "", city: "", thingsILikeToDo: [], interests: [], hobbies: [], profilePhoto: null, photos: [], searchRadiusKm: 50, distanceUnit: "km", availability: [], freeTonightUntil: null, openToDoubles: false };
-            setScreen("main");
-          } else {
-            setAuthMode(mode);
-            setScreen("welcome");
-          }
+          // Guest browsing removed: everyone signs up or logs in to see people.
+          setAuthMode(mode);
+          setScreen("welcome");
         }} />}
         {screen === "reset" && <ResetPasswordScreen onDone={(target) => setScreen(target)} />}
         {screen === "welcome" && <Welcome initialMode={authMode} onDone={(target) => setScreen(target)} />}
