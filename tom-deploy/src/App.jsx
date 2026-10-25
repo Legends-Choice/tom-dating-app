@@ -1,4 +1,4 @@
-// TOM App.jsx version: tom-v2026-10-25-final (sideways screen fix + official TOM logo + photo header, all in this one file; includes tom-v2026-10-25-welcome-tr-2nd-date)
+// TOM App.jsx version: tom-v2026-10-25-final3 (whole app in Turkish + loading screen centered on phones + sideways screen fix + official TOM logo + photo header, all in this one file; includes tom-v2026-10-25-welcome-tr-2nd-date)
 import React, { useState, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 
@@ -177,10 +177,10 @@ function dbRowToCard(row) {
     grad: CARD_GRADIENTS[h % CARD_GRADIENTS.length],
     photo: row.avatar_url || null,
     photos: row.gallery_photos || [],
-    vibe: likes[0] || "New here",
+    vibe: likes[0] || tx("New here"),
     tags: (row.hobbies && row.hobbies.length ? row.hobbies : (row.interests || [])).slice(0, 2),
     idea: DATE_IDEAS[h % DATE_IDEAS.length],
-    bio: row.bio || "Just joined TOM. Say hi!",
+    bio: row.bio || tx("Just joined TOM. Say hi!"),
     // Everything below powers the full profile view
     city: row.location || null,
     heightCm: row.height_cm ?? null,
@@ -250,17 +250,17 @@ const startOfTodayISO = () => {
 const api = {
   user: null,
   async signup({ name, email, password, age }) {
-    if (!name.trim()) return { error: "Name required" };
+    if (!name.trim()) return { error: tx("Name required") };
     const mail = (email || "").trim().toLowerCase();
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) return { error: "Valid email required" };
-    if (password.length < 8) return { error: "Password must be at least 8 characters" };
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) return { error: tx("Valid email required") };
+    if (password.length < 8) return { error: tx("Password must be at least 8 characters") };
     const a = Number(age);
-    if (!Number.isInteger(a) || a < 18 || a > 120) return { error: "You must be 18 or older to join TOM" };
+    if (!Number.isInteger(a) || a < 18 || a > 120) return { error: tx("You must be 18 or older to join TOM") };
 
     const { data, error } = await supabase.auth.signUp({ email: mail, password });
     if (error) return { error: error.message };
     const authUser = data.user;
-    if (!authUser) return { error: "Check your email to confirm your account, then sign in." };
+    if (!authUser) return { error: tx("Check your email to confirm your account, then sign in.") };
 
     const user = {
       id: authUser.id,
@@ -281,7 +281,7 @@ const api = {
   async login({ email, password }) {
     const mail = (email || "").trim().toLowerCase();
     const { data, error } = await supabase.auth.signInWithPassword({ email: mail, password });
-    if (error) return { error: "Email or password is incorrect" };
+    if (error) return { error: tx("Email or password is incorrect") };
     let { data: row, error: profErr } = await supabase.from("profiles").select("*").eq("id", data.user.id).single();
     if (profErr || !row) {
       // Account exists in auth but has no profile row yet (e.g. an earlier
@@ -290,7 +290,7 @@ const api = {
       const { data: created, error: createErr } = await supabase.from("profiles")
         .insert({ id: data.user.id, email: mail, name: "", age: null })
         .select().single();
-      if (createErr || !created) return { error: "We couldn't set up your profile. Please try again." };
+      if (createErr || !created) return { error: tx("We couldn't set up your profile. Please try again.") };
       row = created;
     }
     this.user = rowToUser(row, mail);
@@ -300,7 +300,7 @@ const api = {
   // has no account, so this can't be used to find out who is on TOM.
   async requestPasswordReset(email) {
     const mail = (email || "").trim().toLowerCase();
-    if (!mail || !mail.includes("@")) return { error: "Enter your email address" };
+    if (!mail || !mail.includes("@")) return { error: tx("Enter your email address") };
     // Always point at production, never at wherever the request happened to
     // come from. Deriving this from window.location.origin meant a reset
     // requested while testing on localhost emailed a localhost link, which
@@ -308,14 +308,14 @@ const api = {
     const redirectTo = `${PRODUCTION_ORIGIN}/?recovery=1`;
     const { error } = await supabase.auth.resetPasswordForEmail(mail, { redirectTo });
     if (error && /rate|limit|seconds/i.test(error.message || "")) {
-      return { error: "Too many attempts. Wait a minute and try again." };
+      return { error: tx("Too many attempts. Wait a minute and try again.") };
     }
     return { ok: true };
   },
   // Called from the recovery screen. Supabase has already put the user in a
   // temporary session from the emailed link, so updateUser is enough.
   async setNewPassword(password) {
-    if (!password || password.length < 8) return { error: "Password must be at least 8 characters" };
+    if (!password || password.length < 8) return { error: tx("Password must be at least 8 characters") };
     const { error } = await supabase.auth.updateUser({ password });
     if (error) return { error: error.message };
     const { data } = await supabase.auth.getSession();
@@ -350,7 +350,7 @@ const api = {
     return { ok: true, complete: Boolean(this.user.bio && this.user.profilePhoto) };
   },
   async saveProfile() {
-    if (!this.user || !this.user.id) return { error: "Not signed in" };
+    if (!this.user || !this.user.id) return { error: tx("Not signed in") };
     const u = this.user;
     const { error } = await supabase.from("profiles").update({
       name: u.name, age: u.age, bio: u.bio, location: u.city,
@@ -449,7 +449,7 @@ const api = {
   },
   // Undo the last swipe. TOM+ only. Blocks are never undone here.
   async undoLastSwipe() {
-    if (!this.user || !this.user.id) return { error: "Not signed in" };
+    if (!this.user || !this.user.id) return { error: tx("Not signed in") };
     const myId = this.user.id;
     const { data: last } = await supabase.from("likes")
       .select("id, liked_user_id, action, created_at")
@@ -457,20 +457,20 @@ const api = {
       .order("created_at", { ascending: false })
       .limit(1);
     const row = last && last[0];
-    if (!row) return { error: "Nothing to undo" };
+    if (!row) return { error: tx("Nothing to undo") };
     // If that swipe already produced a match, leave it alone
     const u1 = myId < row.liked_user_id ? myId : row.liked_user_id;
     const u2 = myId < row.liked_user_id ? row.liked_user_id : myId;
     const { data: existing } = await supabase.from("matches").select("id")
       .eq("user_id_1", u1).eq("user_id_2", u2).eq("is_active", true).maybeSingle();
-    if (existing) return { error: "That one turned into a match already" };
+    if (existing) return { error: tx("That one turned into a match already") };
     const { error } = await supabase.from("likes").delete().eq("id", row.id);
     if (error) return { error: error.message };
     const { data: prof } = await supabase.from("profiles").select("*").eq("id", row.liked_user_id).single();
     return { ok: true, action: row.action, profile: prof ? dbRowToCard(prof) : null };
   },
   async loadMatches() {
-    if (!this.user || !this.user.id) return { matches: [], error: "Not signed in" };
+    if (!this.user || !this.user.id) return { matches: [], error: tx("Not signed in") };
     const myId = this.user.id;
     // is_active can be NULL on older rows, and NULL is not false in SQL, so
     // filter it out here rather than in the query.
@@ -500,7 +500,7 @@ const api = {
   // repeat views instead of the database, which is the whole point of moving
   // photos out of the table.
   async uploadPhoto(file) {
-    if (!this.user || !this.user.id || this.user.isGuest) return { error: "Sign in to upload photos" };
+    if (!this.user || !this.user.id || this.user.isGuest) return { error: tx("Sign in to upload photos") };
     const rawExt = (file.name && file.name.includes(".")) ? file.name.split(".").pop().toLowerCase() : "";
     const ext = /^[a-z0-9]{1,5}$/.test(rawExt) ? rawExt : "jpg";
     const path = `${this.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
@@ -511,7 +511,7 @@ const api = {
     });
     if (error) return { error: error.message };
     const { data } = supabase.storage.from("photos").getPublicUrl(path);
-    if (!data || !data.publicUrl) return { error: "Upload succeeded but no URL came back" };
+    if (!data || !data.publicUrl) return { error: tx("Upload succeeded but no URL came back") };
     return { url: data.publicUrl };
   },
   // One-time cleanup for photos saved before Storage existed. Anything still
@@ -632,7 +632,7 @@ const api = {
     return data || null;
   },
   async setFreeTonight(on) {
-    if (!this.user || !this.user.id) return { error: "Not signed in" };
+    if (!this.user || !this.user.id) return { error: tx("Not signed in") };
     const until = on ? endOfToday() : null;
     const { error } = await supabase.from("profiles")
       .update({ free_tonight_until: until }).eq("id", this.user.id);
@@ -652,7 +652,7 @@ const api = {
     return { ok: true };
   },
   async activateWeeklyBoost() {
-    if (!this.user || !this.user.id) return { error: "Not signed in" };
+    if (!this.user || !this.user.id) return { error: tx("Not signed in") };
     const expiry = new Date();
     expiry.setDate(expiry.getDate() + 7);
     const { error } = await supabase.from("profiles").update({
@@ -775,9 +775,9 @@ const api = {
     return byUser;
   },
   async sendMessage(matchId, body) {
-    if (!this.user || !this.user.id) return { error: "Not signed in" };
+    if (!this.user || !this.user.id) return { error: tx("Not signed in") };
     const text = (body || "").trim();
-    if (!text) return { error: "Message is empty" };
+    if (!text) return { error: tx("Message is empty") };
     const { data, error } = await supabase.from("messages")
       .insert({ match_id: matchId, sender_id: this.user.id, body: text })
       .select().single();
@@ -785,12 +785,12 @@ const api = {
     return { ok: true, message: data };
   },
   validatePhoto(file) {
-    if (!isAllowedFile(file)) return "Only JPEG, PNG, WebP, or HEIC photos are allowed";
-    if (file.size > MAX_MB * 1024 * 1024) return `Photos must be under ${MAX_MB} MB`;
+    if (!isAllowedFile(file)) return tx("Only JPEG, PNG, WebP, or HEIC photos are allowed");
+    if (file.size > MAX_MB * 1024 * 1024) return tx("Photos must be under {n} MB", { n: MAX_MB });
     return null;
   },
   addGalleryPhoto(url) {
-    if (this.user.photos.length >= MAX_PHOTOS) return { error: `Gallery is full (max ${MAX_PHOTOS} photos). Delete one first.` };
+    if (this.user.photos.length >= MAX_PHOTOS) return { error: tx("Gallery is full (max {n} photos). Delete one first.", { n: MAX_PHOTOS }) };
     this.user.photos = [...this.user.photos, url];
     return { ok: true };
   },
@@ -930,7 +930,7 @@ function haversineKm(a, b) {
 }
 const distLabel = (from, p) => {
   const km = haversineKm(from, p && p.loc);
-  if (km === null) return "Distance unavailable";
+  if (km === null) return tx("Distance unavailable");
   const useMiles = api.user?.distanceUnit === "mi";
   if (useMiles) {
     const mi = km * 0.621371;
@@ -941,7 +941,7 @@ const distLabel = (from, p) => {
 // "3.2 mi away" reads wrong when there's no distance, so callers use this.
 const distPhrase = (from, p) => {
   const km = haversineKm(from, p && p.loc);
-  return km === null ? "Distance unavailable" : `${distLabel(from, p)} away`;
+  return km === null ? tx("Distance unavailable") : tx("{d} away", { d: distLabel(from, p) });
 };
 
 // Shared-interest boost: each interest you have in common counts as being
@@ -1177,8 +1177,8 @@ function ZeroStamp({ size = 54 }) {
   return (
     <div style={{ width: size, height: size, borderRadius: "50%", border: `3px dashed ${T.sun}`, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", background: "rgba(255,255,255,.92)", transform: "rotate(-8deg)", boxShadow: "0 4px 14px rgba(91,33,182,.18)" }}>
       <span style={{ ...fr(700, size * 0.3, T.royal), lineHeight: 1 }}>$0</span>
-      <span style={{ ...nu(800, size * 0.125, T.soft), letterSpacing: ".4px", lineHeight: 1.25 }}>DATES</span>
-      <span style={{ ...nu(800, size * 0.125, T.soft), letterSpacing: ".4px", lineHeight: 1.25 }}>ALWAYS</span>
+      <span style={{ ...nu(800, size * 0.125, T.soft), letterSpacing: ".4px", lineHeight: 1.25 }}>{tx("DATES")}</span>
+      <span style={{ ...nu(800, size * 0.125, T.soft), letterSpacing: ".4px", lineHeight: 1.25 }}>{tx("ALWAYS")}</span>
     </div>
   );
 }
@@ -1241,7 +1241,7 @@ function PhotoThumb({ src, size = 76, onRemove, round }) {
   return (
     <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
       {broken ? (
-        <div style={{ width: size, height: size, borderRadius: round ? "50%" : 14, background: `linear-gradient(135deg, ${T.royal}, ${T.violet})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.35 }} title="HEIC photo saved (preview depends on browser)"><Ic.Camera s={size * 0.4} c={T.white} /></div>
+        <div style={{ width: size, height: size, borderRadius: round ? "50%" : 14, background: `linear-gradient(135deg, ${T.royal}, ${T.violet})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.35 }} title={tx("HEIC photo saved (preview depends on browser)")}><Ic.Camera s={size * 0.4} c={T.white} /></div>
       ) : (
         <img src={src} onError={() => setBroken(true)} alt="" style={{ width: size, height: size, borderRadius: round ? "50%" : 14, objectFit: "cover", boxShadow: "0 3px 10px rgba(42,27,74,.15)" }} />
       )}
@@ -1260,8 +1260,8 @@ function PlusGate({ title, blurb, onClose, onUpgrade }) {
         <Ic.Sun s={34} c={T.sun} />
         <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>{title}</h2>
         <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>{blurb}</p>
-        <PrimaryBtn onClick={onUpgrade}>Get TOM<span style={{ color: T.sun }}>+</span></PrimaryBtn>
-        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Not now</button>
+        <PrimaryBtn onClick={onUpgrade}>{tx("Get TOM+").split("TOM+")[0]}TOM<span style={{ color: T.sun }}>+</span>{tx("Get TOM+").split("TOM+")[1]}</PrimaryBtn>
+        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{tx("Not now")}</button>
       </div>
     </div>
   );
@@ -1292,8 +1292,8 @@ function AdmirersPanel({ admirers, myLoc, onLikeBack, onBack, onReport }) {
               <div style={{ ...nu(700, 12, T.soft), display: "inline-flex", alignItems: "center", gap: 3 }}><Ic.Pin s={11} c={T.soft} />{distPhrase(myLoc, p)}</div>
             </div>
           </button>
-          <button onClick={() => onReport(p)} aria-label="Report" style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Flag s={15} c={T.lilacDeep} /></button>
-          <button onClick={() => onLikeBack(p)} style={{ border: "none", borderRadius: 999, padding: "9px 14px", background: T.royal, cursor: "pointer", ...fr(600, 13, T.white) }}>Spend time</button>
+          <button onClick={() => onReport(p)} aria-label={tx("Report")} style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Flag s={15} c={T.lilacDeep} /></button>
+          <button onClick={() => onLikeBack(p)} style={{ border: "none", borderRadius: 999, padding: "9px 14px", background: T.royal, cursor: "pointer", ...fr(600, 13, T.white) }}>{tx("Spend time")}</button>
         </div>
       ))}
       {viewing && (
@@ -1323,26 +1323,26 @@ function FiltersModal({ onClose, onApply }) {
     <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "flex-end", zIndex: 60 }} onClick={onClose}>
       <div style={{ width: "100%", background: T.white, borderRadius: "26px 26px 0 0", padding: "20px 20px 24px", maxHeight: "82%", overflowY: "auto", animation: "floatUp .25s ease" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <h2 style={{ ...fr(700, 20, T.royal), margin: 0, display: "flex", alignItems: "center", gap: 8 }}><Ic.Sliders s={20} c={T.royal} />Fine-tune your time</h2>
+          <h2 style={{ ...fr(700, 20, T.royal), margin: 0, display: "flex", alignItems: "center", gap: 8 }}><Ic.Sliders s={20} c={T.royal} />{tx("Fine-tune your time")}</h2>
           <button onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Cross s={18} /></button>
         </div>
-        <Field label="Age range">
+        <Field label={tx("Age range")}>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <input type="number" min="18" max="99" value={minAge} onChange={(e) => setMinAge(e.target.value)} style={{ ...inputStyle, textAlign: "center" }} />
-            <span style={nu(800, 14, T.soft)}>to</span>
+            <span style={nu(800, 14, T.soft)}>{tx("to")}</span>
             <input type="number" min="18" max="99" value={maxAge} onChange={(e) => setMaxAge(e.target.value)} style={{ ...inputStyle, textAlign: "center" }} />
           </div>
         </Field>
-        <Field label={`Max distance: ${radius} km`}>
+        <Field label={tx("Max distance: {n} km", { n: radius })}>
           <input type="range" min="1" max="300" value={radius} onChange={(e) => setRadius(Number(e.target.value))} style={{ width: "100%", accentColor: T.royal }} />
         </Field>
-        <Field label="Only show people into">
+        <Field label={tx("Only show people into")}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {INTEREST_POOL.map((i) => <Chip key={i} label={L(i)} active={picked.includes(i)} onClick={() => toggle(i)} />)}
           </div>
         </Field>
-        <PrimaryBtn onClick={() => onApply({ minAge: lo, maxAge: hi, radius, interests: picked })}>Apply filters</PrimaryBtn>
-        <button onClick={() => onApply({ minAge: 18, maxAge: 99, radius: 50, interests: [] })} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Reset all</button>
+        <PrimaryBtn onClick={() => onApply({ minAge: lo, maxAge: hi, radius, interests: picked })}>{tx("Apply filters")}</PrimaryBtn>
+        <button onClick={() => onApply({ minAge: 18, maxAge: 99, radius: 50, interests: [] })} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{tx("Reset all")}</button>
       </div>
     </div>
   );
@@ -1354,14 +1354,14 @@ function OffTheClockModal({ onClose, onToggle }) {
     <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 24 }} onClick={onClose}>
       <div style={{ width: "100%", background: T.white, borderRadius: 24, padding: 22, textAlign: "center", animation: "popIn .25s ease" }} onClick={(e) => e.stopPropagation()}>
         <Ic.Moon s={34} c={T.royal} />
-        <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>Off the Clock</h2>
+        <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>{tx("Off the Clock")}</h2>
         <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>
           {active
-            ? "You're invisible right now. Nobody new can see your card. Your matches can still message you."
-            : "Take a break without deleting anything. Your card disappears from every deck until you come back."}
+            ? tx("You're invisible right now. Nobody new can see your card. Your matches can still message you.")
+            : tx("Take a break without deleting anything. Your card disappears from every deck until you come back.")}
         </p>
-        <PrimaryBtn onClick={onToggle}>{active ? "Punch back in" : "Go off the clock"}</PrimaryBtn>
-        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Cancel</button>
+        <PrimaryBtn onClick={onToggle}>{active ? tx("Punch back in") : tx("Go off the clock")}</PrimaryBtn>
+        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{tx("Cancel")}</button>
       </div>
     </div>
   );
@@ -1388,12 +1388,12 @@ function TimeZonesModal({ current, onPick, onClose }) {
     <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "flex-end", zIndex: 60 }} onClick={onClose}>
       <div style={{ width: "100%", background: T.white, borderRadius: "26px 26px 0 0", padding: "20px 20px 24px", maxHeight: "82%", overflowY: "auto", animation: "floatUp .25s ease" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-          <h2 style={{ ...fr(700, 20, T.royal), margin: 0, display: "flex", alignItems: "center", gap: 8 }}><Ic.Globe s={20} c={T.royal} />Time Zones</h2>
+          <h2 style={{ ...fr(700, 20, T.royal), margin: 0, display: "flex", alignItems: "center", gap: 8 }}><Ic.Globe s={20} c={T.royal} />{tx("Time Zones")}</h2>
           <button onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Cross s={18} /></button>
         </div>
-        <p style={{ ...nu(700, 13, T.soft), margin: "0 0 14px" }}>Spend time in another city before you even get there.</p>
+        <p style={{ ...nu(700, 13, T.soft), margin: "0 0 14px" }}>{tx("Spend time in another city before you even get there.")}</p>
         <button onClick={() => { onPick(null); }} style={{ width: "100%", background: !current ? T.lilac : T.white, border: `2px solid ${!current ? T.royal : T.lilacDeep}`, borderRadius: 16, padding: "13px 15px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ ...nu(800, 14.5, T.ink) }}>My current area</span>
+          <span style={{ ...nu(800, 14.5, T.ink) }}>{tx("My current area")}</span>
           <Ic.Pin s={14} c={T.royal} />
         </button>
         {TIME_ZONE_CITIES.map((c) => (
@@ -1414,17 +1414,17 @@ function PrimeTimeModal({ onClose, onActivate, boostUntil }) {
     <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 24 }} onClick={onClose}>
       <div style={{ width: "100%", background: T.white, borderRadius: 24, padding: 22, textAlign: "center", animation: "popIn .25s ease" }} onClick={(e) => e.stopPropagation()}>
         <Ic.Rise s={34} c={T.royal} />
-        <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>Weekly Prime Time</h2>
+        <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>{tx("Weekly Prime Time")}</h2>
         {active ? (
           <>
             <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>You're in Prime Time. Your card rises to the top of nearby decks for {daysLeft} more {daysLeft === 1 ? "day" : "days"}.</p>
-            <PrimaryBtn onClick={onClose}>Nice</PrimaryBtn>
+            <PrimaryBtn onClick={onClose}>{tx("Nice")}</PrimaryBtn>
           </>
         ) : (
           <>
-            <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>Rise to the top of nearby decks for 7 days. More eyes on your card, more time offers.</p>
-            <PrimaryBtn onClick={onActivate}>Start my Prime Time</PrimaryBtn>
-            <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Not now</button>
+            <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>{tx("Rise to the top of nearby decks for 7 days. More eyes on your card, more time offers.")}</p>
+            <PrimaryBtn onClick={onActivate}>{tx("Start my Prime Time")}</PrimaryBtn>
+            <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{tx("Not now")}</button>
           </>
         )}
       </div>
@@ -1722,7 +1722,7 @@ function SendMissionModal({ idea, matches, onPick, onClose }) {
             <span style={{ ...fr(600, 15, T.ink) }}>{p.name}</span>
           </button>
         ))}
-        <button onClick={onClose} style={{ width: "100%", marginTop: 4, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Cancel</button>
+        <button onClick={onClose} style={{ width: "100%", marginTop: 4, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{tx("Cancel")}</button>
       </div>
     </div>
   );
@@ -1736,9 +1736,9 @@ function whenLabel(iso) {
   const tomorrow = new Date(); tomorrow.setDate(today.getDate() + 1);
   const same = (a, b) => a.toDateString() === b.toDateString();
   const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  if (same(d, today)) return `Today at ${time}`;
-  if (same(d, tomorrow)) return `Tomorrow at ${time}`;
-  return `${d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} at ${time}`;
+  if (same(d, today)) return tx("Today at {time}", { time });
+  if (same(d, tomorrow)) return tx("Tomorrow at {time}", { time });
+  return tx("{date} at {time}", { date: d.toLocaleDateString(txLocale(), { weekday: "short", month: "short", day: "numeric" }), time });
 }
 
 function PlanBanner({ plan, myId, profileName, onConfirm, onComplete }) {
@@ -1750,7 +1750,7 @@ function PlanBanner({ plan, myId, profileName, onConfirm, onComplete }) {
   return (
     <div style={{ margin: "10px 16px 0", background: plan.status === "confirmed" ? "#F0FBF5" : T.lilac, border: `2px solid ${plan.status === "confirmed" ? T.green : T.lilacDeep}`, borderRadius: 16, padding: "11px 13px" }}>
       <div style={{ ...nu(800, 10.5, T.soft), letterSpacing: ".5px", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 5 }}>
-        <Ic.Hourglass s={13} c={T.royal} />{plan.status === "confirmed" ? "It's a plan" : "Date proposal"}
+        <Ic.Hourglass s={13} c={T.royal} />{plan.status === "confirmed" ? tx("It's a plan") : tx("Date proposal")}
       </div>
       <div style={{ ...nu(700, 13.5, T.ink), margin: "3px 0 2px" }}>{plan.idea}</div>
       {plan.is_double && (
@@ -1793,9 +1793,9 @@ function OutcomeModal({ pending, onAnswer, onLater }) {
       <div style={{ position: "absolute", inset: 0, zIndex: 30, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
         <div style={{ background: T.white, borderRadius: 26, padding: "22px 20px", width: "100%", maxWidth: 330, textAlign: "center", animation: "popIn .3s ease" }}>
           <Ic.Hourglass s={34} c={T.royal} />
-          <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>Thanks</h2>
+          <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>{tx("Thanks")}</h2>
           <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>Once {pending.other_name} confirms too, you'll both get to rate the time you spent.</p>
-          <PrimaryBtn onClick={() => onAnswer("met", { status: "waiting" })}>Got it</PrimaryBtn>
+          <PrimaryBtn onClick={() => onAnswer("met", { status: "waiting" })}>{tx("Got it")}</PrimaryBtn>
         </div>
       </div>
     );
@@ -1803,15 +1803,15 @@ function OutcomeModal({ pending, onAnswer, onLater }) {
   return (
     <div style={{ position: "absolute", inset: 0, zIndex: 30, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div style={{ background: T.white, borderRadius: 26, padding: "22px 20px", width: "100%", maxWidth: 330, animation: "popIn .3s ease" }}>
-        <h2 style={{ ...fr(700, 21, T.royal), margin: "0 0 2px", textAlign: "center" }}>How did it go?</h2>
+        <h2 style={{ ...fr(700, 21, T.royal), margin: "0 0 2px", textAlign: "center" }}>{tx("How did it go?")}</h2>
         <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 4px", textAlign: "center" }}>Your plan with {pending.other_name}</p>
         <div style={{ background: T.lilac, borderRadius: 14, padding: "9px 12px", margin: "0 0 16px", ...nu(700, 13, T.royal), textAlign: "center" }}>
           {pending.idea}{pending.scheduled_at ? ` · ${whenLabel(pending.scheduled_at)}` : ""}
         </div>
-        <button onClick={() => answer("met")} disabled={saving} style={{ width: "100%", padding: "13px 0", marginBottom: 8, borderRadius: 14, border: `2px solid ${T.green}`, background: "#F0FBF5", cursor: "pointer", ...fr(600, 15, T.green) }}>We met up</button>
-        <button onClick={() => answer("cancelled")} disabled={saving} style={{ width: "100%", padding: "12px 0", marginBottom: 8, borderRadius: 14, border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", ...fr(600, 14, T.ink) }}>We rescheduled or called it off</button>
-        <button onClick={() => answer("no_show")} disabled={saving} style={{ width: "100%", padding: "12px 0", borderRadius: 14, border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", ...fr(600, 14, T.ink) }}>They didn't show up</button>
-        <button onClick={onLater} style={{ width: "100%", marginTop: 10, padding: "8px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Ask me later</button>
+        <button onClick={() => answer("met")} disabled={saving} style={{ width: "100%", padding: "13px 0", marginBottom: 8, borderRadius: 14, border: `2px solid ${T.green}`, background: "#F0FBF5", cursor: "pointer", ...fr(600, 15, T.green) }}>{tx("We met up")}</button>
+        <button onClick={() => answer("cancelled")} disabled={saving} style={{ width: "100%", padding: "12px 0", marginBottom: 8, borderRadius: 14, border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", ...fr(600, 14, T.ink) }}>{tx("We rescheduled or called it off")}</button>
+        <button onClick={() => answer("no_show")} disabled={saving} style={{ width: "100%", padding: "12px 0", borderRadius: 14, border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", ...fr(600, 14, T.ink) }}>{tx("They didn't show up")}</button>
+        <button onClick={onLater} style={{ width: "100%", marginTop: 10, padding: "8px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{tx("Ask me later")}</button>
       </div>
     </div>
   );
@@ -1976,14 +1976,14 @@ function EmailSettingsModal({ onClose }) {
     <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "flex-end", zIndex: 60 }} onClick={onClose}>
       <div style={{ width: "100%", background: T.white, borderRadius: "26px 26px 0 0", padding: "20px 20px 24px", maxHeight: "82%", overflowY: "auto", animation: "floatUp .25s ease" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-          <h2 style={{ ...fr(700, 20, T.royal), margin: 0 }}>Email me when</h2>
+          <h2 style={{ ...fr(700, 20, T.royal), margin: 0 }}>{tx("Email me when")}</h2>
           <button onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Cross s={18} /></button>
         </div>
-        <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 16px" }}>TOM has no push notifications yet, so email is how you hear about things.</p>
-        <Row label="Someone matches with me" blurb="Both of you said yes" on={match} set={setMatch} />
-        <Row label="I get a message" blurb="At most once an hour per conversation" on={message} set={setMessage} />
-        <Row label="Date plans and check ins" blurb="Proposals, and how did it go" on={date} set={setDate} />
-        <PrimaryBtn onClick={save}>{saving ? "Saving..." : "Save"}</PrimaryBtn>
+        <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 16px" }}>{tx("TOM has no push notifications yet, so email is how you hear about things.")}</p>
+        <Row label={tx("Someone matches with me")} blurb={tx("Both of you said yes")} on={match} set={setMatch} />
+        <Row label={tx("I get a message")} blurb={tx("At most once an hour per conversation")} on={message} set={setMessage} />
+        <Row label={tx("Date plans and check ins")} blurb={tx("Proposals, and how did it go")} on={date} set={setDate} />
+        <PrimaryBtn onClick={save}>{saving ? tx("Saving...") : tx("Save")}</PrimaryBtn>
       </div>
     </div>
   );
@@ -1994,10 +1994,10 @@ function GuestPrompt({ onSignUp, onClose }) {
     <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 24 }} onClick={onClose}>
       <div style={{ width: "100%", background: T.white, borderRadius: 24, padding: 22, textAlign: "center", animation: "popIn .25s ease" }} onClick={(e) => e.stopPropagation()}>
         <Ic.Hourglass s={34} c={T.royal} />
-        <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>Join to spend time</h2>
-        <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>These are real people. Create your free profile and they can say yes back.</p>
-        <PrimaryBtn onClick={onSignUp}>Create my profile</PrimaryBtn>
-        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Keep looking</button>
+        <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>{tx("Join to spend time")}</h2>
+        <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>{tx("These are real people. Create your free profile and they can say yes back.")}</p>
+        <PrimaryBtn onClick={onSignUp}>{tx("Create my profile")}</PrimaryBtn>
+        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{tx("Keep looking")}</button>
       </div>
     </div>
   );
@@ -2070,8 +2070,8 @@ function ProfileDetailModal({ profile, myLoc, onClose, onSwipe, onMessage, onLik
           <button onClick={onClose} aria-label={t("close")} style={{ position: "absolute", top: 14, right: 14, width: 34, height: 34, borderRadius: "50%", border: "none", background: "rgba(0,0,0,.35)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Cross s={16} c={T.white} /></button>
           {gallery.length > 1 && (
             <>
-              <button onClick={() => setIdx((i) => (i - 1 + gallery.length) % gallery.length)} aria-label="Previous photo" style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", width: 34, height: 34, borderRadius: "50%", border: "none", background: "rgba(0,0,0,.35)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ display: "inline-flex", transform: "rotate(180deg)" }}><Ic.Chevron s={16} c={T.white} /></span></button>
-              <button onClick={() => setIdx((i) => (i + 1) % gallery.length)} aria-label="Next photo" style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", width: 34, height: 34, borderRadius: "50%", border: "none", background: "rgba(0,0,0,.35)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Chevron s={16} c={T.white} /></button>
+              <button onClick={() => setIdx((i) => (i - 1 + gallery.length) % gallery.length)} aria-label={tx("Previous photo")} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", width: 34, height: 34, borderRadius: "50%", border: "none", background: "rgba(0,0,0,.35)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ display: "inline-flex", transform: "rotate(180deg)" }}><Ic.Chevron s={16} c={T.white} /></span></button>
+              <button onClick={() => setIdx((i) => (i + 1) % gallery.length)} aria-label={tx("Next photo")} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", width: 34, height: 34, borderRadius: "50%", border: "none", background: "rgba(0,0,0,.35)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Chevron s={16} c={T.white} /></button>
               <div style={{ position: "absolute", bottom: 12, left: 0, right: 0, display: "flex", justifyContent: "center", gap: 5 }}>
                 {gallery.map((_, i) => <span key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: i === idx ? T.white : "rgba(255,255,255,.5)" }} />)}
               </div>
@@ -2182,8 +2182,8 @@ function Card({ profile, onSwipe, isTop, myLoc, onReport, onView }) {
         <div style={{ flex: "0 0 44%", position: "relative", background: profile.photo ? `url(${profile.photo}) center/cover no-repeat, linear-gradient(135deg, ${profile.grad[0]}, ${profile.grad[1]})` : `linear-gradient(135deg, ${profile.grad[0]}, ${profile.grad[1]})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
           {!profile.photo && <span style={{ ...fr(700, 92, "rgba(255,255,255,.95)"), filter: "drop-shadow(0 6px 12px rgba(0,0,0,.2))", lineHeight: 1 }}>{profile.name[0]}</span>}
           <div style={{ position: "absolute", top: 14, right: 14 }}><ZeroStamp /></div>
-          <div style={{ position: "absolute", top: 18, left: 16, opacity: likeOp, ...fr(700, 24, T.white), border: `3px solid ${T.white}`, borderRadius: 12, padding: "2px 12px", transform: "rotate(-10deg)", background: "rgba(47,191,113,.85)" }}>WORTH MY TIME</div>
-          <div style={{ position: "absolute", top: 18, right: 76, opacity: nopeOp, ...fr(700, 24, T.white), border: `3px solid ${T.white}`, borderRadius: 12, padding: "2px 12px", transform: "rotate(10deg)", background: "rgba(42,27,74,.6)" }}>NOT THIS TIME</div>
+          <div style={{ position: "absolute", top: 18, left: 16, opacity: likeOp, ...fr(700, 24, T.white), border: `3px solid ${T.white}`, borderRadius: 12, padding: "2px 12px", transform: "rotate(-10deg)", background: "rgba(47,191,113,.85)" }}>{tx("WORTH MY TIME")}</div>
+          <div style={{ position: "absolute", top: 18, right: 76, opacity: nopeOp, ...fr(700, 24, T.white), border: `3px solid ${T.white}`, borderRadius: 12, padding: "2px 12px", transform: "rotate(10deg)", background: "rgba(42,27,74,.6)" }}>{tx("NOT THIS TIME")}</div>
           <div style={{ position: "absolute", bottom: 14, left: 14, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 5 }}>
             {profile.secondChance && (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 5, borderRadius: 999, padding: "6px 11px", background: T.sun, ...fr(600, 11.5, T.ink) }}>
@@ -2210,7 +2210,7 @@ function Card({ profile, onSwipe, isTop, myLoc, onReport, onView }) {
             <span style={fr(600, 26, T.ink)}>{profile.name}, {profile.age}</span>
             {profile.verified && <Ic.ShieldCheck s={19} c={T.green} />}
             <span style={{ ...nu(700, 13, T.soft), display: "inline-flex", alignItems: "center", gap: 4 }}><Ic.Pin s={13} c={T.soft} />{distPhrase(myLoc, profile)}</span>
-            <button onClick={() => onReport(profile)} onPointerDown={(e) => e.stopPropagation()} aria-label="Report this profile" style={{ marginLeft: "auto", border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Flag s={15} c={T.lilacDeep} /></button>
+            <button onClick={() => onReport(profile)} onPointerDown={(e) => e.stopPropagation()} aria-label={tx("Report this profile")} style={{ marginLeft: "auto", border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Flag s={15} c={T.lilacDeep} /></button>
           </div>
           {profile.rep && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
@@ -2220,7 +2220,7 @@ function Card({ profile, onSwipe, isTop, myLoc, onReport, onView }) {
           )}
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {haversineKm(myLoc, profile.loc) !== null && haversineKm(myLoc, profile.loc) < 3 && (
-              <span style={{ ...nu(800, 11.5, "#177245"), background: "#E8F8EF", padding: "5px 11px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 5 }}><Ic.Bolt s={12} c="#177245" />Close enough to meet today</span>
+              <span style={{ ...nu(800, 11.5, "#177245"), background: "#E8F8EF", padding: "5px 11px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 5 }}><Ic.Bolt s={12} c="#177245" />{tx("Close enough to meet today")}</span>
             )}
             <Pill filled>{profile.vibe}</Pill>
             {profile.tags.map((t) => <Pill key={t}>{t}</Pill>)}
@@ -2242,19 +2242,19 @@ function Paywall({ onClose }) {
   // Only list things TOM+ actually gives you. Anything free for everyone
   // does not belong on this screen.
   const feats = [
-    [Ic.Infinity, "Unlimited likes", "Never run out of time to give"],
-    [Ic.Eye, "See who likes you", "Skip straight to mutual"],
-    [Ic.Bubble, "Read receipts", "See when your message was opened"],
-    [Ic.Sun, "Golden Hours", "Five a day instead of one"],
-    [Ic.Moon, "Off the Clock", "Browse invisibly"],
-    [Ic.Rise, "Weekly Prime Time", "Seven days at the top of nearby decks"],
+    [Ic.Infinity, tx("Unlimited likes"), tx("Never run out of time to give")],
+    [Ic.Eye, tx("See who likes you"), tx("Skip straight to mutual")],
+    [Ic.Bubble, tx("Read receipts"), tx("See when your message was opened")],
+    [Ic.Sun, tx("Golden Hours"), tx("Five a day instead of one")],
+    [Ic.Moon, tx("Off the Clock"), tx("Browse invisibly")],
+    [Ic.Rise, tx("Weekly Prime Time"), tx("Seven days at the top of nearby decks")],
   ];
   return (
     <div style={{ position: "absolute", inset: 0, zIndex: 30, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
       <div style={{ background: T.white, borderRadius: "26px 26px 0 0", padding: "22px 20px 20px", width: "100%", maxHeight: "88%", overflowY: "auto", animation: "floatUp .3s ease" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ textAlign: "center", marginBottom: 14 }}>
           <h2 style={{ ...fr(700, 28, T.royal), margin: 0 }}>TOM<span style={{ color: T.sun }}>+</span></h2>
-          <p style={{ ...nu(700, 13.5, T.ink), margin: "4px 0 0" }}>More time, better matched.</p>
+          <p style={{ ...nu(700, 13.5, T.ink), margin: "4px 0 0" }}>{tx("More time, better matched.")}</p>
         </div>
         {feats.map(([icon, title, sub]) => (
           <div key={title} style={{ display: "flex", gap: 12, alignItems: "center", padding: "9px 4px" }}>
@@ -2266,13 +2266,13 @@ function Paywall({ onClose }) {
           </div>
         ))}
         <div style={{ marginTop: 12 }}>
-          <PrimaryBtn onClick={onClose}>Get TOM+ · $9.99/month</PrimaryBtn>
+          <PrimaryBtn onClick={onClose}>{tx("Get TOM+ · $9.99/month")}</PrimaryBtn>
         </div>
         <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: "11px 0", borderRadius: 14, border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", ...nu(800, 12.5, T.royal), display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Ic.Sun s={14} c={T.sun} />5 Golden Hours · $4.99</button>
-          <button onClick={onClose} style={{ flex: 1, padding: "11px 0", borderRadius: 14, border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", ...nu(800, 12.5, T.royal), display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Ic.Rise s={14} c={T.royal} />Prime Time · $2.99</button>
+          <button onClick={onClose} style={{ flex: 1, padding: "11px 0", borderRadius: 14, border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", ...nu(800, 12.5, T.royal), display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Ic.Sun s={14} c={T.sun} />{tx("5 Golden Hours · $4.99")}</button>
+          <button onClick={onClose} style={{ flex: 1, padding: "11px 0", borderRadius: 14, border: `2px solid ${T.lilacDeep}`, background: T.white, cursor: "pointer", ...nu(800, 12.5, T.royal), display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Ic.Rise s={14} c={T.royal} />{tx("Prime Time · $2.99")}</button>
         </div>
-        <button onClick={onClose} style={{ width: "100%", marginTop: 10, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Not now</button>
+        <button onClick={onClose} style={{ width: "100%", marginTop: 10, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{tx("Not now")}</button>
         <p style={{ ...nu(700, 12, T.royal), textAlign: "center", margin: "8px 0 0", background: T.lilac, borderRadius: 12, padding: "10px 12px" }}>
           TOM will never charge you to go on a date.<br />Dates are $0. Always.
         </p>
@@ -2324,7 +2324,7 @@ function LegalModal({ doc, onClose }) {
       <div style={{ background: T.white, borderRadius: "26px 26px 0 0", width: "100%", height: "90%", display: "flex", flexDirection: "column", animation: "floatUp .3s ease" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 20px 10px" }}>
           <h2 style={{ ...fr(700, 22, T.ink), margin: 0 }}>{d.title}</h2>
-          <button onClick={onClose} aria-label="Close" style={{ border: "none", background: T.lilac, borderRadius: "50%", width: 34, height: 34, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Cross s={15} c={T.royal} /></button>
+          <button onClick={onClose} aria-label={tx("Close")} style={{ border: "none", background: T.lilac, borderRadius: "50%", width: 34, height: 34, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Cross s={15} c={T.royal} /></button>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: "4px 20px 24px" }}>
           {d.sections.map(([h, body]) => (
@@ -2333,7 +2333,7 @@ function LegalModal({ doc, onClose }) {
               <p style={{ ...nu(600, 13.5, T.ink), margin: 0, lineHeight: 1.55 }}>{body}</p>
             </div>
           ))}
-          <p style={{ ...nu(700, 12, T.soft), marginTop: 6 }}>Last updated: [DATE]. Draft pending legal review.</p>
+          <p style={{ ...nu(700, 12, T.soft), marginTop: 6 }}>{tx("Last updated: [DATE]. Draft pending legal review.")}</p>
         </div>
       </div>
     </div>
@@ -2344,10 +2344,10 @@ function DeleteModal({ onCancel, onConfirm }) {
   return (
     <div style={{ position: "absolute", inset: 0, zIndex: 40, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: T.white, borderRadius: 26, padding: "24px 22px 20px", width: "100%", maxWidth: 320, textAlign: "center", animation: "popIn .3s ease", boxShadow: "0 20px 50px rgba(0,0,0,.3)" }}>
-        <h2 style={{ ...fr(700, 22, T.ink), margin: "0 0 8px" }}>Delete your account?</h2>
-        <p style={{ ...nu(600, 13.5, T.soft), margin: "0 0 16px", lineHeight: 1.55 }}>This permanently removes your profile, photos, matches, and Golden Hours. Safety reports are kept as described in the Privacy Policy. This cannot be undone.</p>
-        <button onClick={onConfirm} style={{ width: "100%", padding: "14px 0", borderRadius: 16, border: "none", background: T.red, color: T.white, cursor: "pointer", ...fr(600, 16, T.white) }}>Delete my account</button>
-        <button onClick={onCancel} style={{ width: "100%", marginTop: 10, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Keep my account</button>
+        <h2 style={{ ...fr(700, 22, T.ink), margin: "0 0 8px" }}>{tx("Delete your account?")}</h2>
+        <p style={{ ...nu(600, 13.5, T.soft), margin: "0 0 16px", lineHeight: 1.55 }}>{tx("This permanently removes your profile, photos, matches, and Golden Hours. Safety reports are kept as described in the Privacy Policy. This cannot be undone.")}</p>
+        <button onClick={onConfirm} style={{ width: "100%", padding: "14px 0", borderRadius: 16, border: "none", background: T.red, color: T.white, cursor: "pointer", ...fr(600, 16, T.white) }}>{tx("Delete my account")}</button>
+        <button onClick={onCancel} style={{ width: "100%", marginTop: 10, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{tx("Keep my account")}</button>
       </div>
     </div>
   );
@@ -2880,6 +2880,23 @@ const STRINGS = {
   },
 };
 
+
+// ================= Inline translations =================
+// UI text written in English in the code is translated here at display time.
+// English is the lookup key; {name} style placeholders are filled from vars.
+let TX_LANG = "tr";
+const TX = {"DATES": {"tr": "RANDEVU","es": "CITAS"},"ALWAYS": {"tr": "HER ZAMAN","es": "SIEMPRE"},"Not now": {"tr": "Şimdi değil","es": "Ahora no"},"Cancel": {"tr": "Vazgeç","es": "Cancelar"},"Close": {"tr": "Kapat","es": "Cerrar"},"Back": {"tr": "Geri","es": "Atrás"},"Done": {"tr": "Tamam","es": "Listo"},"Thanks": {"tr": "Teşekkürler","es": "Gracias"},"Got it": {"tr": "Anladım","es": "Entendido"},"Nice": {"tr": "Harika","es": "Genial"},"Dismiss": {"tr": "Kapat","es": "Cerrar"},"Loading...": {"tr": "Yükleniyor...","es": "Cargando..."},"Failed to load": {"tr": "Yüklenemedi","es": "No se pudo cargar"},"Save changes": {"tr": "Değişiklikleri kaydet","es": "Guardar cambios"},"Report": {"tr": "Bildir","es": "Reportar"},"Spend time": {"tr": "Zaman ayır","es": "Dedicar tiempo"},"Get TOM+": {"tr": "TOM+'a geç","es": "Obtén TOM+"},"ON": {"tr": "AÇIK","es": "ACTIVADO"},"Change language": {"tr": "Dili değiştir","es": "Cambiar idioma"},"Something is waiting for you": {"tr": "Seni bekleyen bir şey var","es": "Algo te está esperando"},"HEIC photo saved (preview depends on browser)": {"tr": "HEIC fotoğraf kaydedildi (önizleme tarayıcıya bağlı)","es": "Foto HEIC guardada (la vista previa depende del navegador)"},"Previous photo": {"tr": "Önceki fotoğraf","es": "Foto anterior"},"Next photo": {"tr": "Sonraki fotoğraf","es": "Foto siguiente"},"Uploading photo...": {"tr": "Fotoğraf yükleniyor...","es": "Subiendo foto..."},"View profile photo": {"tr": "Profil fotoğrafını gör","es": "Ver foto de perfil"},"View photo {n}": {"tr": "{n}. fotoğrafı gör","es": "Ver foto {n}"},"Manage photos": {"tr": "Fotoğrafları yönet","es": "Gestionar fotos"},"This photo can't preview in your browser, but it is saved.": {"tr": "Bu fotoğraf tarayıcında önizlenemiyor ama kaydedildi.","es": "Esta foto no se puede previsualizar en tu navegador, pero está guardada."},"Make main": {"tr": "Ana fotoğraf yap","es": "Hacer principal"},"Main photo": {"tr": "Ana fotoğraf","es": "Foto principal"},"Photo {i} of {n}": {"tr": "Fotoğraf {i} / {n}","es": "Foto {i} de {n}"},"Photo {i}": {"tr": "Fotoğraf {i}","es": "Foto {i}"},"Your first photo is your main profile photo. Use the arrows to reorder, or tap Make main.": {"tr": "İlk fotoğrafın ana profil fotoğrafındır. Sıralamak için okları kullan ya da Ana fotoğraf yap'a dokun.","es": "Tu primera foto es tu foto de perfil principal. Usa las flechas para reordenar o toca Hacer principal."},"Move earlier": {"tr": "Öne al","es": "Mover antes"},"Move later": {"tr": "Geriye al","es": "Mover después"},"Remove photo": {"tr": "Fotoğrafı kaldır","es": "Quitar foto"},"Keep at least one photo.": {"tr": "En az bir fotoğraf kalmalı.","es": "Deja al menos una foto."},"Add at least one photo": {"tr": "En az bir fotoğraf ekle","es": "Añade al menos una foto"},"You can have up to {n} photos total. Remove one first.": {"tr": "Toplam en fazla {n} fotoğraf olabilir. Önce birini kaldır.","es": "Puedes tener hasta {n} fotos en total. Quita una primero."},"Only JPEG, PNG, WebP, or HEIC photos are allowed": {"tr": "Sadece JPEG, PNG, WebP veya HEIC fotoğraflar kabul edilir","es": "Solo se permiten fotos JPEG, PNG, WebP o HEIC"},"Photos must be under {n} MB": {"tr": "Fotoğraflar {n} MB'tan küçük olmalı","es": "Las fotos deben pesar menos de {n} MB"},"Gallery is full (max {n} photos). Delete one first.": {"tr": "Galeri dolu (en fazla {n} fotoğraf). Önce birini sil.","es": "La galería está llena (máximo {n} fotos). Borra una primero."},"Sign in to upload photos": {"tr": "Fotoğraf yüklemek için giriş yap","es": "Inicia sesión para subir fotos"},"Upload succeeded but no URL came back": {"tr": "Yükleme tamamlandı ama bağlantı alınamadı","es": "La subida terminó pero no se recibió el enlace"},"Fine-tune your time": {"tr": "Zamanına ince ayar yap","es": "Ajusta tu tiempo"},"Fine tune your time": {"tr": "Zamanına ince ayar yap","es": "Ajusta tu tiempo"},"Age range": {"tr": "Yaş aralığı","es": "Rango de edad"},"to": {"tr": "ila","es": "a"},"Max distance: {n} km": {"tr": "Maksimum mesafe: {n} km","es": "Distancia máxima: {n} km"},"Only show people into": {"tr": "Sadece şunlarla ilgilenenleri göster","es": "Mostrar solo a quienes les gusta"},"Apply filters": {"tr": "Filtreleri uygula","es": "Aplicar filtros"},"Reset all": {"tr": "Tümünü sıfırla","es": "Restablecer todo"},"Search preferences": {"tr": "Arama tercihleri","es": "Preferencias de búsqueda"},"Choose your units and how far you're willing to meet.": {"tr": "Birimlerini ve buluşmak için ne kadar uzağa gidebileceğini seç.","es": "Elige tus unidades y hasta dónde estás dispuesto a ir."},"Units": {"tr": "Birimler","es": "Unidades"},"Maximum distance": {"tr": "Maksimum mesafe","es": "Distancia máxima"},"Off the Clock": {"tr": "Mesai Dışı","es": "Fuera de horario"},"You're invisible right now. Nobody new can see your card. Your matches can still message you.": {"tr": "Şu an görünmezsin. Yeni kimse kartını göremez. Eşleşmelerin sana yine de mesaj atabilir.","es": "Ahora eres invisible. Nadie nuevo puede ver tu tarjeta. Tus matches aún pueden escribirte."},"Take a break without deleting anything. Your card disappears from every deck until you come back.": {"tr": "Hiçbir şeyi silmeden ara ver. Geri dönene kadar kartın tüm destelerden kaybolur.","es": "Tómate un descanso sin borrar nada. Tu tarjeta desaparece de todos los mazos hasta que vuelvas."},"Punch back in": {"tr": "Mesaiye dön","es": "Volver a estar visible"},"Go off the clock": {"tr": "Mesaiden çık","es": "Salir de horario"},"Go invisible without deleting anything. A TOM+ perk.": {"tr": "Hiçbir şeyi silmeden görünmez ol. Bir TOM+ ayrıcalığı.","es": "Hazte invisible sin borrar nada. Una ventaja de TOM+."},"Time Zones": {"tr": "Zaman Dilimleri","es": "Zonas horarias"},"Spend time in another city before you even get there.": {"tr": "Daha oraya varmadan başka bir şehirde zaman geçir.","es": "Pasa tiempo en otra ciudad antes de llegar."},"My current area": {"tr": "Şu anki bölgem","es": "Mi zona actual"},"Weekly Prime Time": {"tr": "Haftalık Altın Saat","es": "Prime Time semanal"},"Rise to the top of nearby decks for 7 days. More eyes on your card, more time offers.": {"tr": "7 gün boyunca yakındaki destelerin en üstüne çık. Kartına daha çok göz, daha çok zaman teklifi.","es": "Sube a lo más alto de los mazos cercanos durante 7 días. Más miradas a tu tarjeta, más ofertas de tiempo."},"Rise to the top of nearby decks for 7 days. A TOM+ perk.": {"tr": "7 gün boyunca yakındaki destelerin en üstüne çık. Bir TOM+ ayrıcalığı.","es": "Sube a lo más alto de los mazos cercanos durante 7 días. Una ventaja de TOM+."},"Start my Prime Time": {"tr": "Altın Saatimi başlat","es": "Empezar mi Prime Time"},"How did it go?": {"tr": "Nasıl geçti?","es": "¿Cómo fue?"},"We met up": {"tr": "Buluştuk","es": "Nos vimos"},"We rescheduled or called it off": {"tr": "Erteledik ya da iptal ettik","es": "Lo cambiamos o lo cancelamos"},"They didn't show up": {"tr": "Gelmedi","es": "No apareció"},"Ask me later": {"tr": "Sonra sor","es": "Pregúntame luego"},"It's a plan": {"tr": "Plan tamam","es": "Hay plan"},"Date proposal": {"tr": "Buluşma teklifi","es": "Propuesta de cita"},"Today at {time}": {"tr": "Bugün {time}","es": "Hoy a las {time}"},"Tomorrow at {time}": {"tr": "Yarın {time}","es": "Mañana a las {time}"},"{date} at {time}": {"tr": "{date} {time}","es": "{date} a las {time}"},"Tap to answer, so you can both rate the time": {"tr": "Cevaplamak için dokun, böylece ikiniz de zamanı puanlayabilirsiniz","es": "Toca para responder y así ambos podrán calificar el tiempo"},"Nothing to rate right now. You may have already answered, or the date hasn't happened yet.": {"tr": "Şu an puanlanacak bir şey yok. Zaten cevap vermiş olabilirsin ya da buluşma henüz gerçekleşmedi.","es": "No hay nada que calificar ahora. Quizá ya respondiste o la cita aún no ha ocurrido."},"Email me when": {"tr": "Bana e-posta gönder:","es": "Envíame un correo cuando"},"TOM has no push notifications yet, so email is how you hear about things.": {"tr": "TOM'un henüz anlık bildirimi yok, haberleri e-postayla alırsın.","es": "TOM aún no tiene notificaciones push, así que te avisamos por correo."},"Someone matches with me": {"tr": "Biriyle eşleştiğimde","es": "Alguien hace match conmigo"},"Both of you said yes": {"tr": "İkiniz de evet dediniz","es": "Los dos dijeron que sí"},"I get a message": {"tr": "Mesaj aldığımda","es": "Recibo un mensaje"},"At most once an hour per conversation": {"tr": "Her sohbet için saatte en fazla bir kez","es": "Como máximo una vez por hora por conversación"},"Date plans and check ins": {"tr": "Buluşma planları ve kontroller","es": "Planes de cita y seguimientos"},"Proposals, and how did it go": {"tr": "Teklifler ve nasıl geçtiği","es": "Propuestas, y cómo fue"},"Emails turned off": {"tr": "E-postalar kapatıldı","es": "Correos desactivados"},"Link expired": {"tr": "Bağlantının süresi doldu","es": "El enlace caducó"},"You won't get emails from TOM anymore. You can turn them back on any time under You.": {"tr": "Artık TOM'dan e-posta almayacaksın. İstediğin zaman Sen sekmesinden tekrar açabilirsin.","es": "Ya no recibirás correos de TOM. Puedes volver a activarlos cuando quieras en Tú."},"We couldn't find that unsubscribe link. You can change email settings under You.": {"tr": "Bu abonelikten çıkma bağlantısını bulamadık. E-posta ayarlarını Sen sekmesinden değiştirebilirsin.","es": "No encontramos ese enlace para darte de baja. Puedes cambiar los ajustes de correo en Tú."},"Join to spend time": {"tr": "Zaman ayırmak için katıl","es": "Únete para dedicar tiempo"},"These are real people. Create your free profile and they can say yes back.": {"tr": "Bunlar gerçek insanlar. Ücretsiz profilini oluştur, onlar da sana evet diyebilsin.","es": "Son personas reales. Crea tu perfil gratis y podrán decirte que sí."},"Create my profile": {"tr": "Profilimi oluştur","es": "Crear mi perfil"},"Keep looking": {"tr": "Bakmaya devam et","es": "Seguir mirando"},"WORTH MY TIME": {"tr": "ZAMANIMA DEĞER","es": "VALE MI TIEMPO"},"NOT THIS TIME": {"tr": "BU SEFER DEĞİL","es": "ESTA VEZ NO"},"Report this profile": {"tr": "Bu profili bildir","es": "Reportar este perfil"},"Close enough to meet today": {"tr": "Bugün buluşacak kadar yakın","es": "Lo bastante cerca para verse hoy"},"Distance unavailable": {"tr": "Mesafe bilinmiyor","es": "Distancia no disponible"},"{d} away": {"tr": "{d} uzakta","es": "a {d}"},"You're {d} apart": {"tr": "Aranızda {d} var","es": "Están a {d}"},"View {name}'s profile": {"tr": "{name} profilini gör","es": "Ver el perfil de {name}"},"Just joined TOM. Say hi!": {"tr": "TOM'a yeni katıldı. Bir merhaba de!","es": "Acaba de unirse a TOM. ¡Salúdale!"},"New here": {"tr": "Yeni","es": "Nuevo aquí"},"See who likes you": {"tr": "Seni kimlerin beğendiğini gör","es": "Mira a quién le gustas"},"TOM+ shows you everyone who already said your time is worth it.": {"tr": "TOM+ sana zamanının değerli olduğunu çoktan söyleyen herkesi gösterir.","es": "TOM+ te muestra a todos los que ya dijeron que tu tiempo vale la pena."},"More time, better matched.": {"tr": "Daha çok zaman, daha iyi eşleşme.","es": "Más tiempo, mejores matches."},"Get TOM+ · $9.99/month": {"tr": "TOM+'a geç · aylık $9.99","es": "Obtén TOM+ · $9.99/mes"},"5 Golden Hours · $4.99": {"tr": "5 Altın Saat · $4.99","es": "5 Golden Hours · $4.99"},"Prime Time · $2.99": {"tr": "Altın Saat Vitrini · $2.99","es": "Prime Time · $2.99"},"Unlimited likes": {"tr": "Sınırsız beğeni","es": "Me gusta ilimitados"},"Never run out of time to give": {"tr": "Verecek zamanın hiç bitmesin","es": "Nunca te quedes sin tiempo que dar"},"Skip straight to mutual": {"tr": "Doğrudan karşılıklıya geç","es": "Ve directo a lo mutuo"},"Read receipts": {"tr": "Okundu bilgisi","es": "Confirmación de lectura"},"See when your message was opened": {"tr": "Mesajının ne zaman açıldığını gör","es": "Mira cuándo se abrió tu mensaje"},"Golden Hours": {"tr": "Altın Saatler","es": "Golden Hours"},"Five a day instead of one": {"tr": "Günde bir yerine beş","es": "Cinco al día en vez de una"},"Browse invisibly": {"tr": "Görünmeden gez","es": "Navega de forma invisible"},"Seven days at the top of nearby decks": {"tr": "Yakındaki destelerin en üstünde yedi gün","es": "Siete días en lo más alto de los mazos cercanos"},"Time well matched!": {"tr": "Zaman iyi eşleşti!","es": "¡Tiempo bien emparejado!"},"Suggest a free first date (public places only)": {"tr": "Ücretsiz bir ilk buluşma öner (sadece halka açık yerler)","es": "Sugiere una primera cita gratis (solo lugares públicos)"},"Send this idea": {"tr": "Bu fikri gönder","es": "Enviar esta idea"},"Keep swiping": {"tr": "Kaydırmaya devam et","es": "Seguir deslizando"},"Golden Hour": {"tr": "Altın Saat","es": "Golden Hour"},"Send Golden Hour": {"tr": "Altın Saat gönder","es": "Enviar Golden Hour"},"You have {n} left today.": {"tr": "Bugün {n} hakkın kaldı.","es": "Te quedan {n} hoy."},"You're out for today.": {"tr": "Bugünlük hakkın bitti.","es": "Ya no te quedan por hoy."},"Thanks for keeping TOM safe": {"tr": "TOM'u güvenli tuttuğun için teşekkürler","es": "Gracias por mantener TOM seguro"},"Reports are anonymous. Reporting also blocks them.": {"tr": "Bildirimler anonimdir. Bildirmek aynı zamanda engeller.","es": "Los reportes son anónimos. Reportar también bloquea."},"Report and block": {"tr": "Bildir ve engelle","es": "Reportar y bloquear"},"Block or report": {"tr": "Engelle veya bildir","es": "Bloquear o reportar"},"Fake profile or photos": {"tr": "Sahte profil veya fotoğraflar","es": "Perfil o fotos falsos"},"Inappropriate content": {"tr": "Uygunsuz içerik","es": "Contenido inapropiado"},"Harassment or threats": {"tr": "Taciz veya tehdit","es": "Acoso o amenazas"},"Under 18": {"tr": "18 yaşından küçük","es": "Menor de 18"},"Asked for money": {"tr": "Para istedi","es": "Pidió dinero"},"Something else": {"tr": "Başka bir şey","es": "Otra cosa"},"Verify it's really you": {"tr": "Gerçekten sen olduğunu doğrula","es": "Verifica que eres tú"},"Take a selfie with a thumbs up next to your face. Our safety team compares it with your profile photos.": {"tr": "Yüzünün yanında başparmağın yukarıda bir selfie çek. Güvenlik ekibimiz bunu profil fotoğraflarınla karşılaştırır.","es": "Hazte un selfie con el pulgar arriba junto a tu cara. Nuestro equipo de seguridad lo compara con tus fotos de perfil."},"The selfie is never shown on your profile.": {"tr": "Selfie profilinde asla gösterilmez.","es": "El selfie nunca se muestra en tu perfil."},"Take selfie": {"tr": "Selfie çek","es": "Hacer selfie"},"Submit for review": {"tr": "İncelemeye gönder","es": "Enviar a revisión"},"Say hi and plan something free.": {"tr": "Merhaba de ve ücretsiz bir şey planla.","es": "Saluda y planea algo gratis."},"Message": {"tr": "Mesaj","es": "Mensaje"},"Message is empty": {"tr": "Mesaj boş","es": "El mensaje está vacío"},"How about this for a free first date: {idea}?": {"tr": "Ücretsiz bir ilk buluşma için buna ne dersin: {idea}?","es": "¿Qué te parece esto para una primera cita gratis: {idea}?"},"Date proposal: {idea}{when}": {"tr": "Buluşma teklifi: {idea}{when}","es": "Propuesta de cita: {idea}{when}"},"I'm in. Let's do: {idea}": {"tr": "Varım. Hadi yapalım: {idea}","es": "Me apunto. Hagamos: {idea}"},"Not that one, but keep them coming.": {"tr": "O değil ama göndermeye devam et.","es": "Esa no, pero sigue mandando."},"How about this instead: ": {"tr": "Bunun yerine şuna ne dersin: ","es": "Mejor esto: "},"Edit profile": {"tr": "Profili düzenle","es": "Editar perfil"},"Resets at midnight": {"tr": "Gece yarısı sıfırlanır","es": "Se reinicia a medianoche"},"Delete my account": {"tr": "Hesabımı sil","es": "Eliminar mi cuenta"},"Keep my account": {"tr": "Hesabımı tut","es": "Conservar mi cuenta"},"Delete your account?": {"tr": "Hesabını silmek istiyor musun?","es": "¿Eliminar tu cuenta?"},"This permanently removes your profile, photos, matches, and Golden Hours. Safety reports are kept as described in the Privacy Policy. This cannot be undone.": {"tr": "Bu işlem profilini, fotoğraflarını, eşleşmelerini ve Altın Saatlerini kalıcı olarak siler. Güvenlik bildirimleri Gizlilik Politikasında anlatıldığı gibi saklanır. Bu işlem geri alınamaz.","es": "Esto elimina para siempre tu perfil, fotos, matches y Golden Hours. Los reportes de seguridad se conservan como se describe en la Política de Privacidad. No se puede deshacer."},"My bio": {"tr": "Hakkımda","es": "Mi bio"},"Free dates I'm up for": {"tr": "Varım dediğim ücretsiz buluşmalar","es": "Citas gratis que me apetecen"},"Privacy Policy": {"tr": "Gizlilik Politikası","es": "Política de Privacidad"},"Terms of Service": {"tr": "Kullanım Şartları","es": "Términos del Servicio"},"Terms": {"tr": "Şartlar","es": "Términos"},"Privacy": {"tr": "Gizlilik","es": "Privacidad"},"Last updated: [DATE]. Draft pending legal review.": {"tr": "Son güncelleme: [DATE]. Hukuki inceleme bekleyen taslak.","es": "Última actualización: [DATE]. Borrador pendiente de revisión legal."},"Your profile will show Free tonight until midnight": {"tr": "Profilin gece yarısına kadar Bu akşam müsait gösterecek","es": "Tu perfil mostrará Libre esta noche hasta medianoche"},"Dating without the bill. Come spend time on TOM.": {"tr": "Hesap derdi olmadan flört. Gel, TOM'da zaman geçir.","es": "Citas sin la cuenta. Ven a pasar tiempo en TOM."},"Don't spend money.": {"tr": "Para harcama.","es": "No gastes dinero."},"Spend time.": {"tr": "Zaman harca.","es": "Gasta tiempo."},"Prefer not to say": {"tr": "Belirtmek istemiyorum","es": "Prefiero no decirlo"},"Name required": {"tr": "İsim gerekli","es": "El nombre es obligatorio"},"Valid email required": {"tr": "Geçerli bir e-posta gerekli","es": "Se necesita un correo válido"},"Password must be at least 8 characters": {"tr": "Şifre en az 8 karakter olmalı","es": "La contraseña debe tener al menos 8 caracteres"},"You must be 18 or older to join TOM": {"tr": "TOM'a katılmak için 18 yaşında veya daha büyük olmalısın","es": "Debes tener 18 años o más para unirte a TOM"},"Check your email to confirm your account, then sign in.": {"tr": "Hesabını onaylamak için e-postanı kontrol et, sonra giriş yap.","es": "Revisa tu correo para confirmar tu cuenta y luego inicia sesión."},"Email or password is incorrect": {"tr": "E-posta veya şifre yanlış","es": "El correo o la contraseña no son correctos"},"We couldn't set up your profile. Please try again.": {"tr": "Profilini oluşturamadık. Lütfen tekrar dene.","es": "No pudimos crear tu perfil. Inténtalo de nuevo."},"Enter your email address": {"tr": "E-posta adresini gir","es": "Escribe tu correo"},"Too many attempts. Wait a minute and try again.": {"tr": "Çok fazla deneme. Bir dakika bekleyip tekrar dene.","es": "Demasiados intentos. Espera un minuto e inténtalo de nuevo."},"Not signed in": {"tr": "Giriş yapılmadı","es": "No has iniciado sesión"},"Nothing to undo": {"tr": "Geri alınacak bir şey yok","es": "Nada que deshacer"},"That one turned into a match already": {"tr": "Bu zaten bir eşleşmeye dönüştü","es": "Ese ya se convirtió en match"},"That reset link already expired or was used. Request a new one below.": {"tr": "Bu sıfırlama bağlantısının süresi dolmuş ya da kullanılmış. Aşağıdan yenisini iste.","es": "Ese enlace ya caducó o se usó. Pide uno nuevo abajo."},"Sending...": {"tr": "Gönderiliyor...","es": "Enviando..."},"Saving...": {"tr": "Kaydediliyor...","es": "Guardando..."},"Save": {"tr": "Kaydet","es": "Guardar"},"You're browsing as a guest": {"tr": "Misafir olarak geziyorsun","es": "Estás navegando como invitado"},"Create your free profile to match and plan dates.": {"tr": "Eşleşmek ve buluşma planlamak için ücretsiz profilini oluştur.","es": "Crea tu perfil gratis para hacer match y planear citas."},"Sign up free": {"tr": "Ücretsiz kaydol","es": "Regístrate gratis"}};
+function tx(en, vars) {
+  let out = en;
+  if (TX_LANG !== "en") {
+    const row = TX[en] || (typeof LABELS !== "undefined" && LABELS[en]);
+    if (row && row[TX_LANG]) out = row[TX_LANG];
+  }
+  if (vars) Object.keys(vars).forEach((k) => { out = out.split("{" + k + "}").join(vars[k] == null ? "" : String(vars[k])); });
+  return out;
+}
+function txLocale() { return TX_LANG === "tr" ? "tr-TR" : TX_LANG === "es" ? "es-ES" : "en-US"; }
+
 // Default language for anyone who has not chosen one yet. Change to "en" when
 // TOM launches outside Turkey.
 const DEFAULT_LANG = "tr";
@@ -2901,8 +2918,12 @@ function LanguageProvider({ children }) {
     setLangState(code);
     try { window.localStorage.setItem("tom-lang", code); } catch {}
   };
+  TX_LANG = lang;
+  // Tells the browser the page language, so CAPITALS follow Turkish rules (Şifre -> ŞİFRE)
+  try { document.documentElement.lang = lang; } catch (e) {}
   const t = React.useCallback((key) => (STRINGS[lang] && STRINGS[lang][key]) || STRINGS.en[key] || key, [lang]);
-  return <LangCtx.Provider value={{ lang, setLang, t }}>{children}</LangCtx.Provider>;
+  // Keyed on the language so every screen redraws in the new language at once
+  return <LangCtx.Provider value={{ lang, setLang, t }}><React.Fragment key={lang}>{children}</React.Fragment></LangCtx.Provider>;
 }
 
 // Text codes rather than flag emojis, per the no keyboard emoji rule
@@ -2923,7 +2944,7 @@ function LanguageSelector({ top = false }) {
           ))}
         </div>
       )}
-      <button onClick={() => setOpen((v) => !v)} aria-label="Change language"
+      <button onClick={() => setOpen((v) => !v)} aria-label={tx("Change language")}
         style={{ display: "flex", alignItems: "center", gap: 6, background: top ? T.white : T.royal, border: "none", borderRadius: 999, padding: "8px 14px", minHeight: 36, cursor: "pointer", boxShadow: top ? "0 4px 12px rgba(20,8,50,.25)" : "0 4px 12px rgba(91,33,182,.28)" }}>
         <Ic.Globe s={15} c={top ? T.royal : T.white} />
         <span style={fr(600, 13, top ? T.royal : T.white)}>{current.short}</span>
@@ -3335,7 +3356,7 @@ function Builder({ onDone, onExit, editMode }) {
       const err = api.validatePhoto(file);
       if (err) { setPhotoError(err); continue; }
       if (!asProfile && u.photos.length >= MAX_PHOTOS) {
-        setPhotoError(`Gallery is full (max ${MAX_PHOTOS} photos). Delete one first.`);
+        setPhotoError(tx("Gallery is full (max {n} photos). Delete one first.", { n: MAX_PHOTOS }));
         break;
       }
       setUploading(true);
@@ -3391,7 +3412,7 @@ function Builder({ onDone, onExit, editMode }) {
           )}
         </div>
       </Field>
-      {uploading && <p style={{ ...nu(700, 13, T.royal), margin: 0 }}>Uploading photo...</p>}
+      {uploading && <p style={{ ...nu(700, 13, T.royal), margin: 0 }}>{tx("Uploading photo...")}</p>}
       {photoError && <p style={{ ...nu(700, 13, T.red), margin: 0 }}>{photoError}</p>}
     </div>,
 
@@ -3669,7 +3690,7 @@ function MatchModal({ profile, onClose, myLoc, onMessage }) {
   const go = async () => {
     if (!idea || !profile.matchId) { onClose(); return; }
     setSending(true);
-    await api.sendMessage(profile.matchId, `How about this for a free first date: ${idea}?`);
+    await api.sendMessage(profile.matchId, tx("How about this for a free first date: {idea}?", { idea }));
     setSending(false);
     onClose();
     if (onMessage) onMessage(profile);
@@ -3678,16 +3699,16 @@ function MatchModal({ profile, onClose, myLoc, onMessage }) {
     <div style={{ position: "absolute", inset: 0, zIndex: 20, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: T.white, borderRadius: 26, padding: "26px 22px 22px", width: "100%", maxWidth: 320, textAlign: "center", animation: "popIn .35s ease", boxShadow: "0 20px 50px rgba(0,0,0,.3)" }}>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}><ZeroStamp size={64} /></div>
-        <h2 style={{ ...fr(700, 27, T.royal), margin: "0 0 4px" }}>Time well matched!</h2>
+        <h2 style={{ ...fr(700, 27, T.royal), margin: "0 0 4px" }}>{tx("Time well matched!")}</h2>
         <p style={{ ...nu(700, 14, T.ink), margin: "0 0 6px" }}>You and {profile.name} both chose time over money.</p>
-        <p style={{ ...nu(800, 13, T.royal), margin: "0 0 14px", background: T.lilac, borderRadius: 999, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 5 }}><Ic.Pin s={12} c={T.royal} />{haversineKm(myLoc, profile.loc) === null ? "Distance unavailable" : `You're ${distLabel(myLoc, profile)} apart`}</p>
-        <p style={{ ...nu(800, 12, T.soft), margin: "0 0 8px", letterSpacing: ".5px", textTransform: "uppercase" }}>Suggest a free first date (public places only)</p>
+        <p style={{ ...nu(800, 13, T.royal), margin: "0 0 14px", background: T.lilac, borderRadius: 999, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 5 }}><Ic.Pin s={12} c={T.royal} />{haversineKm(myLoc, profile.loc) === null ? tx("Distance unavailable") : tx("You're {d} apart", { d: distLabel(myLoc, profile) })}</p>
+        <p style={{ ...nu(800, 12, T.soft), margin: "0 0 8px", letterSpacing: ".5px", textTransform: "uppercase" }}>{tx("Suggest a free first date (public places only)")}</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18, maxHeight: 190, overflowY: "auto" }}>
           {DATE_IDEAS.map((s) => (
             <button key={s} onClick={() => setIdea(s)} style={{ ...nu(700, 13.5, idea === s ? T.royal : T.ink), padding: "11px 12px", borderRadius: 14, cursor: "pointer", border: `2px solid ${idea === s ? T.royal : T.lilacDeep}`, background: idea === s ? T.lilac : T.white, textAlign: "left" }}>{s}</button>
           ))}
         </div>
-        <PrimaryBtn disabled={sending} onClick={go}>{sending ? "Sending..." : (idea ? "Send this idea" : "Keep swiping")}</PrimaryBtn>
+        <PrimaryBtn disabled={sending} onClick={go}>{sending ? tx("Sending...") : (idea ? tx("Send this idea") : tx("Keep swiping"))}</PrimaryBtn>
       </div>
     </div>
   );
@@ -3700,13 +3721,13 @@ function GoldenIntro({ profileName, goldenLeft, onSend, onClose }) {
         <div style={{ width: 72, height: 72, borderRadius: "50%", background: T.sun, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", boxShadow: "0 8px 22px rgba(255,197,61,.5)" }}>
           <Ic.Sun s={38} c={T.white} />
         </div>
-        <h2 style={{ ...fr(700, 26, T.royal), margin: "0 0 8px" }}>Golden Hour</h2>
+        <h2 style={{ ...fr(700, 26, T.royal), margin: "0 0 8px" }}>{tx("Golden Hour")}</h2>
         <p style={{ ...nu(700, 14.5, T.ink), margin: "0 0 6px", lineHeight: 1.5 }}>
           Instantly tell {profileName} they're worth your best hour. They see it before anyone else.
         </p>
-        <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 18px" }}>{goldenLeft > 0 ? `You have ${goldenLeft} left today.` : "You're out for today."}</p>
-        <PrimaryBtn onClick={onSend} disabled={goldenLeft <= 0}>Send Golden Hour</PrimaryBtn>
-        <button onClick={onClose} style={{ width: "100%", marginTop: 10, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Not now</button>
+        <p style={{ ...nu(700, 12.5, T.soft), margin: "0 0 18px" }}>{goldenLeft > 0 ? tx("You have {n} left today.", { n: goldenLeft }) : tx("You're out for today.")}</p>
+        <PrimaryBtn onClick={onSend} disabled={goldenLeft <= 0}>{tx("Send Golden Hour")}</PrimaryBtn>
+        <button onClick={onClose} style={{ width: "100%", marginTop: 10, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{tx("Not now")}</button>
       </div>
     </div>
   );
@@ -3722,21 +3743,21 @@ function ReportModal({ profile, onCancel, onConfirm }) {
         {done ? (
           <div style={{ textAlign: "center" }}>
             <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}><Ic.ShieldCheck s={44} c={T.green} /></div>
-            <h2 style={{ ...fr(700, 22, T.ink), margin: "0 0 8px" }}>Thanks for keeping TOM safe</h2>
+            <h2 style={{ ...fr(700, 22, T.ink), margin: "0 0 8px" }}>{tx("Thanks for keeping TOM safe")}</h2>
             <p style={{ ...nu(600, 13.5, T.soft), margin: "0 0 16px", lineHeight: 1.5 }}>{profile.name} has been blocked and removed. Our safety team will review this report. They won't know it came from you.</p>
-            <PrimaryBtn onClick={() => onConfirm(reason)}>Done</PrimaryBtn>
+            <PrimaryBtn onClick={() => onConfirm(reason)}>{tx("Done")}</PrimaryBtn>
           </div>
         ) : (
           <>
             <h2 style={{ ...fr(700, 22, T.ink), margin: "0 0 4px", textAlign: "center" }}>Report {profile.name}</h2>
-            <p style={{ ...nu(600, 12.5, T.soft), margin: "0 0 14px", textAlign: "center" }}>Reports are anonymous. Reporting also blocks them.</p>
+            <p style={{ ...nu(600, 12.5, T.soft), margin: "0 0 14px", textAlign: "center" }}>{tx("Reports are anonymous. Reporting also blocks them.")}</p>
             <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 16 }}>
               {REASONS.map((r) => (
-                <button key={r} onClick={() => setReason(r)} style={{ ...nu(700, 13.5, reason === r ? T.royal : T.ink), padding: "11px 12px", borderRadius: 14, cursor: "pointer", border: `2px solid ${reason === r ? T.royal : T.lilacDeep}`, background: reason === r ? T.lilac : T.white, textAlign: "left" }}>{r}</button>
+                <button key={r} onClick={() => setReason(r)} style={{ ...nu(700, 13.5, reason === r ? T.royal : T.ink), padding: "11px 12px", borderRadius: 14, cursor: "pointer", border: `2px solid ${reason === r ? T.royal : T.lilacDeep}`, background: reason === r ? T.lilac : T.white, textAlign: "left" }}>{tx(r)}</button>
               ))}
             </div>
-            <PrimaryBtn disabled={!reason} onClick={() => setDone(true)}>Report and block</PrimaryBtn>
-            <button onClick={onCancel} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Cancel</button>
+            <PrimaryBtn disabled={!reason} onClick={() => setDone(true)}>{tx("Report and block")}</PrimaryBtn>
+            <button onClick={onCancel} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{tx("Cancel")}</button>
           </>
         )}
       </div>
@@ -3757,20 +3778,20 @@ function VerifyModal({ onClose, onSubmit }) {
     <div style={{ position: "absolute", inset: 0, zIndex: 26, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: T.white, borderRadius: 26, padding: "24px 22px 20px", width: "100%", maxWidth: 320, textAlign: "center", animation: "popIn .3s ease", boxShadow: "0 20px 50px rgba(0,0,0,.3)" }}>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}><Ic.ShieldCheck s={48} c={T.green} /></div>
-        <h2 style={{ ...fr(700, 23, T.ink), margin: "0 0 8px" }}>Verify it's really you</h2>
-        <p style={{ ...nu(600, 13.5, T.soft), margin: "0 0 4px", lineHeight: 1.5 }}>Take a selfie with a thumbs up next to your face. Our safety team compares it with your profile photos.</p>
-        <p style={{ ...nu(700, 12, T.soft), margin: "0 0 16px" }}>The selfie is never shown on your profile.</p>
+        <h2 style={{ ...fr(700, 23, T.ink), margin: "0 0 8px" }}>{tx("Verify it's really you")}</h2>
+        <p style={{ ...nu(600, 13.5, T.soft), margin: "0 0 4px", lineHeight: 1.5 }}>{tx("Take a selfie with a thumbs up next to your face. Our safety team compares it with your profile photos.")}</p>
+        <p style={{ ...nu(700, 12, T.soft), margin: "0 0 16px" }}>{tx("The selfie is never shown on your profile.")}</p>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
           {selfie ? <PhotoThumb src={selfie} size={92} round /> : (
             <label style={{ width: 92, height: 92, borderRadius: "50%", border: `2px dashed ${T.lilacDeep}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, cursor: "pointer", background: T.lilac }}>
               <Ic.Camera s={26} c={T.royal} />
-              <span style={{ ...nu(800, 10.5, T.royal) }}>Take selfie</span>
+              <span style={{ ...nu(800, 10.5, T.royal) }}>{tx("Take selfie")}</span>
               <input type="file" accept="image/*" capture="user" style={{ display: "none" }} onChange={takeSelfie} />
             </label>
           )}
         </div>
-        <PrimaryBtn disabled={!selfie} onClick={onSubmit}>Submit for review</PrimaryBtn>
-        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Not now</button>
+        <PrimaryBtn disabled={!selfie} onClick={onSubmit}>{tx("Submit for review")}</PrimaryBtn>
+        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{tx("Not now")}</button>
       </div>
     </div>
   );
@@ -3853,7 +3874,7 @@ function Chat({ profile, onBack, onDateCompleted, myLoc, isPlus = false, onRepor
       setPlanning(false);
       setPlanDate(""); setPlanTime(""); setPlanDouble(false);
       const when = scheduledAt ? ` (${whenLabel(scheduledAt)})` : "";
-      await api.sendMessage(profile.matchId, `Date proposal: ${idea}${when}`);
+      await api.sendMessage(profile.matchId, tx("Date proposal: {idea}{when}", { idea, when }));
       refresh();
     }
   };
@@ -3877,10 +3898,10 @@ function Chat({ profile, onBack, onDateCompleted, myLoc, isPlus = false, onRepor
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderBottom: `1px solid ${T.lilacDeep}` }}>
-        <button onClick={onBack} aria-label="Back" style={{ border: "none", background: "none", cursor: "pointer", padding: 4, display: "inline-flex" }}>
+        <button onClick={onBack} aria-label={tx("Back")} style={{ border: "none", background: "none", cursor: "pointer", padding: 4, display: "inline-flex" }}>
           <span style={{ display: "inline-flex", transform: "rotate(180deg)" }}><Ic.Chevron s={18} c={T.royal} /></span>
         </button>
-        <button onClick={() => setViewing(profile)} aria-label={`View ${profile.name}'s profile`} style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, border: "none", background: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
+        <button onClick={() => setViewing(profile)} aria-label={tx("View {name}'s profile", { name: profile.name })} style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, border: "none", background: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
           {profile.photo ? <PhotoThumb src={profile.photo} size={34} round /> : (
             <div style={{ width: 34, height: 34, borderRadius: "50%", background: `linear-gradient(135deg, ${profile.grad[0]}, ${profile.grad[1]})`, display: "flex", alignItems: "center", justifyContent: "center", ...fr(700, 14, T.white) }}>{profile.name[0]}</div>
           )}
@@ -3941,19 +3962,19 @@ function Chat({ profile, onBack, onDateCompleted, myLoc, isPlus = false, onRepor
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={propose} style={{ flex: 1, border: "none", borderRadius: 999, padding: "9px 0", background: T.royal, cursor: "pointer", ...fr(600, 13, T.white) }}>{t("propose")}</button>
-            <button onClick={() => setPlanning(false)} style={{ flex: 1, border: `2px solid ${T.lilacDeep}`, borderRadius: 999, padding: "9px 0", background: T.white, cursor: "pointer", ...fr(600, 13, T.soft) }}>Cancel</button>
+            <button onClick={() => setPlanning(false)} style={{ flex: 1, border: `2px solid ${T.lilacDeep}`, borderRadius: 999, padding: "9px 0", background: T.white, cursor: "pointer", ...fr(600, 13, T.soft) }}>{tx("Cancel")}</button>
           </div>
         </div>
       )}
 
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
         {loading ? (
-          <p style={{ ...nu(600, 13, T.soft), textAlign: "center" }}>Loading...</p>
+          <p style={{ ...nu(600, 13, T.soft), textAlign: "center" }}>{tx("Loading...")}</p>
         ) : messages.length === 0 ? (
           <div style={{ textAlign: "center", paddingTop: 40 }}>
             <Ic.Hourglass s={40} c={T.royal} />
             <p style={{ ...fr(600, 16, T.ink), margin: "10px 0 4px" }}>You matched with {profile.name}</p>
-            <p style={{ ...nu(600, 13, T.soft), margin: 0 }}>Say hi and plan something free.</p>
+            <p style={{ ...nu(600, 13, T.soft), margin: 0 }}>{tx("Say hi and plan something free.")}</p>
           </div>
         ) : messages.map((m, i) => {
           const mine = m.sender_id === myId;
@@ -3979,9 +4000,9 @@ function Chat({ profile, onBack, onDateCompleted, myLoc, isPlus = false, onRepor
                   <p style={{ ...nu(700, 14, T.ink), margin: mine ? 0 : "0 0 10px" }}>{missionIdea}</p>
                   {!mine && (
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <button onClick={() => send(`I'm in. Let's do: ${missionIdea}`)} disabled={sending} style={{ flex: 1, minWidth: 70, padding: "7px 10px", borderRadius: 8, border: "none", background: T.royal, ...nu(700, 12, T.white), cursor: sending ? "default" : "pointer" }}>{t("accept")}</button>
-                      <button onClick={() => send("Not that one, but keep them coming.")} disabled={sending} style={{ flex: 1, minWidth: 70, padding: "7px 10px", borderRadius: 8, border: "none", background: T.soft, ...nu(700, 12, T.ink), cursor: sending ? "default" : "pointer" }}>{t("decline")}</button>
-                      <button onClick={() => { setDraft("How about this instead: "); if (inputRef.current) inputRef.current.focus(); }} disabled={sending} style={{ flex: 1, minWidth: 70, padding: "7px 10px", borderRadius: 8, border: "none", background: T.lilacDeep, ...nu(700, 12, T.royal), cursor: sending ? "default" : "pointer" }}>{t("counter")}</button>
+                      <button onClick={() => send(tx("I'm in. Let's do: {idea}", { idea: missionIdea }))} disabled={sending} style={{ flex: 1, minWidth: 70, padding: "7px 10px", borderRadius: 8, border: "none", background: T.royal, ...nu(700, 12, T.white), cursor: sending ? "default" : "pointer" }}>{t("accept")}</button>
+                      <button onClick={() => send(tx("Not that one, but keep them coming."))} disabled={sending} style={{ flex: 1, minWidth: 70, padding: "7px 10px", borderRadius: 8, border: "none", background: T.soft, ...nu(700, 12, T.ink), cursor: sending ? "default" : "pointer" }}>{t("decline")}</button>
+                      <button onClick={() => { setDraft(tx("How about this instead: ")); if (inputRef.current) inputRef.current.focus(); }} disabled={sending} style={{ flex: 1, minWidth: 70, padding: "7px 10px", borderRadius: 8, border: "none", background: T.lilacDeep, ...nu(700, 12, T.royal), cursor: sending ? "default" : "pointer" }}>{t("counter")}</button>
                     </div>
                   )}
                 </div>
@@ -4005,7 +4026,7 @@ function Chat({ profile, onBack, onDateCompleted, myLoc, isPlus = false, onRepor
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") send(); }}
-          placeholder="Message"
+          placeholder={tx("Message")}
           style={{ flex: 1, padding: "11px 14px", borderRadius: 999, border: `2px solid ${T.lilacDeep}`, outline: "none", ...nu(600, 14, T.ink) }}
         />
         <button onClick={send} disabled={sending || !draft.trim()} style={{ padding: "0 18px", borderRadius: 999, border: "none", cursor: draft.trim() ? "pointer" : "default", background: draft.trim() ? T.royal : T.lilacDeep, ...nu(800, 13.5, T.white) }}>
@@ -4145,7 +4166,7 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
           <Ic.Hourglass s={20} c="#8A6400" />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ ...nu(800, 13.5, "#6B4E00") }}>How did your plan with {pendingOutcome.other_name} go?</div>
-            <div style={{ ...nu(700, 12, "#8A6400" ) }}>Tap to answer, so you can both rate the time</div>
+            <div style={{ ...nu(700, 12, "#8A6400" ) }}>{tx("Tap to answer, so you can both rate the time")}</div>
           </div>
           <Ic.Chevron s={16} c="#8A6400" />
         </button>
@@ -4181,7 +4202,7 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
             const waiting = u.unread > 0 || u.action;
             return (
             <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, background: waiting ? "#F3EEFF" : T.white, borderRadius: 18, padding: 12, marginBottom: 10, boxShadow: waiting ? `0 4px 16px rgba(91,33,182,.18)` : "0 4px 14px rgba(42,27,74,.08)", border: waiting ? `2px solid ${T.violet}` : "2px solid transparent", animation: "floatUp .3s ease" }}>
-              <button onClick={() => setViewing(p)} aria-label={`View ${p.name}'s profile`} style={{ position: "relative", border: "none", background: "none", padding: 0, cursor: "pointer", flexShrink: 0 }}>
+              <button onClick={() => setViewing(p)} aria-label={tx("View {name}'s profile", { name: p.name })} style={{ position: "relative", border: "none", background: "none", padding: 0, cursor: "pointer", flexShrink: 0 }}>
                 <div style={{ width: 54, height: 54, borderRadius: "50%", background: p.photo ? `url(${p.photo}) center/cover no-repeat` : `linear-gradient(135deg, ${p.grad[0]}, ${p.grad[1]})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: waiting ? `0 0 0 3px ${T.violet}` : "none", ...fr(700, 22, T.white) }}>{p.photo ? "" : p.name[0]}</div>
                 {u.unread > 0 && (
                   <span style={{ position: "absolute", top: -3, right: -3, minWidth: 21, height: 21, borderRadius: 999, background: T.red, border: `2px solid ${T.white}`, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 5px", ...nu(800, 11.5, T.white) }}>{u.unread > 9 ? "9+" : u.unread}</span>
@@ -4200,7 +4221,7 @@ function Matches({ matches, myLoc, admirerCount, onUpgrade, onReport, onOpenChat
                   </div>
                 </div>
               </button>
-              <button onClick={() => onReport(p)} aria-label="Block or report" style={{ border: `1.5px solid ${T.lilacDeep}`, background: T.white, borderRadius: 999, cursor: "pointer", padding: 7, display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Flag s={17} c={T.soft} /></button>
+              <button onClick={() => onReport(p)} aria-label={tx("Block or report")} style={{ border: `1.5px solid ${T.lilacDeep}`, background: T.white, borderRadius: 999, cursor: "pointer", padding: 7, display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Flag s={17} c={T.soft} /></button>
               <span style={{ ...fr(700, 13, T.green), background: "#E8F8EF", borderRadius: 999, padding: "5px 10px" }}>$0</span>
             </div>
             );
@@ -4260,12 +4281,12 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
     return (
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, textAlign: "center", gap: 14 }}>
         <Ic.Person s={48} c={T.royal} />
-        <h2 style={{ ...fr(600, 22, T.ink), margin: 0 }}>You're browsing as a guest</h2>
-        <p style={{ ...nu(600, 14, T.soft), margin: 0 }}>Create your free profile to match and plan dates.</p>
-        <div style={{ width: "100%", maxWidth: 240 }}><PrimaryBtn onClick={onSignUp}>Sign up free</PrimaryBtn></div>
+        <h2 style={{ ...fr(600, 22, T.ink), margin: 0 }}>{tx("You're browsing as a guest")}</h2>
+        <p style={{ ...nu(600, 14, T.soft), margin: 0 }}>{tx("Create your free profile to match and plan dates.")}</p>
+        <div style={{ width: "100%", maxWidth: 240 }}><PrimaryBtn onClick={onSignUp}>{tx("Sign up free")}</PrimaryBtn></div>
         <div style={{ display: "flex", gap: 18, marginTop: 4 }}>
-          <button onClick={() => onLegal("terms")} style={{ ...nu(800, 12, T.soft), border: "none", background: "none", cursor: "pointer", textDecoration: "underline" }}>Terms</button>
-          <button onClick={() => onLegal("privacy")} style={{ ...nu(800, 12, T.soft), border: "none", background: "none", cursor: "pointer", textDecoration: "underline" }}>Privacy</button>
+          <button onClick={() => onLegal("terms")} style={{ ...nu(800, 12, T.soft), border: "none", background: "none", cursor: "pointer", textDecoration: "underline" }}>{tx("Terms")}</button>
+          <button onClick={() => onLegal("privacy")} style={{ ...nu(800, 12, T.soft), border: "none", background: "none", cursor: "pointer", textDecoration: "underline" }}>{tx("Privacy")}</button>
         </div>
       </div>
     );
@@ -4287,7 +4308,7 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
       <div style={{ textAlign: "center", marginBottom: 16 }}>
         <div style={{ display: "flex", justifyContent: "center", margin: "8px 0 10px" }}>
           {u.profilePhoto ? (
-            <button onClick={() => setViewingPhoto(0)} aria-label="View profile photo" style={{ border: "none", background: "none", padding: 0, cursor: "pointer" }}>
+            <button onClick={() => setViewingPhoto(0)} aria-label={tx("View profile photo")} style={{ border: "none", background: "none", padding: 0, cursor: "pointer" }}>
               <PhotoThumb src={u.profilePhoto} size={92} round />
             </button>
           ) : (
@@ -4296,22 +4317,22 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
         </div>
         <h2 style={{ ...fr(600, 24, T.ink), margin: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>{u.name}, {u.age}{verifyStatus === "verified" && <Ic.ShieldCheck s={21} c={T.green} />}</h2>
         <p style={{ ...nu(700, 13, T.soft), margin: "4px 0 0" }}>{[u.city, heightLabel, chronoLabel].filter(Boolean).join(" · ")}</p>
-        <button onClick={() => setManagingPhotos(true)} style={{ marginTop: 8, marginRight: 8, border: `2px solid ${T.lilacDeep}`, background: T.white, borderRadius: 999, padding: "7px 14px", cursor: "pointer", ...nu(800, 12.5, T.royal) }}>Manage photos</button>
-        <button onClick={onEditProfile} style={{ marginTop: 8, marginRight: 8, border: `2px solid ${T.lilacDeep}`, background: T.white, borderRadius: 999, padding: "7px 14px", cursor: "pointer", ...nu(800, 12.5, T.royal) }}>Edit profile</button>
-        <button onClick={() => setManagingSearch(true)} style={{ marginTop: 8, border: `2px solid ${T.lilacDeep}`, background: T.white, borderRadius: 999, padding: "7px 14px", cursor: "pointer", ...nu(800, 12.5, T.royal) }}>Search preferences</button>
+        <button onClick={() => setManagingPhotos(true)} style={{ marginTop: 8, marginRight: 8, border: `2px solid ${T.lilacDeep}`, background: T.white, borderRadius: 999, padding: "7px 14px", cursor: "pointer", ...nu(800, 12.5, T.royal) }}>{tx("Manage photos")}</button>
+        <button onClick={onEditProfile} style={{ marginTop: 8, marginRight: 8, border: `2px solid ${T.lilacDeep}`, background: T.white, borderRadius: 999, padding: "7px 14px", cursor: "pointer", ...nu(800, 12.5, T.royal) }}>{tx("Edit profile")}</button>
+        <button onClick={() => setManagingSearch(true)} style={{ marginTop: 8, border: `2px solid ${T.lilacDeep}`, background: T.white, borderRadius: 999, padding: "7px 14px", cursor: "pointer", ...nu(800, 12.5, T.royal) }}>{tx("Search preferences")}</button>
       </div>
       {u.photos.length > 0 && (
         <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 12 }}>
           {u.photos.map((src, i) => (
-            <button key={i} onClick={() => setViewingPhoto(i + 1)} aria-label={`View photo ${i + 2}`} style={{ border: "none", background: "none", padding: 0, cursor: "pointer", flexShrink: 0 }}>
+            <button key={i} onClick={() => setViewingPhoto(i + 1)} aria-label={tx("View photo {n}", { n: i + 2 })} style={{ border: "none", background: "none", padding: 0, cursor: "pointer", flexShrink: 0 }}>
               <PhotoThumb src={src} size={70} />
             </button>
           ))}
         </div>
       )}
       {[
-        ["My bio", u.bio],
-        ["Free dates I'm up for", u.thingsILikeToDo.join(", ")],
+        [tx("My bio"), u.bio],
+        [tx("Free dates I'm up for"), u.thingsILikeToDo.join(", ")],
         ["Interests", u.interests.join(", ")],
         ["Hobbies", u.hobbies.join(", ")],
       ].filter(([, v]) => v).map(([label, value]) => (
@@ -4360,7 +4381,7 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
         <button onClick={onUpgrade} style={{ width: "100%", padding: "14px 16px", border: "none", background: "transparent", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
           <Ic.Sun s={26} c={T.sun} />
           <span style={{ flex: 1 }}>
-            <span style={{ ...fr(700, 16, T.royal), display: "block" }}>Get TOM<span style={{ color: T.sun }}>+</span></span>
+            <span style={{ ...fr(700, 16, T.royal), display: "block" }}>{tx("Get TOM+").split("TOM+")[0]}TOM<span style={{ color: T.sun }}>+</span>{tx("Get TOM+").split("TOM+")[1]}</span>
             <span style={{ ...nu(700, 12.5, T.soft) }}>{t("tomPerks")}</span>
           </span>
           <Ic.Chevron s={16} c={T.royal} />
@@ -4369,8 +4390,8 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
         <button onClick={onOffClock} style={{ width: "100%", padding: "14px 16px", border: "none", background: "transparent", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
           <Ic.Moon s={26} c={T.royal} />
           <span style={{ flex: 1 }}>
-            <span style={{ ...fr(700, 16, T.ink), display: "block" }}>{t("offTheClock")}{u.offTheClock ? " · ON" : ""}</span>
-            {u.offTheClock ? <span style={{ ...nu(700, 12.5, T.green) }}>Resets at midnight</span> : <span style={{ ...nu(700, 12.5, T.soft) }}>{t("offOff")}</span>}
+            <span style={{ ...fr(700, 16, T.ink), display: "block" }}>{t("offTheClock")}{u.offTheClock ? ` · ${tx("ON")}` : ""}</span>
+            {u.offTheClock ? <span style={{ ...nu(700, 12.5, T.green) }}>{tx("Resets at midnight")}</span> : <span style={{ ...nu(700, 12.5, T.soft) }}>{t("offOff")}</span>}
           </span>
           <Ic.Chevron s={16} c={T.royal} />
         </button>
@@ -4394,8 +4415,8 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
       <div style={{ marginTop: 16 }}>
         <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".6px", textTransform: "uppercase", margin: "0 2px 8px" }}>{t("aboutPrivacy")}</div>
         {[
-          ["Privacy Policy", () => onLegal("privacy")],
-          ["Terms of Service", () => onLegal("terms")],
+          [tx("Privacy Policy"), () => onLegal("privacy")],
+          [tx("Terms of Service"), () => onLegal("terms")],
         ].map(([label, fn]) => (
           <button key={label} onClick={fn} style={{ width: "100%", background: T.white, border: "none", borderRadius: 16, padding: "13px 15px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 3px 10px rgba(42,27,74,.06)" }}>
             <span style={{ ...nu(700, 14.5, T.ink) }}>{label}</span>
@@ -4407,7 +4428,7 @@ function You({ onSignUp, onUpgrade, verifyStatus, onVerify, onLegal, onDelete, o
           <Ic.Chevron s={14} c={T.royal} />
         </button>
         <button onClick={onDelete} style={{ width: "100%", background: T.white, border: "none", borderRadius: 16, padding: "13px 15px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 3px 10px rgba(42,27,74,.06)" }}>
-          <span style={{ ...nu(700, 14.5, T.red) }}>Delete my account</span>
+          <span style={{ ...nu(700, 14.5, T.red) }}>{tx("Delete my account")}</span>
           <Ic.Chevron s={14} c={T.red} />
         </button>
       </div>
@@ -4481,7 +4502,7 @@ function MyPhotoViewer({ startIndex = 0, onClose, onChanged }) {
 
   const remove = async () => {
     const next = order.filter((_, j) => j !== idx);
-    if (next.length === 0) { setError("Keep at least one photo."); return; }
+    if (next.length === 0) { setError(tx("Keep at least one photo.")); return; }
     await persist(next);
     setIdx((i) => Math.min(i, next.length - 1));
     setBroken(false);
@@ -4498,26 +4519,26 @@ function MyPhotoViewer({ startIndex = 0, onClose, onChanged }) {
   return (
     <div style={{ position: "absolute", inset: 0, zIndex: 70, background: "rgba(20,12,38,.94)", display: "flex", flexDirection: "column", animation: "popIn .2s ease" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px" }}>
-        <span style={{ ...nu(800, 12.5, "#C9BCE8") }}>{idx === 0 ? "Main photo" : `Photo ${idx + 1} of ${order.length}`}</span>
-        <button onClick={onClose} aria-label="Close" style={{ border: "none", background: "rgba(255,255,255,.14)", borderRadius: 999, width: 32, height: 32, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Cross s={15} c={T.white} /></button>
+        <span style={{ ...nu(800, 12.5, "#C9BCE8") }}>{idx === 0 ? tx("Main photo") : tx("Photo {i} of {n}", { i: idx + 1, n: order.length })}</span>
+        <button onClick={onClose} aria-label={tx("Close")} style={{ border: "none", background: "rgba(255,255,255,.14)", borderRadius: 999, width: 32, height: 32, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ic.Cross s={15} c={T.white} /></button>
       </div>
 
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 12px", minHeight: 0, position: "relative" }}>
         {order.length > 1 && (
-          <button onClick={() => go(-1)} aria-label="Previous photo" style={{ position: "absolute", left: 10, zIndex: 2, border: "none", background: "rgba(255,255,255,.16)", borderRadius: 999, width: 38, height: 38, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <button onClick={() => go(-1)} aria-label={tx("Previous photo")} style={{ position: "absolute", left: 10, zIndex: 2, border: "none", background: "rgba(255,255,255,.16)", borderRadius: 999, width: 38, height: 38, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <span style={{ display: "inline-flex", transform: "rotate(180deg)" }}><Ic.Chevron s={19} c={T.white} /></span>
           </button>
         )}
         {broken ? (
           <div style={{ ...nu(700, 13, "#C9BCE8"), textAlign: "center", padding: 30 }}>
             <Ic.Camera s={40} c="#C9BCE8" />
-            <div style={{ marginTop: 10 }}>This photo can't preview in your browser, but it is saved.</div>
+            <div style={{ marginTop: 10 }}>{tx("This photo can't preview in your browser, but it is saved.")}</div>
           </div>
         ) : (
           <img src={src} alt="" onError={() => setBroken(true)} style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 18, objectFit: "contain" }} />
         )}
         {order.length > 1 && (
-          <button onClick={() => go(1)} aria-label="Next photo" style={{ position: "absolute", right: 10, zIndex: 2, border: "none", background: "rgba(255,255,255,.16)", borderRadius: 999, width: 38, height: 38, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <button onClick={() => go(1)} aria-label={tx("Next photo")} style={{ position: "absolute", right: 10, zIndex: 2, border: "none", background: "rgba(255,255,255,.16)", borderRadius: 999, width: 38, height: 38, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Ic.Chevron s={19} c={T.white} />
           </button>
         )}
@@ -4534,8 +4555,8 @@ function MyPhotoViewer({ startIndex = 0, onClose, onChanged }) {
       {error && <p style={{ ...nu(700, 12.5, "#FFB4B4"), textAlign: "center", margin: "8px 16px 0" }}>{error}</p>}
 
       <div style={{ display: "flex", gap: 8, padding: "12px 16px 20px" }}>
-        <button onClick={makeMain} disabled={idx === 0 || saving} style={{ flex: 1, border: "none", borderRadius: 14, padding: "12px 0", cursor: idx === 0 || saving ? "default" : "pointer", opacity: idx === 0 || saving ? 0.4 : 1, background: T.royal, ...nu(800, 13, T.white) }}>Make main</button>
-        <button onClick={remove} disabled={saving} style={{ flex: 1, border: "none", borderRadius: 14, padding: "12px 0", cursor: saving ? "default" : "pointer", opacity: saving ? 0.5 : 1, background: "rgba(255,255,255,.16)", ...nu(800, 13, T.white) }}>{saving ? "Saving..." : "Delete"}</button>
+        <button onClick={makeMain} disabled={idx === 0 || saving} style={{ flex: 1, border: "none", borderRadius: 14, padding: "12px 0", cursor: idx === 0 || saving ? "default" : "pointer", opacity: idx === 0 || saving ? 0.4 : 1, background: T.royal, ...nu(800, 13, T.white) }}>{tx("Make main")}</button>
+        <button onClick={remove} disabled={saving} style={{ flex: 1, border: "none", borderRadius: 14, padding: "12px 0", cursor: saving ? "default" : "pointer", opacity: saving ? 0.5 : 1, background: "rgba(255,255,255,.16)", ...nu(800, 13, T.white) }}>{saving ? tx("Saving...") : "Delete"}</button>
       </div>
     </div>
   );
@@ -4567,7 +4588,7 @@ function PhotoManagerModal({ onClose, onSaved }) {
     for (const file of Array.from(files)) {
       const err = api.validatePhoto(file);
       if (err) { setError(err); continue; }
-      if (order.length >= MAX_TOTAL) { setError(`You can have up to ${MAX_TOTAL} photos total. Remove one first.`); break; }
+      if (order.length >= MAX_TOTAL) { setError(tx("You can have up to {n} photos total. Remove one first.", { n: MAX_TOTAL })); break; }
       setUploading(true);
       const up = await api.uploadPhoto(file);
       setUploading(false);
@@ -4576,7 +4597,7 @@ function PhotoManagerModal({ onClose, onSaved }) {
     }
   };
   const save = async () => {
-    if (order.length === 0) { setError("Add at least one photo"); return; }
+    if (order.length === 0) { setError(tx("Add at least one photo")); return; }
     setSaving(true);
     u.profilePhoto = order[0];
     u.photos = order.slice(1);
@@ -4589,21 +4610,21 @@ function PhotoManagerModal({ onClose, onSaved }) {
   return (
     <div style={{ position: "absolute", inset: 0, zIndex: 30, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: T.white, borderRadius: 26, padding: "22px 20px", width: "100%", maxWidth: 340, maxHeight: "82vh", overflowY: "auto", animation: "popIn .3s ease", boxShadow: "0 20px 50px rgba(0,0,0,.3)" }}>
-        <h2 style={{ ...fr(700, 21, T.ink), margin: "0 0 4px" }}>Manage photos</h2>
-        <p style={{ ...nu(600, 12.5, T.soft), margin: "0 0 14px" }}>Your first photo is your main profile photo. Use the arrows to reorder, or tap Make main.</p>
+        <h2 style={{ ...fr(700, 21, T.ink), margin: "0 0 4px" }}>{tx("Manage photos")}</h2>
+        <p style={{ ...nu(600, 12.5, T.soft), margin: "0 0 14px" }}>{tx("Your first photo is your main profile photo. Use the arrows to reorder, or tap Make main.")}</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
           {order.map((src, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, background: T.lilac, borderRadius: 14, padding: 8 }}>
               <PhotoThumb src={src} size={56} round={i === 0} />
               <div style={{ flex: 1 }}>
-                <div style={{ ...nu(800, 12, T.royal) }}>{i === 0 ? "Main photo" : `Photo ${i + 1}`}</div>
+                <div style={{ ...nu(800, 12, T.royal) }}>{i === 0 ? tx("Main photo") : tx("Photo {i}", { i: i + 1 })}</div>
                 {i !== 0 && (
-                  <button onClick={() => makeMain(i)} style={{ border: "none", background: "none", cursor: "pointer", padding: 0, ...nu(700, 11.5, T.soft), textDecoration: "underline" }}>Make main</button>
+                  <button onClick={() => makeMain(i)} style={{ border: "none", background: "none", cursor: "pointer", padding: 0, ...nu(700, 11.5, T.soft), textDecoration: "underline" }}>{tx("Make main")}</button>
                 )}
               </div>
-              <button onClick={() => moveLeft(i)} disabled={i === 0} aria-label="Move earlier" style={{ border: "none", background: "none", cursor: i === 0 ? "default" : "pointer", opacity: i === 0 ? 0.3 : 1, padding: 4 }}><span style={{ display: "inline-flex", transform: "rotate(180deg)" }}><Ic.Chevron s={16} c={T.royal} /></span></button>
-              <button onClick={() => moveRight(i)} disabled={i === order.length - 1} aria-label="Move later" style={{ border: "none", background: "none", cursor: i === order.length - 1 ? "default" : "pointer", opacity: i === order.length - 1 ? 0.3 : 1, padding: 4 }}><Ic.Chevron s={16} c={T.royal} /></button>
-              <button onClick={() => remove(i)} aria-label="Remove photo" style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Cross s={15} c={T.red} /></button>
+              <button onClick={() => moveLeft(i)} disabled={i === 0} aria-label={tx("Move earlier")} style={{ border: "none", background: "none", cursor: i === 0 ? "default" : "pointer", opacity: i === 0 ? 0.3 : 1, padding: 4 }}><span style={{ display: "inline-flex", transform: "rotate(180deg)" }}><Ic.Chevron s={16} c={T.royal} /></span></button>
+              <button onClick={() => moveRight(i)} disabled={i === order.length - 1} aria-label={tx("Move later")} style={{ border: "none", background: "none", cursor: i === order.length - 1 ? "default" : "pointer", opacity: i === order.length - 1 ? 0.3 : 1, padding: 4 }}><Ic.Chevron s={16} c={T.royal} /></button>
+              <button onClick={() => remove(i)} aria-label={tx("Remove photo")} style={{ border: "none", background: "none", cursor: "pointer", padding: 4 }}><Ic.Cross s={15} c={T.red} /></button>
             </div>
           ))}
           {order.length < MAX_TOTAL && (
@@ -4613,10 +4634,10 @@ function PhotoManagerModal({ onClose, onSaved }) {
             </label>
           )}
         </div>
-        {uploading && <p style={{ ...nu(700, 13, T.royal), margin: "0 0 12px" }}>Uploading photo...</p>}
+        {uploading && <p style={{ ...nu(700, 13, T.royal), margin: "0 0 12px" }}>{tx("Uploading photo...")}</p>}
         {error && <p style={{ ...nu(700, 13, T.red), margin: "0 0 12px" }}>{error}</p>}
-        <PrimaryBtn disabled={saving || uploading} onClick={save}>{saving ? "Saving..." : "Save changes"}</PrimaryBtn>
-        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Cancel</button>
+        <PrimaryBtn disabled={saving || uploading} onClick={save}>{saving ? tx("Saving...") : tx("Save changes")}</PrimaryBtn>
+        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{tx("Cancel")}</button>
       </div>
     </div>
   );
@@ -4645,23 +4666,23 @@ function SearchPrefsModal({ onClose, onSaved }) {
   return (
     <div style={{ position: "absolute", inset: 0, zIndex: 30, background: "rgba(42,27,74,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: T.white, borderRadius: 26, padding: "22px 20px", width: "100%", maxWidth: 340, maxHeight: "82vh", overflowY: "auto", animation: "popIn .3s ease", boxShadow: "0 20px 50px rgba(0,0,0,.3)" }}>
-        <h2 style={{ ...fr(700, 21, T.ink), margin: "0 0 4px" }}>Search preferences</h2>
-        <p style={{ ...nu(600, 12.5, T.soft), margin: "0 0 14px" }}>Choose your units and how far you're willing to meet.</p>
-        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".6px", textTransform: "uppercase", marginBottom: 8 }}>Units</div>
+        <h2 style={{ ...fr(700, 21, T.ink), margin: "0 0 4px" }}>{tx("Search preferences")}</h2>
+        <p style={{ ...nu(600, 12.5, T.soft), margin: "0 0 14px" }}>{tx("Choose your units and how far you're willing to meet.")}</p>
+        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".6px", textTransform: "uppercase", marginBottom: 8 }}>{tx("Units")}</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
           {[["km", "Kilometers"], ["mi", "Miles"]].map(([v, label]) => (
             <button key={v} onClick={() => setUnit(v)} style={{ flex: 1, padding: "10px 0", borderRadius: 14, cursor: "pointer", border: `2px solid ${unit === v ? T.royal : T.lilacDeep}`, background: unit === v ? T.lilac : T.white, ...nu(700, 13.5, unit === v ? T.royal : T.ink) }}>{label}</button>
           ))}
         </div>
-        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".6px", textTransform: "uppercase", marginBottom: 8 }}>Maximum distance</div>
+        <div style={{ ...nu(800, 11, T.soft), letterSpacing: ".6px", textTransform: "uppercase", marginBottom: 8 }}>{tx("Maximum distance")}</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
           {KM_PRESETS.map((km) => (
             <button key={km} onClick={() => setRadiusKm(km)} style={{ padding: "9px 14px", borderRadius: 999, cursor: "pointer", border: `2px solid ${radiusKm === km ? T.royal : T.lilacDeep}`, background: radiusKm === km ? T.lilac : T.white, ...nu(700, 13, radiusKm === km ? T.royal : T.ink) }}>{presetLabel(km)}</button>
           ))}
         </div>
         {error && <p style={{ ...nu(700, 13, T.red), margin: "0 0 12px" }}>{error}</p>}
-        <PrimaryBtn disabled={saving} onClick={save}>{saving ? "Saving..." : "Save changes"}</PrimaryBtn>
-        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>Cancel</button>
+        <PrimaryBtn disabled={saving} onClick={save}>{saving ? tx("Saving...") : tx("Save changes")}</PrimaryBtn>
+        <button onClick={onClose} style={{ width: "100%", marginTop: 8, padding: "10px 0", border: "none", background: "none", cursor: "pointer", ...nu(800, 13, T.soft) }}>{tx("Cancel")}</button>
       </div>
     </div>
   );
@@ -4697,11 +4718,14 @@ function BootScreen() {
         }
       `}</style>
 
-      <h1 style={{ margin: 0, lineHeight: 0, animation: "tomBreathe 2.6s ease-in-out infinite", transformOrigin: "center" }}>
+      {/* Own centering box: the phone-only .tom-shell rule forces
+          align-items: stretch, which pushed everything to the left edge */}
+      <div style={{ flex: 1, width: "100%", minHeight: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px 28px", textAlign: "center" }}>
+      <h1 style={{ margin: 0, lineHeight: 0, display: "flex", justifyContent: "center", animation: "tomBreathe 2.6s ease-in-out infinite", transformOrigin: "center" }}>
         <TomLogo color="purple" height={40} />
       </h1>
 
-      <p style={{ margin: "18px 0 0", maxWidth: 300, textAlign: "center", lineHeight: 1.5, animation: "tomFadeUp .6s ease .15s both" }}>
+      <p style={{ margin: "18px auto 0", maxWidth: 300, textAlign: "center", lineHeight: 1.5, animation: "tomFadeUp .6s ease .15s both" }}>
         <span style={{ ...nu(600, 14.5, T.royal), opacity: .82 }}>{t(line.lead)} </span>
         <span style={{ ...nu(800, 14.5, T.royal) }}>{t(line.emph)}</span>
       </p>
@@ -4710,6 +4734,7 @@ function BootScreen() {
         {[0, 1, 2].map((i) => (
           <span key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: T.royal, animation: `tomDot 1.4s ease-in-out ${i * 0.18}s infinite` }} />
         ))}
+      </div>
       </div>
     </div>
   );
@@ -4781,7 +4806,7 @@ function TomAppInner() {
         setAuthMode("forgot");
         setScreen("welcome");
         setBooting(false);
-        showToast("That reset link already expired or was used. Request a new one below.", 6000);
+        showToast(tx("That reset link already expired or was used. Request a new one below."), 6000);
         return;
       }
       const r = await api.restoreSession();
@@ -4913,8 +4938,8 @@ function TomAppInner() {
   };
 
   const openAdmirers = () => requirePlus(
-    "See who likes you",
-    "TOM+ shows you everyone who already said your time is worth it.",
+    tx("See who likes you"),
+    tx("TOM+ shows you everyone who already said your time is worth it."),
     () => { setTab("discover"); setShowAdmirers(true); }
   );
 
@@ -4927,7 +4952,7 @@ function TomAppInner() {
     setLastSwipe(null);
     setTab("discover");
     const r = await api.loadDeck();
-    setLoadError(r.cards ? null : (r.error || "Failed to load"));
+    setLoadError(r.cards ? null : (r.error || tx("Failed to load")));
     setDeck(r.cards || []);
     setDeckLoading(false);
   }, []);
@@ -4985,7 +5010,7 @@ function TomAppInner() {
     // as a dead link.
     if (cameFromRateLink.current) {
       cameFromRateLink.current = false;
-      showToast("Nothing to rate right now. You may have already answered, or the date hasn't happened yet.", 5000);
+      showToast(tx("Nothing to rate right now. You may have already answered, or the date hasn't happened yet."), 5000);
     }
   }, [showToast]);
 
@@ -5014,7 +5039,7 @@ function TomAppInner() {
     // A failed refresh here used to blank the whole connections list, since
     // m.matches is undefined on error and this wrote an empty array.
     if (!m.error) { setMatches(m.matches || []); hasLoadedMatches.current = true; }
-    if (d.cards) setDeck(d.cards); else setLoadError(d.error || "Failed to load");
+    if (d.cards) setDeck(d.cards); else setLoadError(d.error || tx("Failed to load"));
   };
 
   // Undo the last swipe. TOM+ perk: convenience, never the difference
@@ -5073,7 +5098,7 @@ function TomAppInner() {
 
   const inviteFriend = async () => {
     const url = "https://www.tomdates.com";
-    const text = "Dating without the bill. Come spend time on TOM.";
+    const text = tx("Dating without the bill. Come spend time on TOM.");
     try {
       if (navigator.share) {
         await navigator.share({ title: "TOM", text, url });
@@ -5092,7 +5117,7 @@ function TomAppInner() {
     await api.setFreeTonight(turningOn);
     setFreeTonightOn(turningOn);
     if (turningOn) {
-      showToast("Your profile will show Free tonight until midnight");
+      showToast(tx("Your profile will show Free tonight until midnight"));
     }
   };
 
@@ -5178,7 +5203,7 @@ function TomAppInner() {
       setDeckLoading(true);
       (async () => {
         const r = await api.loadDeck();
-        setLoadError(r.cards ? null : (r.error || "Failed to load"));
+        setLoadError(r.cards ? null : (r.error || tx("Failed to load")));
         setDeck(r.cards || []);
         setDeckLoading(false);
       })();
@@ -5198,7 +5223,7 @@ function TomAppInner() {
     (async () => {
       const r = await api.loadDeck();
       // If cards array exists (even if empty), clear error. Only show error if cards is missing.
-      setLoadError(r.cards ? null : (r.error || "Failed to load"));
+      setLoadError(r.cards ? null : (r.error || tx("Failed to load")));
       setDeck(r.cards || []);
       setDeckLoading(false);
       if (api.user) {
@@ -5246,7 +5271,7 @@ function TomAppInner() {
           if (r.ok && !locSaved) {
             setLocSaved(true);
             const fresh = await api.loadDeck();
-            setLoadError(fresh.cards ? null : (fresh.error || "Failed to load"));
+            setLoadError(fresh.cards ? null : (fresh.error || tx("Failed to load")));
             setDeck(fresh.cards || []);
           }
         }
@@ -5318,20 +5343,20 @@ function TomAppInner() {
             </div>
             {screen === "main" && tab === "discover" && !showAdmirers && (
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <button onClick={() => setFiltersOpen(true)} aria-label="Fine tune your time" style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: T.lilac, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <button onClick={() => setFiltersOpen(true)} aria-label={tx("Fine tune your time")} style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: T.lilac, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Ic.Sliders s={19} c={T.royal} />
                 </button>
-                <button onClick={openAdmirers} aria-label="See who likes you" style={{ position: "relative", width: 38, height: 38, borderRadius: "50%", border: "none", background: T.lilac, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <button onClick={openAdmirers} aria-label={tx("See who likes you")} style={{ position: "relative", width: 38, height: 38, borderRadius: "50%", border: "none", background: T.lilac, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Ic.Eye s={19} c={T.royal} />
                   {admirerCount > 0 && <span style={{ position: "absolute", top: -3, right: -3, minWidth: 17, height: 17, borderRadius: 999, background: T.sun, ...fr(700, 10.5, T.ink), display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{admirerCount}</span>}
                 </button>
-                <button onClick={() => setTimeZonesOpen(true)} aria-label="Time Zones" style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: travelCity ? T.royal : T.lilac, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <button onClick={() => setTimeZonesOpen(true)} aria-label={tx("Time Zones")} style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: travelCity ? T.royal : T.lilac, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Ic.Globe s={19} c={travelCity ? T.white : T.royal} />
                 </button>
               </div>
             )}
             {screen === "main" && (tab !== "discover" || showAdmirers) && (
-              <span style={{ ...fr(700, 12.5, T.royal), background: T.lilac, borderRadius: 999, padding: "6px 12px", textAlign: "center", lineHeight: 1.25 }}>Don't spend money.<br />Spend time.</span>
+              <span style={{ ...fr(700, 12.5, T.royal), background: T.lilac, borderRadius: 999, padding: "6px 12px", textAlign: "center", lineHeight: 1.25 }}>{tx("Don't spend money.")}<br />{tx("Spend time.")}</span>
             )}
           </header>
         )}
@@ -5349,13 +5374,13 @@ function TomAppInner() {
             {/* Tab content scrolls inside this box, so the bottom menu can never be pushed off screen */}
             <div className="tom-tabbody" style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", display: "flex", flexDirection: "column" }}>
             {tab === "discover" && showAdmirers && <AdmirersPanel admirers={admirers} myLoc={deckOrigin} onLikeBack={likeBackAdmirer} onBack={() => setShowAdmirers(false)} onReport={(p) => setReporting({ profile: p, from: "admirers" })} />}
-            {tab === "discover" && !showAdmirers && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={deckOrigin} onGolden={onGolden} goldenLeft={goldenLeft} likesLeft={likesLeft} isPlus={isPlus} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "deck" })} locDenied={locDenied && !travelCity} loading={deckLoading} onPrimeTime={() => requirePlus("Weekly Prime Time", "Rise to the top of nearby decks for 7 days. A TOM+ perk.", () => setPrimeTimeOpen(true))} onUndo={undoLastSwipe} canUndo={Boolean(lastSwipe)} admirerCount={admirerCount} onAdmirers={openAdmirers} onTimeZones={() => setTimeZonesOpen(true)} onInvite={inviteFriend} onFilters={() => setFiltersOpen(true)} />}
+            {tab === "discover" && !showAdmirers && <Discover deck={sortedDeck} onSwipe={onSwipe} myLoc={deckOrigin} onGolden={onGolden} goldenLeft={goldenLeft} likesLeft={likesLeft} isPlus={isPlus} onUpgrade={() => setPaywall(true)} onReport={(p) => setReporting({ profile: p, from: "deck" })} locDenied={locDenied && !travelCity} loading={deckLoading} onPrimeTime={() => requirePlus(tx("Weekly Prime Time"), tx("Rise to the top of nearby decks for 7 days. A TOM+ perk."), () => setPrimeTimeOpen(true))} onUndo={undoLastSwipe} canUndo={Boolean(lastSwipe)} admirerCount={admirerCount} onAdmirers={openAdmirers} onTimeZones={() => setTimeZonesOpen(true)} onInvite={inviteFriend} onFilters={() => setFiltersOpen(true)} />}
             {tab === "missions" && <Missions matches={matches} onSend={(idea) => setMissionToSend(idea)} />}
             {tab === "matches" && (chatWith
               ? <Chat profile={chatWith} onBack={() => setChatWith(null)} onDateCompleted={onDateCompleted} myLoc={myLoc} isPlus={isPlus} onReport={(p) => setReporting({ profile: p, from: "chat" })} />
               : <Matches matchesError={matchesError} onRetry={() => { setMatchesError(null); reloadMatches(); }} unreadBy={unreadBy} matches={matches} myLoc={myLoc} admirerCount={admirerCount} onUpgrade={openAdmirers} onReport={(p) => setReporting({ profile: p, from: "matches" })} onOpenChat={(p) => setChatWith(p)} loading={matchesLoading} pendingOutcome={quietOutcome} onAnswerOutcome={() => { setPendingOutcome(quietOutcome); snoozedOutcome.current = null; }} />
             )}
-            {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} onLogout={logout} onOffClock={() => requirePlus("Off the Clock", "Go invisible without deleting anything. A TOM+ perk.", () => setOffClockOpen(true))} onEmailSettings={() => setEmailSettings(true)} onLanguage={() => setLanguageOpen(true)} myRep={myRep} onFreeTonight={toggleFreeTonight} onSearchPrefsSaved={() => { setRadiusKm((api.user && api.user.searchRadiusKm) ?? 50); reloadDeck(); }} />}
+            {tab === "profile" && <You onLegal={setLegal} onDelete={() => setDeleteOpen(true)} verifyStatus={verifyStatus} onVerify={() => setVerifyOpen(true)} onUpgrade={() => setPaywall(true)} onSignUp={() => { setAuthMode("signup"); setScreen("welcome"); setTab("discover"); }} onEditProfile={() => { setEditingProfile(true); setScreen("builder"); }} onLogout={logout} onOffClock={() => requirePlus(tx("Off the Clock"), tx("Go invisible without deleting anything. A TOM+ perk."), () => setOffClockOpen(true))} onEmailSettings={() => setEmailSettings(true)} onLanguage={() => setLanguageOpen(true)} myRep={myRep} onFreeTonight={toggleFreeTonight} onSearchPrefsSaved={() => { setRadiusKm((api.user && api.user.searchRadiusKm) ?? 50); reloadDeck(); }} />}
             </div>
             <nav className="tom-nav" style={{ flexShrink: 0, display: "flex", justifyContent: "space-around", padding: "10px 8px 16px", background: T.white, borderTop: `1px solid ${T.lilac}` }}>
               {tabs.map((t) => (
@@ -5365,7 +5390,7 @@ function TomAppInner() {
                     <span style={nu(800, 11, T.royal)}>{t.label}</span>
                   </span>
                   {t.id === "matches" && (unread.unread > 0 || unread.actions > 0) && (
-                    <span aria-label="Something is waiting for you" style={{ position: "absolute", top: -4, right: 4, display: "flex", gap: 1, pointerEvents: "none", filter: "drop-shadow(0 0 2px #FFFFFF) drop-shadow(0 1px 3px rgba(42,27,74,.45))" }}>
+                    <span aria-label={tx("Something is waiting for you")} style={{ position: "absolute", top: -4, right: 4, display: "flex", gap: 1, pointerEvents: "none", filter: "drop-shadow(0 0 2px #FFFFFF) drop-shadow(0 1px 3px rgba(42,27,74,.45))" }}>
                       <span style={{ display: "flex", animation: "heartBlink 1.1s ease-in-out infinite" }}><Ic.Heart s={14} c={T.red} /></span>
                       <span style={{ display: "flex", animation: "heartBlink 1.1s ease-in-out .55s infinite" }}><Ic.Heart s={14} c={T.red} /></span>
                     </span>
@@ -5399,13 +5424,13 @@ function TomAppInner() {
           <div style={{ position: "absolute", inset: 0, background: "rgba(42,27,74,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 70, padding: 24 }}>
             <div style={{ width: "100%", background: T.white, borderRadius: 24, padding: 22, textAlign: "center", animation: "popIn .25s ease" }}>
               <Ic.Check s={34} c={unsubDone === "done" ? T.green : T.soft} />
-              <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>{unsubDone === "done" ? "Emails turned off" : "Link expired"}</h2>
+              <h2 style={{ ...fr(700, 20, T.royal), margin: "8px 0 6px" }}>{unsubDone === "done" ? tx("Emails turned off") : tx("Link expired")}</h2>
               <p style={{ ...nu(700, 13.5, T.soft), margin: "0 0 16px" }}>
                 {unsubDone === "done"
-                  ? "You won't get emails from TOM anymore. You can turn them back on any time under You."
-                  : "We couldn't find that unsubscribe link. You can change email settings under You."}
+                  ? tx("You won't get emails from TOM anymore. You can turn them back on any time under You.")
+                  : tx("We couldn't find that unsubscribe link. You can change email settings under You.")}
               </p>
-              <PrimaryBtn onClick={() => setUnsubDone(null)}>Got it</PrimaryBtn>
+              <PrimaryBtn onClick={() => setUnsubDone(null)}>{tx("Got it")}</PrimaryBtn>
             </div>
           </div>
         )}
@@ -5413,8 +5438,8 @@ function TomAppInner() {
           <div style={{ position: "absolute", left: 12, right: 12, top: 8, zIndex: 70, background: "#FFF4D6", border: "1px solid #E8C86A", borderRadius: 14, padding: "9px 12px", display: "flex", alignItems: "center", gap: 8 }}>
             <Ic.Flag s={14} c="#8A6400" />
             <span style={{ flex: 1, ...nu(700, 11.5, "#8A6400") }}>{t("loadTrouble")}</span>
-            <button onClick={async () => { setDeckLoading(true); const r = await api.loadDeck(); setLoadError(r.cards ? null : (r.error || "Failed to load")); setDeck(r.cards || []); setDeckLoading(false); }} style={{ border: "none", background: "#8A6400", borderRadius: 999, padding: "5px 10px", cursor: "pointer", ...fr(600, 11, T.white) }}>{t("retry")}</button>
-            <button onClick={() => setLoadError(null)} aria-label="Dismiss" style={{ border: "none", background: "none", cursor: "pointer", padding: 2, display: "flex" }}><Ic.Cross s={13} c="#8A6400" /></button>
+            <button onClick={async () => { setDeckLoading(true); const r = await api.loadDeck(); setLoadError(r.cards ? null : (r.error || tx("Failed to load"))); setDeck(r.cards || []); setDeckLoading(false); }} style={{ border: "none", background: "#8A6400", borderRadius: 999, padding: "5px 10px", cursor: "pointer", ...fr(600, 11, T.white) }}>{t("retry")}</button>
+            <button onClick={() => setLoadError(null)} aria-label={tx("Dismiss")} style={{ border: "none", background: "none", cursor: "pointer", padding: 2, display: "flex" }}><Ic.Cross s={13} c="#8A6400" /></button>
           </div>
         )}
         {undoNote && (
