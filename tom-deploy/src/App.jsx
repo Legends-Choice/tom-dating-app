@@ -1,3 +1,4 @@
+// TOM App.jsx version: tom-v2026-10-26-3 (welcome screen now leads with the three originals: TOM Dates, Free tonight, both rate the date; includes tom-v2026-10-26-2 TOM Dates rename and tom-v2026-10-26-1: 168 ideas, translated chips, blurred teaser photos)
 // TOM App.jsx version: tom-v2026-10-25-final3 (whole app in Turkish + loading screen centered on phones + sideways screen fix + official TOM logo + photo header, all in this one file; includes tom-v2026-10-25-welcome-tr-2nd-date)
 import React, { useState, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -1143,6 +1144,29 @@ const Ic = {
       <rect x="3.5" y="19.5" width="17" height="2.2" rx="1" fill={c} />
     </svg>
   ),
+  // Playful: a tilted die
+  Dice: ({ s = 18, c = "#5B21B6" }) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="3.6" y="3.6" width="16.8" height="16.8" rx="4.2" fill={c} transform="rotate(-10 12 12)" />
+      <circle cx="8.6" cy="9.1" r="1.55" fill="#FFFFFF" /><circle cx="12" cy="12" r="1.55" fill="#FFFFFF" /><circle cx="15.4" cy="14.9" r="1.55" fill="#FFFFFF" />
+    </svg>
+  ),
+  // Learn Together: an open book
+  Book: ({ s = 18, c = "#5B21B6" }) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M2.5 5.2c3.2-.9 6.3-.5 9 1.3v13.2c-2.7-1.7-5.8-2.1-9-1.3z" fill={c} />
+      <path d="M21.5 5.2c-3.2-.9-6.3-.5-9 1.3v13.2c2.7-1.7 5.8-2.1 9-1.3z" fill={c} opacity="0.72" />
+      <path d="M5 9.2c1.6-.3 3.2-.1 4.6.6M5 12.4c1.6-.3 3.2-.1 4.6.6" stroke="#FFFFFF" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  ),
+  // Do Good: an open hand holding a heart
+  Hand: ({ s = 18, c = "#5B21B6" }) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 11.2c-.9-1.7-3.9-1.5-3.9.9 0 1.9 2.3 3.2 3.9 4.3 1.6-1.1 3.9-2.4 3.9-4.3 0-2.4-3-2.6-3.9-.9z" fill={c} />
+      <path d="M2.5 15.5l3.2-.9c1.2-.3 2.4 0 3.3.7l1.8 1.4h3.7c.9 0 1.5.6 1.5 1.3s-.6 1.3-1.5 1.3h-3.6M15.4 17.3l3.8-2.3c.8-.5 1.8-.2 2.2.6.3.6.1 1.3-.5 1.7l-5.3 3.6c-.8.5-1.7.8-2.7.8H9.5l-3.8-.9-3.2.8" stroke={c} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M12 3.2v2.4M7.3 5l1.2 2M16.7 5l-1.2 2" stroke={c} strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  ),
   Check: ({ s = 16, c = "#2FBF71" }) => (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M4.5 12.5l5 5L19.5 7" stroke={c} strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -1432,13 +1456,14 @@ function PrimeTimeModal({ onClose, onActivate, boostUntil }) {
   );
 }
 
-// ================= Batch 3: Mission Dates, plans, reviews =================
+// ================= TOM Dates: the free date idea library (was Mission Dates) =================
+// The English text is the stored key. Labels translate at display time only.
 const MISSIONS = [
-  { id: "adventure", label: "Adventure", icon: "Compass", ideas: [
-    "Sunrise mission: reach the best viewpoint in town before the sun does",
+  { id: "adventure", label: "Adventure", labels: { tr: "Macera", es: "Aventura" }, icon: "Compass", ideas: [
+    "Beat the sun: reach the best viewpoint in town before sunrise",
     "Explore a neighborhood neither of you has ever walked",
     "Urban treasure hunt: find five hidden details most people miss",
-    "Walk on ferry ride at golden hour, best story wins",
+    "Ferry ride at golden hour, best story wins",
     "Follow a street cat and see where it takes us",
     "Find the highest free viewpoint in the city together",
     "Get deliberately lost, then find your way home with no maps",
@@ -1448,8 +1473,25 @@ const MISSIONS = [
     "Explore the biggest park end to end without repeating a path",
     "Find five staircases and climb every one",
     "Pick a direction and walk it for one hour, then turn around",
+    "Find a hidden courtyard or passage and see where it leads",
   ]},
-  { id: "conversation", label: "Conversation", icon: "Bubble", ideas: [
+  { id: "romantic", label: "Romantic", labels: { tr: "Romantik", es: "Romántico" }, icon: "Heart", ideas: [
+    "Write each other a letter, open it on the second date",
+    "Slow dance in the park to one song from a phone",
+    "Watch the sunrise with breakfast you made at home",
+    "Recreate a famous movie scene somewhere in the city",
+    "Share the song that would open the movie of your life",
+    "Find the most beautiful bench in the city and claim it",
+    "Golden hour portrait walk, take one great photo of each other",
+    "Read poetry out loud by the water",
+    "Make a playlist together for this exact evening",
+    "Walk a bridge or pier at sunset and stop in the middle",
+    "Trade the story of the best day of your life",
+    "Picnic blanket, two books, one long afternoon",
+    "Write down three things you noticed about each other today",
+    "Find live street music and stay for three songs",
+  ]},
+  { id: "conversation", label: "Conversation", labels: { tr: "Sohbet", es: "Conversación" }, icon: "Bubble", ideas: [
     "36 questions on a park bench, no phones",
     "Swap playlists and each explain three songs that made you",
     "People watch and invent their life stories",
@@ -1463,8 +1505,9 @@ const MISSIONS = [
     "Plan an imaginary road trip you will never actually take",
     "Tell each other the story behind a scar",
     "Say what you would do with a completely free year",
+    "Ask each other the questions nobody asks on dates",
   ]},
-  { id: "nature", label: "Nature", icon: "Leaf", ideas: [
+  { id: "nature", label: "Nature", labels: { tr: "Doğa", es: "Naturaleza" }, icon: "Leaf", ideas: [
     "Botanical garden on its free day",
     "Sunset picnic, you each bring something from home",
     "Stone skipping contest at the water",
@@ -1478,8 +1521,25 @@ const MISSIONS = [
     "Wildflower hunt, photograph them and leave them growing",
     "Hunt for the best shade tree and read there",
     "Follow a trail neither of you has taken all the way to its end",
+    "Watch the sunset from one spot, phones in pockets",
   ]},
-  { id: "culture", label: "Culture", icon: "Column", ideas: [
+  { id: "playful", label: "Playful", labels: { tr: "Eğlenceli", es: "Divertido" }, icon: "Dice", ideas: [
+    "Rock paper scissors tournament, best of 21",
+    "Play tourist in your own city, accents optional",
+    "Hide and seek in a big park, set the boundaries first",
+    "Paper plane contest from the top of a hill",
+    "Would you rather, no easy answers allowed",
+    "Scavenger hunt: each writes five things for the other to find",
+    "Charades in the park, three rounds, loser sings",
+    "Draw a map of the city from memory, then compare",
+    "Alphabet walk: spot something for every letter",
+    "Chess or backgammon on a park table, bring the board",
+    "Talk only in questions for ten minutes",
+    "Invent a secret handshake and perfect it",
+    "Hum a song, the other guesses, first to five wins",
+    "Spot the dog that looks most like its owner",
+  ]},
+  { id: "culture", label: "Culture", labels: { tr: "Kültür", es: "Cultura" }, icon: "Column", ideas: [
     "Free museum night, invent backstories for the art",
     "Street art hunt: photograph ten murals",
     "Self guided walking tour of the old town",
@@ -1493,23 +1553,9 @@ const MISSIONS = [
     "Cemetery walk for the history and the quiet",
     "Find a place your grandparents would still recognize",
     "Watch the buskers and pick who deserves to be famous",
+    "Free gallery opening, each pick a favorite piece",
   ]},
-  { id: "exercise", label: "Exercise", icon: "Rise", ideas: [
-    "Sunrise run or brisk walk along the water",
-    "Outdoor gym challenge: see who gives up first",
-    "Race up the big steps, winner picks the next mission",
-    "Park yoga, bring two mats",
-    "Bike ride to somewhere neither of you has been",
-    "Swim at the public beach",
-    "Plank contest in the park, no mercy",
-    "Walk ten thousand steps together and actually count them",
-    "Teach each other your best stretch",
-    "Hill sprints until one of you calls it",
-    "Handstand attempts against a wall, film the failures",
-    "Long walk with one rule: no stopping for an hour",
-    "Shadow boxing lesson from whichever of you knows more",
-  ]},
-  { id: "creativity", label: "Creativity", icon: "Palette", ideas: [
+  { id: "creativity", label: "Creativity", labels: { tr: "Yaratıcılık", es: "Creatividad" }, icon: "Palette", ideas: [
     "Sketch each other in ten minutes, reveal at the same time",
     "Phone photo challenge: one theme, ten shots each",
     "Write a six word story about this exact date",
@@ -1523,8 +1569,57 @@ const MISSIONS = [
     "Design your dream house on scrap paper",
     "Write the opening line of a novel, trade, keep going",
     "Rename every shop you pass with a better name",
+    "Make a stop motion video with your phones",
   ]},
-  { id: "rainy", label: "Rainy Day", icon: "Rain", ideas: [
+  { id: "learn", label: "Learn Together", labels: { tr: "Birlikte Öğren", es: "Aprender juntos" }, icon: "Book", ideas: [
+    "Language swap: teach each other ten phrases",
+    "Join a free walking tour, then quiz each other",
+    "Learn the names of five stars or constellations",
+    "Learn five words of sign language",
+    "Teach each other a recipe from your family",
+    "Free beginner class in the park: dance, yoga, or drawing",
+    "Learn to name five birds or trees on one walk",
+    "Learn the history of your neighborhood, then walk it",
+    "Learn to juggle three of anything",
+    "Watch a free online talk, then argue about it",
+    "Teach each other the skill you are secretly proud of",
+    "Learn to tie three useful knots",
+    "Learn a tongue twister in each other's language",
+    "Origami from a free video, give each other the best one",
+  ]},
+  { id: "exercise", label: "Exercise", labels: { tr: "Spor", es: "Ejercicio" }, icon: "Rise", ideas: [
+    "Sunrise run or brisk walk along the water",
+    "Outdoor gym challenge: see who gives up first",
+    "Race up the big steps, winner picks the next date",
+    "Park yoga, bring two mats",
+    "Bike ride to somewhere neither of you has been",
+    "Swim at the public beach",
+    "Plank contest in the park, no mercy",
+    "Walk ten thousand steps together and actually count them",
+    "Teach each other your best stretch",
+    "Hill sprints until one of you calls it",
+    "Handstand attempts against a wall, film the failures",
+    "Long walk with one rule: no stopping for an hour",
+    "Shadow boxing lesson from whichever of you knows more",
+    "Frisbee or a ball in the park, nobody keeps score",
+  ]},
+  { id: "dogood", label: "Do Good", labels: { tr: "İyilik", es: "Hacer el bien" }, icon: "Hand", ideas: [
+    "Join a beach or park cleanup together",
+    "Refill the water bowls for street animals on your walk",
+    "Volunteer for an afternoon at an animal shelter",
+    "Take shelter dogs for a walk together",
+    "Tuck kind notes into library books for strangers to find",
+    "Plant something together in a community garden",
+    "Pick up litter on a walk, fullest bag wins",
+    "Leave books you have finished on a free book shelf",
+    "Write thank you notes to people who made your week better",
+    "Help out for a shift at a community kitchen or food bank",
+    "Offer to take photos for tourists, best shot wins",
+    "Visit an elderly neighbor and listen to their stories",
+    "Sort clothes you no longer wear and donate them together",
+    "Find a free community event and help set it up",
+  ]},
+  { id: "rainy", label: "Rainy Day", labels: { tr: "Yağmurlu Gün", es: "Día de lluvia" }, icon: "Rain", ideas: [
     "Board games marathon, loser makes the tea",
     "Covered market wander, strictly buy nothing",
     "Library afternoon, read each other one page",
@@ -1538,8 +1633,9 @@ const MISSIONS = [
     "Deep clean a room together with the music loud",
     "Learn a card trick from a video and perform it badly",
     "Bake with whatever is already in the cupboard",
+    "Find a covered spot and listen to the rain, five minutes of silence",
   ]},
-  { id: "nighttime", label: "Nighttime", icon: "Moon", ideas: [
+  { id: "nighttime", label: "Nighttime", labels: { tr: "Gece", es: "De noche" }, icon: "Moon", ideas: [
     "Stargazing from the darkest spot you can reach",
     "Full moon walk through the old streets",
     "City lights viewpoint with hot drinks from home",
@@ -1553,15 +1649,16 @@ const MISSIONS = [
     "Empty street photography after midnight",
     "Stay up for the sunrise, then sleep the day away",
     "Rooftop or hilltop, whichever one you can reach for free",
+    "Moonlit walk by the water, count the boat lights",
   ]},
 ];
 
 // Date idea translations. English stays the stored value.
 const IDEA_LABELS = {
-  "Sunrise mission: reach the best viewpoint in town before the sun does": { tr: "Gün doğumu görevi: güneşten önce şehrin en iyi manzarasına var", es: "Misión amanecer: llega al mejor mirador antes que el sol" },
+  "Beat the sun: reach the best viewpoint in town before sunrise": { tr: "Güneşi geçin: gün doğmadan şehrin en iyi manzarasına varın", es: "Ganen al sol: lleguen al mejor mirador antes del amanecer" },
   "Explore a neighborhood neither of you has ever walked": { tr: "İkinizin de hiç yürümediği bir mahalleyi keşfedin", es: "Exploren un barrio que ninguno haya caminado" },
   "Urban treasure hunt: find five hidden details most people miss": { tr: "Şehir hazine avı: çoğu kişinin görmediği beş detay bulun", es: "Búsqueda urbana del tesoro: encuentren cinco detalles que casi nadie ve" },
-  "Walk on ferry ride at golden hour, best story wins": { tr: "Gün batımında vapur yolculuğu, en iyi hikaye kazanır", es: "Paseo en ferry al atardecer, gana la mejor historia" },
+  "Ferry ride at golden hour, best story wins": { tr: "Gün batımında vapur yolculuğu, en iyi hikaye kazanır", es: "Paseo en ferry al atardecer, gana la mejor historia" },
   "Follow a street cat and see where it takes us": { tr: "Bir sokak kedisini takip edin, sizi nereye götürüyor görün", es: "Sigan a un gato callejero y vean a dónde los lleva" },
   "Find the highest free viewpoint in the city together": { tr: "Şehrin en yüksek ücretsiz manzarasını birlikte bulun", es: "Encuentren juntos el mirador gratuito más alto" },
   "Get deliberately lost, then find your way home with no maps": { tr: "Bilerek kaybolun, sonra haritasız eve dönün", es: "Piérdanse a propósito y vuelvan sin mapas" },
@@ -1571,12 +1668,27 @@ const IDEA_LABELS = {
   "Explore the biggest park end to end without repeating a path": { tr: "En büyük parkı aynı yoldan geçmeden baştan sona keşfedin", es: "Recorran el parque más grande de punta a punta sin repetir camino" },
   "Find five staircases and climb every one": { tr: "Beş merdiven bulun ve hepsini tırmanın", es: "Encuentren cinco escaleras y suban todas" },
   "Pick a direction and walk it for one hour, then turn around": { tr: "Bir yön seçin, bir saat yürüyün, sonra geri dönün", es: "Elijan una dirección, caminen una hora y vuelvan" },
+  "Find a hidden courtyard or passage and see where it leads": { tr: "Gizli bir avlu ya da pasaj bulun ve nereye çıktığını görün", es: "Encuentren un patio o pasaje escondido y vean a dónde lleva" },
+  "Write each other a letter, open it on the second date": { tr: "Birbirinize bir mektup yazın, ikinci buluşmada açın", es: "Escríbanse una carta y ábranla en la segunda cita" },
+  "Slow dance in the park to one song from a phone": { tr: "Parkta telefondan çalan tek bir şarkıyla ağır dans edin", es: "Bailen lento en el parque una canción del teléfono" },
+  "Watch the sunrise with breakfast you made at home": { tr: "Evde hazırladığınız kahvaltıyla gün doğumunu izleyin", es: "Vean el amanecer con un desayuno hecho en casa" },
+  "Recreate a famous movie scene somewhere in the city": { tr: "Şehirde bir yerde ünlü bir film sahnesini canlandırın", es: "Recreen una escena famosa de película en algún lugar de la ciudad" },
+  "Share the song that would open the movie of your life": { tr: "Hayatınızın filmini açacak şarkıyı paylaşın", es: "Compartan la canción que abriría la película de su vida" },
+  "Find the most beautiful bench in the city and claim it": { tr: "Şehrin en güzel bankını bulun ve sahiplenin", es: "Encuentren el banco más bonito de la ciudad y háganlo suyo" },
+  "Golden hour portrait walk, take one great photo of each other": { tr: "Altın saatte portre yürüyüşü, birbirinizin harika bir fotoğrafını çekin", es: "Paseo de retratos en la hora dorada, háganse una gran foto el uno al otro" },
+  "Read poetry out loud by the water": { tr: "Su kenarında yüksek sesle şiir okuyun", es: "Lean poesía en voz alta junto al agua" },
+  "Make a playlist together for this exact evening": { tr: "Tam bu akşam için birlikte bir çalma listesi yapın", es: "Hagan juntos una playlist para esta misma noche" },
+  "Walk a bridge or pier at sunset and stop in the middle": { tr: "Gün batımında bir köprü ya da iskelede yürüyün, tam ortasında durun", es: "Recorran un puente o muelle al atardecer y deténganse en el medio" },
+  "Trade the story of the best day of your life": { tr: "Hayatınızın en güzel gününün hikayesini paylaşın", es: "Cuéntense la historia del mejor día de su vida" },
+  "Picnic blanket, two books, one long afternoon": { tr: "Bir piknik örtüsü, iki kitap, uzun bir öğleden sonra", es: "Una manta de picnic, dos libros y una tarde larga" },
+  "Write down three things you noticed about each other today": { tr: "Bugün birbirinizde fark ettiğiniz üç şeyi yazın", es: "Escriban tres cosas que notaron el uno del otro hoy" },
+  "Find live street music and stay for three songs": { tr: "Canlı sokak müziği bulun ve üç şarkı boyunca kalın", es: "Encuentren música en vivo en la calle y quédense tres canciones" },
   "36 questions on a park bench, no phones": { tr: "Park bankında 36 soru, telefon yok", es: "36 preguntas en un banco del parque, sin teléfonos" },
   "Swap playlists and each explain three songs that made you": { tr: "Çalma listelerinizi değiştirin ve sizi siz yapan üç şarkıyı anlatın", es: "Intercambien playlists y expliquen tres canciones que los formaron" },
   "People watch and invent their life stories": { tr: "İnsanları izleyin ve hayat hikayelerini uydurun", es: "Observen a la gente e inventen sus historias de vida" },
   "Teach each other something new in twenty minutes": { tr: "Yirmi dakikada birbirinize yeni bir şey öğretin", es: "Enséñense algo nuevo en veinte minutos" },
   "Walk and talk: describe the street you grew up on": { tr: "Yürüyün ve konuşun: büyüdüğünüz sokağı anlatın", es: "Caminen y hablen: describe la calle donde creciste" },
-  "Debate your silliest hills to die on": { tr: "En saçma inatlarınızı tartışın", es: "Debatan sus manias más absurdas" },
+  "Debate your silliest hills to die on": { tr: "En saçma inatlarınızı tartışın", es: "Debatan sus manías más absurdas" },
   "Interview each other like a talk show host": { tr: "Birbirinizle talk show sunucusu gibi röportaj yapın", es: "Entrevístense como en un programa de televisión" },
   "Trade the three best pieces of advice you ever got": { tr: "Aldığınız en iyi üç tavsiyeyi paylaşın", es: "Intercambien los tres mejores consejos que les han dado" },
   "Describe your perfect ordinary Tuesday, then compare": { tr: "Mükemmel sıradan bir Salı gününüzü anlatın, sonra karşılaştırın", es: "Describan su martes perfecto y compárenlos" },
@@ -1584,6 +1696,7 @@ const IDEA_LABELS = {
   "Plan an imaginary road trip you will never actually take": { tr: "Asla çıkmayacağınız hayali bir yol gezisi planlayın", es: "Planeen un viaje imaginario que nunca harán" },
   "Tell each other the story behind a scar": { tr: "Birbirinize bir yaranın hikayesini anlatın", es: "Cuéntense la historia detrás de una cicatriz" },
   "Say what you would do with a completely free year": { tr: "Tamamen boş bir yılınız olsa ne yapardınız söyleyin", es: "Digan qué harían con un año completamente libre" },
+  "Ask each other the questions nobody asks on dates": { tr: "Buluşmalarda kimsenin sormadığı soruları birbirinize sorun", es: "Háganse las preguntas que nadie hace en las citas" },
   "Botanical garden on its free day": { tr: "Botanik bahçesinin ücretsiz günü", es: "Jardín botánico en su día gratuito" },
   "Sunset picnic, you each bring something from home": { tr: "Gün batımı pikniği, herkes evden bir şey getirsin", es: "Picnic al atardecer, cada uno trae algo de casa" },
   "Stone skipping contest at the water": { tr: "Suda taş sektirme yarışması", es: "Concurso de saltar piedras en el agua" },
@@ -1597,6 +1710,21 @@ const IDEA_LABELS = {
   "Wildflower hunt, photograph them and leave them growing": { tr: "Yabani çiçek avı, fotoğraflayın ama koparmayın", es: "Busquen flores silvestres, fotografíenlas y déjenlas crecer" },
   "Hunt for the best shade tree and read there": { tr: "En iyi gölge ağacını bulun ve orada okuyun", es: "Busquen el mejor árbol con sombra y lean ahí" },
   "Follow a trail neither of you has taken all the way to its end": { tr: "İkinizin de gitmediği bir patikayı sonuna kadar takip edin", es: "Sigan hasta el final un sendero que ninguno haya tomado" },
+  "Watch the sunset from one spot, phones in pockets": { tr: "Gün batımını tek bir noktadan izleyin, telefonlar cepte", es: "Vean el atardecer desde un mismo sitio, con los teléfonos guardados" },
+  "Rock paper scissors tournament, best of 21": { tr: "Taş kağıt makas turnuvası, 21 elde en çok kazanan", es: "Torneo de piedra, papel o tijera, al mejor de 21" },
+  "Play tourist in your own city, accents optional": { tr: "Kendi şehrinizde turistçilik oynayın, aksan isteğe bağlı", es: "Jueguen a ser turistas en su propia ciudad, acento opcional" },
+  "Hide and seek in a big park, set the boundaries first": { tr: "Büyük bir parkta saklambaç, önce sınırları belirleyin", es: "Escondite en un parque grande, pongan los límites primero" },
+  "Paper plane contest from the top of a hill": { tr: "Bir tepenin üstünden kağıt uçak yarışması", es: "Concurso de aviones de papel desde lo alto de una colina" },
+  "Would you rather, no easy answers allowed": { tr: "Hangisini tercih ederdin, kolay cevap yasak", es: "¿Qué prefieres?, sin respuestas fáciles" },
+  "Scavenger hunt: each writes five things for the other to find": { tr: "Hazine avı: herkes diğerinin bulması için beş şey yazsın", es: "Búsqueda del tesoro: cada uno escribe cinco cosas para que el otro las encuentre" },
+  "Charades in the park, three rounds, loser sings": { tr: "Parkta sessiz sinema, üç tur, kaybeden şarkı söyler", es: "Mímica en el parque, tres rondas, el que pierda canta" },
+  "Draw a map of the city from memory, then compare": { tr: "Ezberden şehrin haritasını çizin, sonra karşılaştırın", es: "Dibujen de memoria el mapa de la ciudad y compárenlo" },
+  "Alphabet walk: spot something for every letter": { tr: "Alfabe yürüyüşü: her harf için bir şey bulun", es: "Paseo del abecedario: encuentren algo para cada letra" },
+  "Chess or backgammon on a park table, bring the board": { tr: "Parkta bir masada satranç ya da tavla, tahtayı getirin", es: "Ajedrez o backgammon en una mesa del parque, lleven el tablero" },
+  "Talk only in questions for ten minutes": { tr: "On dakika boyunca sadece soruyla konuşun", es: "Hablen solo con preguntas durante diez minutos" },
+  "Invent a secret handshake and perfect it": { tr: "Gizli bir tokalaşma icat edin ve mükemmelleştirin", es: "Inventen un saludo secreto y perfecciónenlo" },
+  "Hum a song, the other guesses, first to five wins": { tr: "Bir şarkı mırıldanın, diğeri tahmin etsin, beşe ilk ulaşan kazanır", es: "Tarareen una canción, el otro adivina, gana quien llegue a cinco" },
+  "Spot the dog that looks most like its owner": { tr: "Sahibine en çok benzeyen köpeği bulun", es: "Encuentren al perro que más se parece a su dueño" },
   "Free museum night, invent backstories for the art": { tr: "Ücretsiz müze gecesi, eserlere hikaye uydurun", es: "Noche de museo gratis, inventen historias para el arte" },
   "Street art hunt: photograph ten murals": { tr: "Sokak sanatı avı: on duvar resmi fotoğraflayın", es: "Búsqueda de arte urbano: fotografíen diez murales" },
   "Self guided walking tour of the old town": { tr: "Eski şehirde kendi rehberli yürüyüşünüz", es: "Recorrido a pie por el casco antiguo por su cuenta" },
@@ -1610,21 +1738,9 @@ const IDEA_LABELS = {
   "Cemetery walk for the history and the quiet": { tr: "Tarih ve sessizlik için mezarlık yürüyüşü", es: "Paseo por el cementerio por la historia y el silencio" },
   "Find a place your grandparents would still recognize": { tr: "Büyükanne ve büyükbabanızın hala tanıyacağı bir yer bulun", es: "Encuentren un lugar que sus abuelos aún reconocerían" },
   "Watch the buskers and pick who deserves to be famous": { tr: "Sokak müzisyenlerini izleyin ve kimin ünlü olmayı hak ettiğini seçin", es: "Miren a los músicos callejeros y elijan quién merece ser famoso" },
-  "Sunrise run or brisk walk along the water": { tr: "Sahil boyunca gün doğumu koşusu ya da tempolu yürüyüş", es: "Carrera o caminata rápida al amanecer junto al agua" },
-  "Outdoor gym challenge: see who gives up first": { tr: "Açık hava spor aleti meydan okuması: kim önce pes edecek", es: "Reto en el gimnasio al aire libre: a ver quién se rinde primero" },
-  "Race up the big steps, winner picks the next mission": { tr: "Büyük merdivenleri yarışın, kazanan bir sonraki görevi seçer", es: "Suban corriendo las escaleras grandes, el ganador elige la próxima misión" },
-  "Park yoga, bring two mats": { tr: "Parkta yoga, iki mat getirin", es: "Yoga en el parque, lleven dos esterillas" },
-  "Bike ride to somewhere neither of you has been": { tr: "İkinizin de gitmediği bir yere bisikletle gidin", es: "Paseo en bici a un sitio donde ninguno haya estado" },
-  "Swim at the public beach": { tr: "Halk plajında yüzme", es: "Nádense en la playa pública" },
-  "Plank contest in the park, no mercy": { tr: "Parkta plank yarışı, acımak yok", es: "Concurso de plancha en el parque, sin piedad" },
-  "Walk ten thousand steps together and actually count them": { tr: "Birlikte on bin adım yürüyün ve gerçekten sayin", es: "Caminen diez mil pasos juntos y cuéntenlos de verdad" },
-  "Teach each other your best stretch": { tr: "Birbirinize en iyi esneme hareketinizi öğretin", es: "Enséñense su mejor estiramiento" },
-  "Hill sprints until one of you calls it": { tr: "Biriniz pes edene kadar yokuş sprintleri", es: "Sprints cuesta arriba hasta que alguien lo deje" },
-  "Handstand attempts against a wall, film the failures": { tr: "Duvara yaslanıp amuda kalkmayı deneyin, başarısızlıkları çekin", es: "Intenten hacer el pino contra la pared y graben los fallos" },
-  "Long walk with one rule: no stopping for an hour": { tr: "Tek kurallı uzun yürüyüş: bir saat boyunca durmak yok", es: "Caminata larga con una sola regla: no parar en una hora" },
-  "Shadow boxing lesson from whichever of you knows more": { tr: "Hanginiz daha iyi biliyorsa gölge boks dersi versin", es: "Clase de boxeo de sombra del que sepa más" },
+  "Free gallery opening, each pick a favorite piece": { tr: "Ücretsiz bir galeri açılışı, ikiniz de birer favori eser seçin", es: "Inauguración de galería gratis, cada uno elige su obra favorita" },
   "Sketch each other in ten minutes, reveal at the same time": { tr: "On dakikada birbirinizi çizin, aynı anda gösterin", es: "Dibújense en diez minutos y muéstrenlo a la vez" },
-  "Phone photo challenge: one theme, ten shots each": { tr: "Telefon fotoğraf meydan okuması: tek tema, beşer kare", es: "Reto fotográfico: un tema, diez fotos cada uno" },
+  "Phone photo challenge: one theme, ten shots each": { tr: "Telefon fotoğraf meydan okuması: tek tema, onar kare", es: "Reto fotográfico: un tema, diez fotos cada uno" },
   "Write a six word story about this exact date": { tr: "Tam bu buluşma hakkında altı kelimelik bir hikaye yazın", es: "Escriban una historia de seis palabras sobre esta cita" },
   "Build something tiny out of found objects": { tr: "Bulduğunuz nesnelerden minik bir şey yapın", es: "Construyan algo diminuto con objetos encontrados" },
   "Learn a dance from a free video and film the result": { tr: "Ücretsiz bir videodan dans öğrenin ve sonucu çekin", es: "Aprendan un baile de un video gratis y graben el resultado" },
@@ -1636,6 +1752,49 @@ const IDEA_LABELS = {
   "Design your dream house on scrap paper": { tr: "Hayalinizdeki evi müsvedde kağıda çizin", es: "Diseñen la casa de sus sueños en papel de borrador" },
   "Write the opening line of a novel, trade, keep going": { tr: "Bir romanın ilk cümlesini yazın, değiştirin, devam edin", es: "Escriban la primera línea de una novela, intercámbienla y sigan" },
   "Rename every shop you pass with a better name": { tr: "Geçtiğiniz her dükkana daha iyi bir isim verin", es: "Renombren cada tienda que pasen con un nombre mejor" },
+  "Make a stop motion video with your phones": { tr: "Telefonlarınızla bir stop motion video çekin", es: "Hagan un video stop motion con sus teléfonos" },
+  "Language swap: teach each other ten phrases": { tr: "Dil takası: birbirinize on cümle öğretin", es: "Intercambio de idiomas: enséñense diez frases" },
+  "Join a free walking tour, then quiz each other": { tr: "Ücretsiz bir yürüyüş turuna katılın, sonra birbirinizi sınayın", es: "Hagan un free tour a pie y luego pónganse a prueba" },
+  "Learn the names of five stars or constellations": { tr: "Beş yıldızın ya da takımyıldızın adını öğrenin", es: "Aprendan los nombres de cinco estrellas o constelaciones" },
+  "Learn five words of sign language": { tr: "İşaret dilinden beş kelime öğrenin", es: "Aprendan cinco palabras en lengua de señas" },
+  "Teach each other a recipe from your family": { tr: "Birbirinize ailenizden bir tarif öğretin", es: "Enséñense una receta de su familia" },
+  "Free beginner class in the park: dance, yoga, or drawing": { tr: "Parkta ücretsiz başlangıç dersi: dans, yoga ya da çizim", es: "Clase gratis para principiantes en el parque: baile, yoga o dibujo" },
+  "Learn to name five birds or trees on one walk": { tr: "Tek bir yürüyüşte beş kuşu ya da ağacı tanımayı öğrenin", es: "Aprendan a reconocer cinco pájaros o árboles en un paseo" },
+  "Learn the history of your neighborhood, then walk it": { tr: "Mahallenizin tarihini öğrenin, sonra o tarihi yürüyün", es: "Aprendan la historia de su barrio y luego recórranla" },
+  "Learn to juggle three of anything": { tr: "Herhangi üç şeyle jonglörlük yapmayı öğrenin", es: "Aprendan a hacer malabares con tres cosas cualesquiera" },
+  "Watch a free online talk, then argue about it": { tr: "Ücretsiz bir online konuşma izleyin, sonra tartışın", es: "Vean una charla online gratis y luego debátanla" },
+  "Teach each other the skill you are secretly proud of": { tr: "Gizliden gizliye gurur duyduğunuz yeteneği birbirinize öğretin", es: "Enséñense esa habilidad de la que están secretamente orgullosos" },
+  "Learn to tie three useful knots": { tr: "Üç işe yarar düğüm atmayı öğrenin", es: "Aprendan a hacer tres nudos útiles" },
+  "Learn a tongue twister in each other's language": { tr: "Birbirinizin dilinde bir tekerleme öğrenin", es: "Aprendan un trabalenguas en el idioma del otro" },
+  "Origami from a free video, give each other the best one": { tr: "Ücretsiz bir videodan origami yapın, en iyisini birbirinize verin", es: "Origami con un video gratis, regálense el mejor" },
+  "Sunrise run or brisk walk along the water": { tr: "Sahil boyunca gün doğumu koşusu ya da tempolu yürüyüş", es: "Carrera o caminata rápida al amanecer junto al agua" },
+  "Outdoor gym challenge: see who gives up first": { tr: "Açık hava spor aleti meydan okuması: kim önce pes edecek", es: "Reto en el gimnasio al aire libre: a ver quién se rinde primero" },
+  "Race up the big steps, winner picks the next date": { tr: "Büyük merdivenleri yarışarak çıkın, kazanan bir sonraki buluşmayı seçer", es: "Suban corriendo las escaleras grandes, el ganador elige la próxima cita" },
+  "Park yoga, bring two mats": { tr: "Parkta yoga, iki mat getirin", es: "Yoga en el parque, lleven dos esterillas" },
+  "Bike ride to somewhere neither of you has been": { tr: "İkinizin de gitmediği bir yere bisikletle gidin", es: "Paseo en bici a un sitio donde ninguno haya estado" },
+  "Swim at the public beach": { tr: "Halk plajında yüzme", es: "Naden en la playa pública" },
+  "Plank contest in the park, no mercy": { tr: "Parkta plank yarışı, acımak yok", es: "Concurso de plancha en el parque, sin piedad" },
+  "Walk ten thousand steps together and actually count them": { tr: "Birlikte on bin adım yürüyün ve gerçekten sayın", es: "Caminen diez mil pasos juntos y cuéntenlos de verdad" },
+  "Teach each other your best stretch": { tr: "Birbirinize en iyi esneme hareketinizi öğretin", es: "Enséñense su mejor estiramiento" },
+  "Hill sprints until one of you calls it": { tr: "Biriniz pes edene kadar yokuş sprintleri", es: "Sprints cuesta arriba hasta que alguien lo deje" },
+  "Handstand attempts against a wall, film the failures": { tr: "Duvara yaslanıp amuda kalkmayı deneyin, başarısızlıkları çekin", es: "Intenten hacer el pino contra la pared y graben los fallos" },
+  "Long walk with one rule: no stopping for an hour": { tr: "Tek kurallı uzun yürüyüş: bir saat boyunca durmak yok", es: "Caminata larga con una sola regla: no parar en una hora" },
+  "Shadow boxing lesson from whichever of you knows more": { tr: "Hanginiz daha iyi biliyorsa gölge boks dersi versin", es: "Clase de boxeo de sombra del que sepa más" },
+  "Frisbee or a ball in the park, nobody keeps score": { tr: "Parkta frizbi ya da top, skoru kimse tutmuyor", es: "Frisbee o pelota en el parque, sin llevar la cuenta" },
+  "Join a beach or park cleanup together": { tr: "Birlikte bir sahil ya da park temizliğine katılın", es: "Únanse juntos a una limpieza de playa o parque" },
+  "Refill the water bowls for street animals on your walk": { tr: "Yürüyüşünüz boyunca sokak hayvanlarının su kaplarını doldurun", es: "Rellenen los cuencos de agua de los animales callejeros por el camino" },
+  "Volunteer for an afternoon at an animal shelter": { tr: "Bir öğleden sonra hayvan barınağında gönüllü olun", es: "Pasen una tarde como voluntarios en un refugio de animales" },
+  "Take shelter dogs for a walk together": { tr: "Barınak köpeklerini birlikte yürüyüşe çıkarın", es: "Saquen a pasear juntos a perros de un refugio" },
+  "Tuck kind notes into library books for strangers to find": { tr: "Yabancıların bulması için kütüphane kitaplarının arasına güzel notlar bırakın", es: "Dejen notas amables dentro de libros de la biblioteca para desconocidos" },
+  "Plant something together in a community garden": { tr: "Bir mahalle bahçesine birlikte bir şey dikin", es: "Planten algo juntos en un huerto comunitario" },
+  "Pick up litter on a walk, fullest bag wins": { tr: "Yürürken çöp toplayın, poşeti en dolu olan kazanır", es: "Recojan basura mientras caminan, gana la bolsa más llena" },
+  "Leave books you have finished on a free book shelf": { tr: "Bitirdiğiniz kitapları ücretsiz bir kitap rafına bırakın", es: "Dejen los libros que ya leyeron en una estantería de intercambio" },
+  "Write thank you notes to people who made your week better": { tr: "Haftanızı güzelleştiren insanlara teşekkür notları yazın", es: "Escriban notas de agradecimiento a quien les mejoró la semana" },
+  "Help out for a shift at a community kitchen or food bank": { tr: "Bir aşevinde ya da gıda bankasında bir vardiya yardım edin", es: "Ayuden un turno en un comedor social o banco de alimentos" },
+  "Offer to take photos for tourists, best shot wins": { tr: "Turistlerin fotoğrafını çekmeyi teklif edin, en iyi kare kazanır", es: "Ofrézcanse a hacerles fotos a turistas, gana la mejor" },
+  "Visit an elderly neighbor and listen to their stories": { tr: "Yaşlı bir komşuyu ziyaret edin ve hikayelerini dinleyin", es: "Visiten a un vecino mayor y escuchen sus historias" },
+  "Sort clothes you no longer wear and donate them together": { tr: "Artık giymediğiniz kıyafetleri ayıklayıp birlikte bağışlayın", es: "Separen la ropa que ya no usan y dónenla juntos" },
+  "Find a free community event and help set it up": { tr: "Ücretsiz bir mahalle etkinliği bulun ve kurulumuna yardım edin", es: "Encuentren un evento comunitario gratis y ayuden a montarlo" },
   "Board games marathon, loser makes the tea": { tr: "Kutu oyunu maratonu, kaybeden çay yapar", es: "Maratón de juegos de mesa, el que pierda hace el té" },
   "Covered market wander, strictly buy nothing": { tr: "Kapalı çarşı gezisi, kesinlikle hiçbir şey almadan", es: "Paseo por el mercado cubierto sin comprar absolutamente nada" },
   "Library afternoon, read each other one page": { tr: "Kütüphane öğleden sonrası, birbirinize bir sayfa okuyun", es: "Tarde de biblioteca, léanse una página el uno al otro" },
@@ -1649,6 +1808,7 @@ const IDEA_LABELS = {
   "Deep clean a room together with the music loud": { tr: "Müziği açıp birlikte bir odayı derinlemesine temizleyin", es: "Limpien a fondo una habitación juntos con la música alta" },
   "Learn a card trick from a video and perform it badly": { tr: "Videodan bir kart oyunu öğrenin ve kötü bir şekilde sergileyin", es: "Aprendan un truco de cartas de un video y háganlo mal" },
   "Bake with whatever is already in the cupboard": { tr: "Dolapta ne varsa onunla fırınlayın", es: "Horneen con lo que ya haya en la despensa" },
+  "Find a covered spot and listen to the rain, five minutes of silence": { tr: "Kapalı bir yer bulun ve yağmuru dinleyin, beş dakika hiç konuşmadan", es: "Busquen un sitio techado y escuchen la lluvia, cinco minutos en silencio" },
   "Stargazing from the darkest spot you can reach": { tr: "Ulaşabileceğiniz en karanlık noktadan yıldız izleme", es: "Observen estrellas desde el punto más oscuro al que lleguen" },
   "Full moon walk through the old streets": { tr: "Dolunayda eski sokaklarda yürüyüş", es: "Paseo de luna llena por las calles antiguas" },
   "City lights viewpoint with hot drinks from home": { tr: "Evden getirilen sıcak içeceklerle şehir ışıkları manzarası", es: "Mirador de luces de la ciudad con bebidas calientes de casa" },
@@ -1662,13 +1822,35 @@ const IDEA_LABELS = {
   "Empty street photography after midnight": { tr: "Gece yarısından sonra boş sokak fotoğrafçılığı", es: "Fotografía de calles vacías después de medianoche" },
   "Stay up for the sunrise, then sleep the day away": { tr: "Gün doğumu için uyanık kalın, sonra gün boyu uyuyun", es: "Quédense despiertos para el amanecer y luego duerman todo el día" },
   "Rooftop or hilltop, whichever one you can reach for free": { tr: "Çatı ya da tepe, ücretsiz ulaşabildiğiniz hangisiyse", es: "Azotea o colina, la que puedan alcanzar gratis" },
+  "Moonlit walk by the water, count the boat lights": { tr: "Ay ışığında su kenarında yürüyüş, tekne ışıklarını sayın", es: "Paseo a la luz de la luna junto al agua, cuenten las luces de los barcos" },
 };
 
 // Flat list for the date proposal picker
 function useIdeaText() {
   const { lang } = useLang();
-  return (idea) => (lang === "en" ? idea : (IDEA_LABELS[idea] && IDEA_LABELS[idea][lang]) || idea);
+  return (idea) => {
+    const key = IDEA_ALIASES[idea] || idea;
+    if (lang === "en") return key;
+    return (IDEA_LABELS[key] && IDEA_LABELS[key][lang]) || idea;
+  };
 }
+
+// Category names in the chosen language (was stuck in English)
+function useCatLabel() {
+  const { lang } = useLang();
+  return (m) => (lang === "en" ? m.label : (m.labels && m.labels[lang]) || m.label);
+}
+
+// Older chat messages may carry an idea's previous English wording
+const IDEA_ALIASES = {
+  "Sunrise mission: reach the best viewpoint in town before the sun does": "Beat the sun: reach the best viewpoint in town before sunrise",
+  "Walk on ferry ride at golden hour, best story wins": "Ferry ride at golden hour, best story wins",
+  "Race up the big steps, winner picks the next mission": "Race up the big steps, winner picks the next date",
+};
+
+// Sent idea messages. New sends use DATE_IDEA_PREFIX; the old prefix is still recognised.
+const DATE_IDEA_PREFIX = "Date idea: ";
+const OLD_IDEA_PREFIX = "Mission Date idea: ";
 
 const ALL_IDEAS = MISSIONS.flatMap((m) => m.ideas.map((idea) => ({ idea, cat: m.id, label: m.label, icon: m.icon })));
 
@@ -1678,20 +1860,21 @@ const REVIEW_FLAGS = ["They paid or insisted on paying", "Didn't show up", "Made
 function Missions({ matches, onSend }) {
   const { t } = useLang();
   const ideaText = useIdeaText();
+  const catLabel = useCatLabel();
   const [cat, setCat] = useState(MISSIONS[0].id);
   const active = MISSIONS.find((m) => m.id === cat);
   const CatIcon = Ic[active.icon];
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "6px 16px 16px" }}>
-      <h2 style={{ ...fr(700, 21, T.ink), margin: "0 0 3px" }}>{t("missionDates")}</h2>
-      <p style={{ ...nu(700, 13, T.soft), margin: "0 0 12px" }}>{t("missionSub")}</p>
+      <h2 style={{ ...fr(700, 21, T.ink), margin: "0 0 3px" }}>{t("missionDates", { n: ALL_IDEAS.length })}</h2>
+      <p style={{ ...nu(700, 13, T.soft), margin: "0 0 12px" }}>{t("missionSub", { n: ALL_IDEAS.length })}</p>
       <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 10, marginBottom: 6 }}>
         {MISSIONS.map((m) => {
           const MIcon = Ic[m.icon];
           const on = m.id === cat;
           return (
             <button key={m.id} onClick={() => setCat(m.id)} style={{ display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", padding: "8px 13px", borderRadius: 999, border: `2px solid ${on ? T.royal : T.lilacDeep}`, background: on ? T.royal : T.white, cursor: "pointer", ...nu(700, 13, on ? T.white : T.royal) }}>
-              <MIcon s={15} c={on ? T.white : T.royal} />{m.label}
+              <MIcon s={15} c={on ? T.white : T.royal} />{catLabel(m)}
             </button>
           );
         })}
@@ -2365,7 +2548,7 @@ const STRINGS = {
   en: {
     roadmap1: "Make connections",
     roadmap2: "Propose a date",
-    roadmap3: "Or send a mission",
+    roadmap3: "Or send a TOM Date",
     roadmap4: "Use our \"Free Tonight\" button",
     roadmap5: "Rate the time you spent",
     personThinks: "person thinks you're worth their time", peopleThink: "people think you're worth their time", seeWhoLikes: "See who likes you with TOM+",
@@ -2434,14 +2617,14 @@ const STRINGS = {
     wlHook: "Dating without", wlHookEm: "the bill.",
     wlIntro: "Real people near you. Free dates. No one pays, so no one expects anything.",
     wlF1: "Free to swipe. Free to match. Free to date.", wlF1s: "No catch. Just match.",
-    wlF2: "Mission Dates", wlF2s: "104 free date ideas. Pick one, send it straight to your match.",
-    wlF3: "Plan it in the chat", wlF3s: "Pick a day and time. They accept or suggest another.",
+    wlF2: "TOM Dates", wlF2s: "{n} free date ideas, curated by TOM. Pick one, send it straight to your match.",
+    wlF3: "Plan it in the chat", wlF3s: "Pick a day and time. They accept or suggest another.", wlFT: "Free tonight", wlFTs: "One tap tells people near you that you are free tonight. It clears itself at midnight.",
     wlF4: "Rate the date", wlF4s: "You both rate it after. Find out if they want a second. No guessing if they liked you or not.",
     wlCreate: "Create your free profile", wlHave: "Already on TOM?", wlHow: "How TOM works", wlNear: "Who is near me",
     wlBack: "Back", wlHowLabel: "HOW TOM WORKS", wlHowTitle: "Not just a dating app.", wlHowTitleEm: "A way to actually meet.",
     wlS1s: "Every date is free. Nobody pays, so nobody expects anything.",
     wlS2: "Real people near you", wlS2s: "Meet people from your area for real connections, not endless swiping.",
-    wlS3s: "104 free date ideas, ready to go. Pick one and send it straight to your match. No more \"so what do you want to do?\"",
+    wlS3s: "{n} free date ideas, curated by TOM. Pick one and send it straight to your match. No more \"so what do you want to do?\"",
     wlS4s: "Propose a day and time. They accept, decline or suggest another.",
     wlS5: "You both rate the date", wlS5s: "After you meet, TOM checks in with both of you. Time well spent? Want a second date? You will know.",
     wlTwoMin: "Takes about two minutes.",
@@ -2452,7 +2635,7 @@ const STRINGS = {
     privacy: "Privacy Policy", and: "and", language: "Language",
     languageSub: "Choose how TOM speaks to you",
     findingPeople: "Finding people near you",
-    tabDiscover: "Discover", tabMissions: "Missions", tabDates: "Connections", tabYou: "You",
+    tabDiscover: "Discover", tabMissions: "TOM Dates", tabDates: "Connections", tabYou: "You",
     closest: "CLOSEST", mostInCommon: "MOST IN COMMON", primeTime: "PRIME TIME",
     pass: "PASS", goldenHour: "GOLDEN HOUR", spendTime: "SPEND TIME",
     seenEveryone: "You've seen everyone nearby",
@@ -2487,12 +2670,12 @@ const STRINGS = {
     noAdmirers: "No admirers yet",
     noAdmirersSub: "When someone likes you, they show up here first.",
     backToDiscover: "Back to Discover",
-    missionDates: "Mission Dates",
-    missionSub: "Curated $0 dates. Pick one, send it to a match. Always optional.",
-    send: "Send", matchFirst: "Match with someone first, then send them a mission.",
-    sendMissionTo: "Send this mission to", cancel: "Cancel",
+    missionDates: "TOM Dates",
+    missionSub: "{n} free date ideas, curated by TOM. Pick one, send it to a match.",
+    send: "Send", matchFirst: "Match with someone first, then send them a TOM Date.",
+    sendMissionTo: "Send this TOM Date to", cancel: "Cancel",
     cancelSignupConfirm: "Stop creating your account? Anything you've entered will be discarded.",
-    sentMissionDate: "sent you a mission date", youSentMissionDate: "You sent a mission date",
+    sentMissionDate: "sent you a TOM Date", youSentMissionDate: "You sent a TOM Date",
     accept: "Accept", decline: "Decline", counter: "Counter",
     planADate: "Plan a date", ideas: "Ideas", proposeADate: "Propose a $0 date",
     whatsThePlan: "What's the plan?", propose: "Propose",
@@ -2537,7 +2720,7 @@ const STRINGS = {
   tr: {
     roadmap1: "Ba\u011flant\u0131 kur",
     roadmap2: "Bulu\u015fma \u00f6ner",
-    roadmap3: "Ya da bir g\u00f6rev g\u00f6nder",
+    roadmap3: "Ya da bir TOM Date gönder",
     roadmap4: "Bu \"Ak\u015fam M\u00fcsaitim\" d\u00fc\u011fmesini kullan",
     roadmap5: "Ge\u00e7irdi\u011fin zaman\u0131 puanla",
     personThinks: "ki\u015fi zaman\u0131na de\u011fer buluyor", peopleThink: "ki\u015fi zaman\u0131na de\u011fer buluyor", seeWhoLikes: "TOM+ ile seni be\u011fenenleri g\u00f6r",
@@ -2606,14 +2789,14 @@ const STRINGS = {
     wlHook: "Hesap derdi olmadan", wlHookEm: "flört.",
     wlIntro: "Yakınındaki gerçek insanlar. Ücretsiz randevular. Kimse ödemiyor, kimse bir şey beklemiyor.",
     wlF1: "Kaydırmak ücretsiz. Eşleşmek ücretsiz. Buluşmak ücretsiz.", wlF1s: "Hiçbir tuzak yok. Sadece eşleş.",
-    wlF2: "Görev Randevuları", wlF2s: "104 ücretsiz randevu fikri. Birini seç, doğrudan eşleşmene gönder.",
-    wlF3: "Sohbette planla", wlF3s: "Bir gün ve saat seç. Kabul eder ya da başka bir zaman önerir.",
+    wlF2: "TOM Dates", wlF2s: "TOM'un seçtiği {n} ücretsiz randevu fikri. Birini seç, doğrudan eşleşmene gönder.",
+    wlF3: "Sohbette planla", wlF3s: "Bir gün ve saat seç. Kabul eder ya da başka bir zaman önerir.", wlFT: "Bu akşam müsaitim", wlFTs: "Tek dokunuşla yakınındakilere bu akşam müsait olduğunu söyle. Gece yarısı kendiliğinden kalkar.",
     wlF4: "Randevuyu puanla", wlF4s: "Sonrasında ikiniz de puanlıyorsunuz. İkinci bir randevu isteyip istemediğini öğren. Seni beğenip beğenmediğini tahmin etmeye gerek yok.",
     wlCreate: "Ücretsiz profilini oluştur", wlHave: "Zaten TOM'da mısın?", wlHow: "TOM nasıl çalışır", wlNear: "Yakınımda kimler var",
     wlBack: "Geri", wlHowLabel: "TOM NASIL ÇALIŞIR", wlHowTitle: "Sadece bir flört uygulaması değil.", wlHowTitleEm: "Gerçekten tanışmanın yolu.",
     wlS1s: "Her randevu ücretsiz. Kimse ödemiyor, kimse bir şey beklemiyor.",
     wlS2: "Yakınındaki gerçek insanlar", wlS2s: "Bitmeyen kaydırmalar yerine, çevrendeki insanlarla gerçek bağlar kur.",
-    wlS3s: "104 ücretsiz randevu fikri hazır. Birini seç ve doğrudan eşleşmene gönder. Artık \"ne yapalım?\" yok.",
+    wlS3s: "TOM'un seçtiği {n} ücretsiz randevu fikri. Birini seç ve doğrudan eşleşmene gönder. Artık \"ne yapalım?\" yok.",
     wlS4s: "Bir gün ve saat öner. Kabul eder, reddeder ya da başka bir zaman önerir.",
     wlS5: "İkiniz de randevuyu puanlıyorsunuz", wlS5s: "Buluştuktan sonra TOM ikinize de soruyor. Zamanınız iyi geçti mi? İkinci bir randevu ister misiniz? Bileceksin.",
     wlTwoMin: "Yaklaşık iki dakika sürer.",
@@ -2624,7 +2807,7 @@ const STRINGS = {
     privacy: "Gizlilik Politikası", and: "ve", language: "Dil",
     languageSub: "TOM'un sizinle hangi dilde konuşacağını seçin",
     findingPeople: "Yakınındaki kişiler aranıyor",
-    tabDiscover: "Keşfet", tabMissions: "Görevler", tabDates: "Bağlantılar", tabYou: "Sen",
+    tabDiscover: "Keşfet", tabMissions: "TOM Dates", tabDates: "Bağlantılar", tabYou: "Sen",
     closest: "EN YAKIN", mostInCommon: "EN ÇOK ORTAK NOKTA", primeTime: "ALTIN SAAT",
     pass: "GEÇ", goldenHour: "ALTIN SAAT", spendTime: "ZAMAN AYIR",
     seenEveryone: "Yakındaki herkesi gördün",
@@ -2659,12 +2842,12 @@ const STRINGS = {
     noAdmirers: "Henüz beğenen yok",
     noAdmirersSub: "Biri seni beğendiğinde önce burada görünür.",
     backToDiscover: "Keşfet'e dön",
-    missionDates: "Görev Buluşmaları",
-    missionSub: "Seçilmiş 0 TL buluşmalar. Birini seç, eşleşmene gönder. Her zaman isteğe bağlı.",
-    send: "Gönder", matchFirst: "Önce biriyle eşleş, sonra ona bir görev gönder.",
-    sendMissionTo: "Bu görevi şuna gönder", cancel: "İptal",
+    missionDates: "TOM Dates",
+    missionSub: "TOM'un seçtiği {n} ücretsiz randevu fikri. Birini seç, eşleşmene gönder.",
+    send: "Gönder", matchFirst: "Önce biriyle eşleş, sonra ona bir TOM Date gönder.",
+    sendMissionTo: "Bu TOM Date'i şuna gönder", cancel: "İptal",
     cancelSignupConfirm: "Hesap oluşturmayı durdurmak mı istiyorsun? Girdiğin bilgiler silinecek.",
-    sentMissionDate: "sana bir görev buluşması gönderdi", youSentMissionDate: "Bir görev buluşması gönderdin",
+    sentMissionDate: "sana bir TOM Date gönderdi", youSentMissionDate: "Bir TOM Date gönderdin",
     accept: "Kabul et", decline: "Reddet", counter: "Karşı öneri",
     planADate: "Buluşma planla", ideas: "Fikirler", proposeADate: "0 TL buluşma öner",
     whatsThePlan: "Plan ne?", propose: "Öner",
@@ -2709,7 +2892,7 @@ const STRINGS = {
   es: {
     roadmap1: "Haz conexiones",
     roadmap2: "Propon una cita",
-    roadmap3: "O env\u00eda una misi\u00f3n",
+    roadmap3: "O envía una TOM Date",
     roadmap4: "Usa el bot\u00f3n \"Libre esta noche\"",
     roadmap5: "Califica el tiempo que pasaron",
     personThinks: "persona cree que vales su tiempo", peopleThink: "personas creen que vales su tiempo", seeWhoLikes: "Ve qui\u00e9n te quiere con TOM+",
@@ -2778,14 +2961,14 @@ const STRINGS = {
     wlHook: "Citas sin", wlHookEm: "la cuenta.",
     wlIntro: "Gente real cerca de ti. Citas gratis. Nadie paga, así que nadie espera nada.",
     wlF1: "Deslizar es gratis. Hacer match es gratis. Las citas son gratis.", wlF1s: "Sin trampa. Solo haz match.",
-    wlF2: "Citas Misión", wlF2s: "104 ideas de citas gratis. Elige una y envíala directo a tu match.",
-    wlF3: "Planéala en el chat", wlF3s: "Elige día y hora. Acepta o propone otro momento.",
+    wlF2: "TOM Dates", wlF2s: "{n} ideas de citas gratis elegidas por TOM. Elige una y envíala directo a tu match.",
+    wlF3: "Planéala en el chat", wlF3s: "Elige día y hora. Acepta o propone otro momento.", wlFT: "Libre esta noche", wlFTs: "Con un toque, la gente cerca sabe que estás libre esta noche. Se borra sola a medianoche.",
     wlF4: "Califica la cita", wlF4s: "Los dos la califican después. Descubre si quiere una segunda. Sin adivinar si le gustaste o no.",
     wlCreate: "Crea tu perfil gratis", wlHave: "¿Ya estás en TOM?", wlHow: "Cómo funciona TOM", wlNear: "Quién está cerca",
     wlBack: "Atrás", wlHowLabel: "CÓMO FUNCIONA TOM", wlHowTitle: "No es solo una app de citas.", wlHowTitleEm: "Es una forma de conocerse de verdad.",
     wlS1s: "Todas las citas son gratis. Nadie paga, así que nadie espera nada.",
     wlS2: "Gente real cerca de ti", wlS2s: "Conoce gente de tu zona y crea conexiones reales, no deslices sin fin.",
-    wlS3s: "104 ideas de citas gratis, listas para usar. Elige una y envíala directo a tu match. Se acabó el \"¿y qué hacemos?\"",
+    wlS3s: "{n} ideas de citas gratis elegidas por TOM. Elige una y envíala directo a tu match. Se acabó el \"¿y qué hacemos?\"",
     wlS4s: "Propón día y hora. Acepta, rechaza o propone otro momento.",
     wlS5: "Los dos califican la cita", wlS5s: "Después de verse, TOM les pregunta a los dos. ¿Valió la pena? ¿Quieren una segunda cita? Lo sabrás.",
     wlTwoMin: "Toma unos dos minutos.",
@@ -2796,7 +2979,7 @@ const STRINGS = {
     privacy: "Política de Privacidad", and: "y", language: "Idioma",
     languageSub: "Elige cómo TOM te habla",
     findingPeople: "Buscando personas cerca de ti",
-    tabDiscover: "Descubrir", tabMissions: "Misiones", tabDates: "Conexiones", tabYou: "Tú",
+    tabDiscover: "Descubrir", tabMissions: "TOM Dates", tabDates: "Conexiones", tabYou: "Tú",
     closest: "MÁS CERCA", mostInCommon: "MÁS EN COMÚN", primeTime: "HORA ESTELAR",
     pass: "PASAR", goldenHour: "HORA DORADA", spendTime: "DAR TIEMPO",
     seenEveryone: "Ya viste a todos cerca de ti",
@@ -2831,12 +3014,12 @@ const STRINGS = {
     noAdmirers: "Aún no hay admiradores",
     noAdmirersSub: "Cuando alguien te dé me gusta, aparecerá aquí primero.",
     backToDiscover: "Volver a Descubrir",
-    missionDates: "Citas Misión",
-    missionSub: "Citas de $0 seleccionadas. Elige una y envíala. Siempre opcional.",
-    send: "Enviar", matchFirst: "Primero haz match con alguien y luego envíale una misión.",
-    sendMissionTo: "Enviar esta misión a", cancel: "Cancelar",
+    missionDates: "TOM Dates",
+    missionSub: "{n} ideas de citas gratis elegidas por TOM. Elige una y envíasela a un match.",
+    send: "Enviar", matchFirst: "Primero haz match con alguien y luego envíale una TOM Date.",
+    sendMissionTo: "Enviar esta TOM Date a", cancel: "Cancelar",
     cancelSignupConfirm: "¿Detener la creación de tu cuenta? Se descartará lo que hayas ingresado.",
-    sentMissionDate: "te envió una cita misión", youSentMissionDate: "Enviaste una cita misión",
+    sentMissionDate: "te envió una TOM Date", youSentMissionDate: "Enviaste una TOM Date",
     accept: "Aceptar", decline: "Rechazar", counter: "Contrapropuesta",
     planADate: "Planear una cita", ideas: "Ideas", proposeADate: "Propón una cita de $0",
     whatsThePlan: "¿Cuál es el plan?", propose: "Proponer",
@@ -2921,7 +3104,11 @@ function LanguageProvider({ children }) {
   TX_LANG = lang;
   // Tells the browser the page language, so CAPITALS follow Turkish rules (Şifre -> ŞİFRE)
   try { document.documentElement.lang = lang; } catch (e) {}
-  const t = React.useCallback((key) => (STRINGS[lang] && STRINGS[lang][key]) || STRINGS.en[key] || key, [lang]);
+  const t = React.useCallback((key, vars) => {
+    let out = (STRINGS[lang] && STRINGS[lang][key]) || STRINGS.en[key] || key;
+    if (vars) Object.keys(vars).forEach((k) => { out = out.split("{" + k + "}").join(String(vars[k])); });
+    return out;
+  }, [lang]);
   // Keyed on the language so every screen redraws in the new language at once
   return <LangCtx.Provider value={{ lang, setLang, t }}><React.Fragment key={lang}>{children}</React.Fragment></LangCtx.Provider>;
 }
@@ -2955,7 +3142,7 @@ function LanguageSelector({ top = false }) {
 
 // ================= Welcome / sign up gate =================
 // No guest browsing: people learn what TOM is here, then sign up to see anyone.
-// The "Who is near me" teaser never shows real photos or names.
+// The "Who is near me" teaser shows real member photos, heavily blurred, and never names.
 
 // Only show the "X people joined this week" line once the number is worth showing.
 const TEASER_MIN_COUNT = 10;
@@ -2965,7 +3152,7 @@ const WELCOME_HERO = TOM_HERO_IMG;
 
 // Real ideas from the Missions library, translated through useIdeaText()
 const TEASER_IDEAS = [
-  "Walk on ferry ride at golden hour, best story wins",
+  "Ferry ride at golden hour, best story wins",
   "Follow a street cat and see where it takes us",
   "Sunset picnic, you each bring something from home",
 ];
@@ -3022,8 +3209,8 @@ function WelcomeMain({ onPick, onLegal, go }) {
   const { t } = useLang();
   const features = [
     { icon: <WlIcon.Check />, title: "wlF1", sub: "wlF1s" },
-    { icon: <Ic.Compass s={24} c={T.royal} />, title: "wlF2", sub: "wlF2s" },
-    { icon: <WlIcon.Calendar />, title: "wlF3", sub: "wlF3s" },
+    { icon: <Ic.Bulb s={24} c={T.royal} />, title: "wlF2", sub: "wlF2s" },
+    { icon: <Ic.Moon s={24} c={T.royal} />, title: "wlFT", sub: "wlFTs" },
     { icon: <WlIcon.Star />, title: "wlF4", sub: "wlF4s" },
   ];
   return (
@@ -3045,8 +3232,8 @@ function WelcomeMain({ onPick, onLegal, go }) {
             <div key={f.title} style={{ display: "flex", alignItems: "center", gap: 12, background: WL_CARD, borderRadius: 18, padding: "11px 14px" }}>
               <span style={{ flexShrink: 0, display: "flex" }}>{f.icon}</span>
               <div style={{ display: "flex", flexDirection: "column", gap: 2, textAlign: "left" }}>
-                <span style={nu(800, 15, T.ink)}>{t(f.title)}</span>
-                <span style={{ ...nu(600, 13, WL_BODY), lineHeight: 1.35 }}>{t(f.sub)}</span>
+                <span style={nu(800, 15, T.ink)}>{t(f.title, { n: ALL_IDEAS.length })}</span>
+                <span style={{ ...nu(600, 13, WL_BODY), lineHeight: 1.35 }}>{t(f.sub, { n: ALL_IDEAS.length })}</span>
               </div>
             </div>
           ))}
@@ -3099,8 +3286,8 @@ function WelcomeHow({ onPick, go }) {
           <div key={s.title + i} style={{ display: "flex", gap: 14, background: s.dark ? WL_DARK : T.white, border: s.dark ? "none" : "1px solid #EEE7FC", borderRadius: 20, padding: 14 }}>
             <span style={{ flex: "0 0 40px", height: 40, borderRadius: 20, background: s.dark ? T.sun : T.royal, ...fr(700, 18, s.dark ? WL_DARK : T.white), display: "flex", alignItems: "center", justifyContent: "center" }}>{i + 1}</span>
             <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-              <span style={nu(800, 15, s.dark ? T.white : T.ink)}>{t(s.title)}</span>
-              <span style={{ ...nu(600, 13, s.dark ? "#E3D8FA" : WL_BODY), lineHeight: 1.4 }}>{t(s.sub)}</span>
+              <span style={nu(800, 15, s.dark ? T.white : T.ink)}>{t(s.title, { n: ALL_IDEAS.length })}</span>
+              <span style={{ ...nu(600, 13, s.dark ? "#E3D8FA" : WL_BODY), lineHeight: 1.4 }}>{t(s.sub, { n: ALL_IDEAS.length })}</span>
             </div>
           </div>
         ))}
@@ -3114,10 +3301,74 @@ function WelcomeHow({ onPick, go }) {
   );
 }
 
+// Teaser photos. The browser only downloads a tiny thumbnail (Supabase image
+// transformations), then blurs it, so nobody can be recognised before signing up.
+const TEASER_PHOTO_COUNT = 4;
+function teaserThumb(url) {
+  const marker = "/storage/v1/object/public/";
+  const i = url.indexOf(marker);
+  if (i < 0) return url;
+  const path = url.slice(i + marker.length).split("?")[0];
+  return url.slice(0, i) + "/storage/v1/render/image/public/" + path + "?width=80&height=100&resize=cover&quality=45";
+}
+const isPhotoUrl = (u) => typeof u === "string" && /^https?:\/\//.test(u);
+
+async function loadTeaserPhotos() {
+  // Preferred: tom-teaser-photos.sql adds a function that returns photo links only.
+  try {
+    const { data, error } = await supabase.rpc("teaser_photos", { p_limit: 8 });
+    if (!error && Array.isArray(data)) {
+      const urls = data.map((r) => (typeof r === "string" ? r : r && r.photo)).filter(isPhotoUrl);
+      if (urls.length) return urls;
+    }
+  } catch { /* fall through */ }
+  // Fallback while the SQL is not installed yet
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("avatar_url")
+      .not("avatar_url", "is", null)
+      .not("is_deleted", "is", true)
+      .not("off_the_clock", "is", true)
+      .order("created_at", { ascending: false })
+      .limit(24);
+    if (error || !Array.isArray(data)) return [];
+    const urls = [...new Set(data.map((r) => r.avatar_url).filter(isPhotoUrl))];
+    for (let i = urls.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [urls[i], urls[j]] = [urls[j], urls[i]]; }
+    return urls;
+  } catch { return []; }
+}
+
+function TeaserPhoto({ url, tint }) {
+  const [src, setSrc] = useState(() => teaserThumb(url));
+  const [shown, setShown] = useState(false);
+  return (
+    <div style={{ height: 140, borderRadius: 22, background: tint, overflow: "hidden", position: "relative" }}>
+      <img
+        src={src}
+        alt=""
+        draggable={false}
+        onLoad={() => setShown(true)}
+        // If thumbnails are switched off on the project, use the photo itself. The blur still applies.
+        onError={() => { if (src !== url) setSrc(url); }}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: "blur(13px) saturate(1.2)", transform: "scale(1.28)", opacity: shown ? 1 : 0, transition: "opacity .6s ease", userSelect: "none", pointerEvents: "none" }}
+      />
+      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(91,33,182,0) 35%, rgba(91,33,182,.28) 100%)" }} />
+    </div>
+  );
+}
+
 function WelcomeNear({ onPick, go }) {
   const { t } = useLang();
   const ideaText = useIdeaText();
   const [count, setCount] = useState(null);
+  const [photos, setPhotos] = useState(null); // null while loading
+
+  React.useEffect(() => {
+    let alive = true;
+    loadTeaserPhotos().then((urls) => { if (alive) setPhotos(urls); });
+    return () => { alive = false; };
+  }, []);
 
   React.useEffect(() => {
     let alive = true;
@@ -3160,7 +3411,13 @@ function WelcomeNear({ onPick, go }) {
 
       <div style={{ padding: "0 20px", position: "relative" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }} aria-hidden="true">
-          {tiles.map(([bg, head, body], i) => (
+          {photos === null && tiles.map(([bg], i) => (
+            <div key={i} style={{ height: 140, borderRadius: 22, background: bg, opacity: 0.6 }} />
+          ))}
+          {photos && photos.length >= 2 && photos.slice(0, photos.length >= TEASER_PHOTO_COUNT ? TEASER_PHOTO_COUNT : 2).map((url, i) => (
+            <TeaserPhoto key={url} url={url} tint={tiles[i % tiles.length][0]} />
+          ))}
+          {photos && photos.length < 2 && tiles.map(([bg, head, body], i) => (
             <div key={i} style={{ height: 140, borderRadius: 22, background: bg, overflow: "hidden", position: "relative" }}>
               <div style={{ position: "absolute", left: "50%", top: 30, width: 56, height: 56, marginLeft: -28, borderRadius: 28, background: head, filter: "blur(9px)" }} />
               <div style={{ position: "absolute", left: "50%", bottom: -30, width: 120, height: 80, marginLeft: -60, borderRadius: 60, background: body, filter: "blur(11px)" }} />
@@ -3937,7 +4194,7 @@ function Chat({ profile, onBack, onDateCompleted, myLoc, isPlus = false, onRepor
                   const MIcon = Ic[m.icon];
                   return (
                     <button key={m.id} onClick={() => setIdeaCat(m.id)} style={{ display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap", padding: "5px 10px", borderRadius: 999, border: `2px solid ${on ? T.royal : T.lilacDeep}`, background: on ? T.royal : T.white, cursor: "pointer", ...nu(700, 11.5, on ? T.white : T.royal) }}>
-                      <MIcon s={12} c={on ? T.white : T.royal} />{m.label}
+                      <MIcon s={12} c={on ? T.white : T.royal} />{catLabel(m)}
                     </button>
                   );
                 })}
@@ -3982,8 +4239,9 @@ function Chat({ profile, onBack, onDateCompleted, myLoc, isPlus = false, onRepor
           const showReceipt = isPlus && lastMine && Boolean(m.read_at);
           
           // Detect mission date ideas in messages
-          const isMissionIdea = m.body && m.body.startsWith("Mission Date idea: ");
-          const missionIdea = isMissionIdea ? m.body.replace("Mission Date idea: ", "") : null;
+          const ideaPrefix = m.body && (m.body.startsWith(DATE_IDEA_PREFIX) ? DATE_IDEA_PREFIX : m.body.startsWith(OLD_IDEA_PREFIX) ? OLD_IDEA_PREFIX : null);
+          const isMissionIdea = !!ideaPrefix;
+          const missionIdea = isMissionIdea ? ideaText(m.body.slice(ideaPrefix.length)) : null;
           
           return (
             <div key={m.id} style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "85%", display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start" }}>
@@ -5017,7 +5275,7 @@ function TomAppInner() {
   const sendMissionTo = async (p, idea) => {
     setMissionToSend(null);
     if (p.matchId) {
-      await api.sendMessage(p.matchId, `Mission Date idea: ${idea}`);
+      await api.sendMessage(p.matchId, `${DATE_IDEA_PREFIX}${idea}`);
     }
     setTab("matches");
     setChatWith(p);
@@ -5322,7 +5580,7 @@ function TomAppInner() {
 
   const tabs = [
     { id: "discover", icon: Ic.Hourglass, label: t("tabDiscover") },
-    { id: "missions", icon: Ic.Compass, label: t("tabMissions") },
+    { id: "missions", icon: Ic.Bulb, label: t("tabMissions") },
     { id: "matches", icon: Ic.Heart, label: t("tabDates") },
     { id: "profile", icon: Ic.Person, label: t("tabYou") },
   ];
